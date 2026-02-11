@@ -1,4 +1,4 @@
-from database import DatabaseManager
+from core.database import DatabaseManager
 
 # Change these to match your Neo4j settings
 NEO4J_URI = "bolt://localhost:7687"
