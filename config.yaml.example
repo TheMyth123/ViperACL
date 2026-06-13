@@ -1,0 +1,10 @@
+neo4j:
+  uri: bolt://localhost:7687
+  user: neo4j
+  password: YOUR_NEO4J_PASSWORD
+
+ldap:
+  dc_ip: YOUR_DC_IP
+  domain: YOUR_DOMAIN
+  user: YOUR_LDAP_USER
+  password: YOUR_LDAP_PASSWORD
