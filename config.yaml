@@ -1,0 +1,10 @@
+neo4j:
+  uri: bolt://localhost:7687
+  user: neo4j
+  password: bloodhoundcommunityedition
+
+ldap:
+  dc_ip: 172.16.5.5
+  domain: INLANEFREIGHT.LOCAL
+  user: INLANEFREIGHT\WLEY
+  password: transporter@4

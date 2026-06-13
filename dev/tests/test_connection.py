@@ -1,11 +1,10 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from core.database import DatabaseManager
 
-# Change these to match your Neo4j settings
-NEO4J_URI = "bolt://localhost:7687"
-NEO4J_USER = "neo4j"
-NEO4J_PASS = "bloodhoundcommunityedition" # Your actual password
-
-db = DatabaseManager(NEO4J_URI, NEO4J_USER, NEO4J_PASS)
+db = DatabaseManager()
 
 if db.connect():
     # Let's count how many Users are in your BloodHound database

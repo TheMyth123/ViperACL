@@ -1,11 +1,14 @@
 from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable, AuthError
+from utils.config_loader import load_config
 
 class DatabaseManager:
-    def __init__(self, uri, user, password):
-        self.uri = uri
-        self.user = user
-        self.password = password
+    def __init__(self):
+        config = load_config()
+        neo4j_config = config.get('neo4j', {})
+        self.uri = neo4j_config.get('uri')
+        self.user = neo4j_config.get('user')
+        self.password = neo4j_config.get('password')
         self.driver = None
 
     def connect(self):
@@ -36,10 +39,9 @@ class DatabaseManager:
             print("[!] Driver not initialized. Call connect() first.")
             return []
         
-        # .execute_query() is the modern recommended way for most operations
-        records, summary, keys = self.driver.execute_query(
-            query, 
-            parameters_=parameters,
-            database_="neo4j" # Default BloodHound database name
-        )
-        return records
+        results = []
+        with self.driver.session(database="neo4j") as session:
+            result = session.run(query, parameters or {})
+            for record in result:
+                results.append(dict(record))
+        return results

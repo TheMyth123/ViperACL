@@ -1,17 +1,26 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from core.database import DatabaseManager
-from core.pathfinder import Pathfinder
+from core.pathfinder.find_paths import Pathfinder
 from core.exploit import ExploitEngine
 from core.task_manager import TaskManager
+from core.abuse.confirm import PathConfirmer
 from ldap3 import Server, Connection, ALL
 
+from utils.config_loader import load_config
+config = load_config()
+ldap_config = config.get('ldap', {})
+
 # CONFIGURATION
-DC_IP = "172.16.5.5"
-DOMAIN = "INLANEFREIGHT.LOCAL"
-SOURCE_USER = "INLANEFREIGHT\\WLEY"
-SOURCE_PASS = "transporter@4"
+DC_IP = ldap_config.get('dc_ip')
+DOMAIN = ldap_config.get('domain')
+SOURCE_USER = ldap_config.get('user')
+SOURCE_PASS = ldap_config.get('password')
 
 # 1. Find the Path (Neo4j)
-db = DatabaseManager("bolt://localhost:7687", "neo4j", "bloodhoundcommunityedition")
+db = DatabaseManager()
 db.connect()
 pf = Pathfinder(db)
 path = pf.find_best_path("WLEY@INLANEFREIGHT.LOCAL", "ADUNN@INLANEFREIGHT.LOCAL")
