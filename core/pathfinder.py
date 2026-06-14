@@ -8,6 +8,9 @@ class Pathfinder:
             'DCSync': 0,          # Following aclpwn: if you have it, it's 'free'
             'GetChanges': 0,      # Part of DCSync
             'GetChangesAll': 0,   # Part of DCSync
+            # Test relationship types used for verification
+            'ADMIN_TO': 0,
+            'TEST_REL': 0,
             
             # Active Modifications (Standard)
             'AddMember': 1,

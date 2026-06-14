@@ -1,11 +1,10 @@
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from core.database import DatabaseManager
-from core.pathfinder.find_paths import Pathfinder
+from core.pathfinder import Pathfinder
 
-db = DatabaseManager("bolt://localhost:7687", "neo4j", "bloodhoundcommunityedition")
+db = DatabaseManager()
 if db.connect():
     pf = Pathfinder(db)
     
