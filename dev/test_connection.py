@@ -1,11 +1,12 @@
-from core.database import DatabaseManager
+import sys
+import os
+# This forces Python to add your root ViperACL folder to its search path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Change these to match your Neo4j settings
-NEO4J_URI = "bolt://localhost:7687"
-NEO4J_USER = "neo4j"
-NEO4J_PASS = "bloodhoundcommunityedition" # Your actual password
+from utils.database import DatabaseManager
 
-db = DatabaseManager(NEO4J_URI, NEO4J_USER, NEO4J_PASS)
+# Configuration loaded from config.yaml via DatabaseManager
+db = DatabaseManager()
 
 if db.connect():
     # Let's count how many Users are in your BloodHound database

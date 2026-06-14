@@ -1,6 +1,43 @@
-/.venv
+# =========================
+# Environments & Secrets
+# =========================
+.env
+.venv/
+venv/
+env/
+.yaml
+
+# =========================
+# Python Cache & Bytecode
+# =========================
+__pycache__
 __pycache__/
 *.py[cod]
-venv/
-.env
+*$py.class
+
+# =========================
+# Packaging & Distribution
+# =========================
+build/
+dist/
+*.egg-info/
+
+# =========================
+# IDEs & Tools
+# =========================
 .vscode/
+.roo/
+
+# =========================
+# OS Generated Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Data & Archives
+# =========================
+*.csv
+*.zip
+# Exclude configuration with credentials
+config.yaml

@@ -1,7 +1,12 @@
-from core.database import DatabaseManager
-from core.pathfinder import Pathfinder
-from core.exploit import ExploitEngine
-from core.task_manager import TaskManager
+import sys
+import os
+# This forces Python to add your root ViperACL folder to its search path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.database import DatabaseManager
+from core.pathfinder.pathfinder import Pathfinder
+from core.privesc.exploit import ExploitEngine
+from core.privesc.task_manager import TaskManager
 from ldap3 import Server, Connection, ALL
 
 # CONFIGURATION
@@ -11,7 +16,7 @@ SOURCE_USER = "INLANEFREIGHT\\WLEY"
 SOURCE_PASS = "transporter@4"
 
 # 1. Find the Path (Neo4j)
-db = DatabaseManager("bolt://localhost:7687", "neo4j", "bloodhoundcommunityedition")
+db = DatabaseManager()
 db.connect()
 pf = Pathfinder(db)
 path = pf.find_best_path("WLEY@INLANEFREIGHT.LOCAL", "ADUNN@INLANEFREIGHT.LOCAL")
