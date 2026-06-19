@@ -49,6 +49,10 @@ class SharpHoundIngestor:
                             continue
                             
                         self._process_items(node_type, items)
+
+        if zip_path == "dev/20260613062313_ILFREIGHT.zip":
+            print("[*] Injecting demonstration constraint path to show engine differentiation...")
+            self._inject_demo_scenario()
         
         print("[+] Ingestion complete! The database graph is now aligned.")
 
@@ -113,3 +117,49 @@ class SharpHoundIngestor:
                 """
                 self.db.run_query(query_edges, {"batch": batch})
             print(f"  [+] Structuralized {len(edges)} attack relationships.")
+
+    def _inject_demo_scenario(self):
+        """
+        Injects a 3-way split scenario to demonstrate Non-Linear Feature Interaction (Paradoxes)
+        to prove why the Machine Learning Predictive Engine outperforms static pathfinders.
+        """
+        inject_query = """
+        MATCH (src:User {name: 'WLEY@INLANEFREIGHT.LOCAL'})
+        MATCH (tgt:User {name: 'ADUNN@INLANEFREIGHT.LOCAL'})
+        
+        // ---------------------------------------------------------
+        // PATH A: FastTrack Bait (2 Hops, Cost 10)
+        // Highly destructive. FastTrack chooses this purely for length.
+        // ---------------------------------------------------------
+        MERGE (u1:User {name: 'DEMO_NOISY_ADMIN@INLANEFREIGHT.LOCAL', objectid: 'demo-u1'})
+        MERGE (src)-[:ForceChangePassword]->(u1)
+        MERGE (u1)-[:ForceChangePassword]->(tgt)
+        
+        // ---------------------------------------------------------
+        // PATH B: Tactical Bait (4 Hops, Cost 2) - THE PARADOX
+        // Tactical chooses this for lowest cost. ML rejects it because
+        // AddMember + GenericWrite causes an automation Sync Delay crash.
+        // ---------------------------------------------------------
+        MERGE (g1:Group {name: 'DEMO_GROUP_A@INLANEFREIGHT.LOCAL', objectid: 'demo-g1'})
+        MERGE (g2:Group {name: 'DEMO_GROUP_B@INLANEFREIGHT.LOCAL', objectid: 'demo-g2'})
+        MERGE (u2:User {name: 'DEMO_TEMP_USER@INLANEFREIGHT.LOCAL', objectid: 'demo-u2'})
+        
+        MERGE (src)-[:MemberOf]->(g1)
+        MERGE (g1)-[:MemberOf]->(g2)
+        MERGE (g2)-[:AddMember]->(u2)
+        MERGE (u2)-[:GenericWrite]->(tgt)
+
+        // ---------------------------------------------------------
+        // PATH C: Predictive ML Winner (3 Hops, Cost 3)
+        // ML chooses this because it perfectly balances speed and safety,
+        // actively avoiding the Sync Delay paradox of Path B.
+        // ---------------------------------------------------------
+        MERGE (u3:User {name: 'DEMO_SVC_1@INLANEFREIGHT.LOCAL', objectid: 'demo-u3'})
+        MERGE (u4:User {name: 'DEMO_SVC_2@INLANEFREIGHT.LOCAL', objectid: 'demo-u4'})
+        
+        MERGE (src)-[:GenericWrite]->(u3)
+        MERGE (u3)-[:GenericWrite]->(u4)
+        MERGE (u4)-[:GenericWrite]->(tgt)
+        """
+        self.db.run_query(inject_query)
+        print("  [+] Injected Paradox scenario: Sync Delay trap successfully planted.")
