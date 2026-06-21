@@ -21,7 +21,7 @@ db.connect()
 pf = Pathfinder(db)
 path = pf.find_best_path("WLEY@INLANEFREIGHT.LOCAL", "ADUNN@INLANEFREIGHT.LOCAL")
 
-server = Server(DC_IP, use_ssl=True, get_info=ALL)
+server = Server(DC_IP, use_ssl=True, get_info=None)
 conn = Connection(server, user=SOURCE_USER, password=SOURCE_PASS, auto_bind=True)
 
 # 2. Initialize Engine with Config
