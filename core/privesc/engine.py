@@ -35,8 +35,9 @@ class PrivescEngine:
             rels = []
             for i in range(0, len(path) - 2, 2):
                 rel_type = path[i + 1]
+                start_node = self._node_to_dict(path[i])
                 end_node = self._node_to_dict(path[i + 2])
-                rels.append(SimpleNamespace(type=rel_type, end_node=end_node))
+                rels.append(SimpleNamespace(type=rel_type, start_node=start_node, end_node=end_node))
             return rels
 
         raise TypeError("Unsupported path format: expected Neo4j Path or predictive list path")
@@ -70,7 +71,12 @@ class PrivescEngine:
         logging.info(f"=== PRIVESC START: {total} steps ===")
 
         for i, (rel, module) in enumerate(self.task_queue, 1):
-            target = rel.end_node.get("name") or rel.end_node.get("distinguishedname")
+            target = (
+                rel.end_node.get("name")
+                or rel.end_node.get("distinguishedname")
+                or rel.start_node.get("name")
+                or rel.start_node.get("distinguishedname")
+            )
             logging.info(f"[{i}/{total}] {rel.type} -> {target}")
 
             success = module.execute(rel, self.context)

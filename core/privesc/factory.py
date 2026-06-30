@@ -8,11 +8,13 @@ EDGE_MODULE_MAP = {
     # passive.py
     "MemberOf": ("passive", "PassiveModule"),
     "DCSync": ("passive", "PassiveModule"),
+    "GetChanges": ("passive", "PassiveModule"),
     "GetChangesAll": ("passive", "PassiveModule"),
     # standard.py
     "AddMember": ("standard", "StandardModule"),
     "GenericWrite": ("standard", "StandardModule"),
     "GenericAll": ("standard", "StandardModule"),
+    "AllExtendedRights": ("standard", "StandardModule"),
     # structural.py
     "WriteDacl": ("structural", "StructuralModule"),
     "Owns": ("structural", "StructuralModule"),

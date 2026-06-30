@@ -10,6 +10,7 @@ class DestructiveModule:
         self.engine = engine
         self.actions = PrivescActions(engine)
 
+    # ForceChangePassword is destructive privilege abuse.
     def execute(self, rel, context) -> bool:
         target_dn = rel.end_node.get("distinguishedname")
         target_name = rel.end_node.get("name") or target_dn
