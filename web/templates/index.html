@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ settings.title }}</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">ViperACL base</p>
+        <h1>Web-first attack path planning</h1>
+        <p class="lede">
+          The app boots as a local web service, assigns a port on startup, and connects to your own Neo4j instance.
+        </p>
+      </div>
+      <div class="status-card">
+        <span class="status-label">Server</span>
+        <strong>Ready for expansion</strong>
+        <p>{{ settings.host }} : auto port</p>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <h2>Database</h2>
+        <dl>
+          <div><dt>Connected</dt><dd>{{ snapshot.connected }}</dd></div>
+          <div><dt>URI</dt><dd>{{ snapshot.uri }}</dd></div>
+          <div><dt>Database</dt><dd>{{ snapshot.database }}</dd></div>
+          <div><dt>Nodes</dt><dd>{{ snapshot.nodes if snapshot.nodes is not none else "n/a" }}</dd></div>
+          <div><dt>Relationships</dt><dd>{{ snapshot.relationships if snapshot.relationships is not none else "n/a" }}</dd></div>
+        </dl>
+      </article>
+
+      <article class="panel">
+        <h2>Foundation</h2>
+        <ul>
+          <li>FastAPI web host</li>
+          <li>Dedicated Neo4j service</li>
+          <li>Config-driven startup</li>
+          <li>API surface ready for UI work</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
