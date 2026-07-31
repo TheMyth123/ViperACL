@@ -1,6 +1,5 @@
-# dev/test_path.py
-import sys
 import os
+import sys
 import joblib
 
 # Forces Python to add your root ViperACL folder to its search path
@@ -53,8 +52,11 @@ if __name__ == "__main__":
     if db.connect():
         pf = PathfinderCoordinator(db)
         
-        source = "WLEY@INLANEFREIGHT.LOCAL"
-        target = "ADUNN@INLANEFREIGHT.LOCAL"
+        # source = "WLEY@INLANEFREIGHT.LOCAL"
+        # target = "ADUNN@INLANEFREIGHT.LOCAL"
+
+        source = "BOB_HR@VIPERTECH.LOCAL"
+        target = "SUSAN_ADMIN@VIPERTECH.LOCAL"
         
         print(f"\nTargeting: {source} -> {target}\n")
 

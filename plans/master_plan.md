@@ -17,7 +17,7 @@ ViperACL/
 │   │   └─ __init__.py       # Extract SharpHound zip & load into Neo4j
 │   ├─ pathfinder/
 │   │   ├─ __init__.py
-│   │   └─ pathfinder.py     # BloodHound‑style shortest‑path algorithm
+│   │   └─ pathfinder.py     # Neo4j-backed shortest‑path algorithm
 │   ├─ privesc/              # Privilege escalation and exploitation workflow
 │   │   ├─ __init__.py
 │   │   ├─ exploit.py        

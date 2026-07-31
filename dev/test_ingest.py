@@ -20,7 +20,7 @@ def main():
     ingestor.clear_database()
 
     # 3. Run Ingestion (Point to your SharpHound zip)
-    zip_target = "dev/20260613062313_ILFREIGHT.zip"
+    zip_target = "dev/20260702105422_VIPERTECH.zip"
     ingestor.ingest_zip(zip_target)
 
     # 4. Close DB
