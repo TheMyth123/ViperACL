@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ViperACL - Global Audit Logs</title>
+<meta name="description" content="ViperACL centralized forensic audit log viewer — real-time streaming, filtering, and permanent log evidence."/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container": "#1a211d",
+                    "secondary-container": "#03b5d3",
+                    "background": "#0e1511",
+                    "outline": "#86948a",
+                    "on-tertiary-fixed-variant": "#5516be",
+                    "on-surface-variant": "#bbcabf",
+                    "surface-container-low": "#161d19",
+                    "on-tertiary": "#3c0091",
+                    "on-tertiary-container": "#4600a7",
+                    "surface-container-highest": "#2f3632",
+                    "surface-container-high": "#242c27",
+                    "inverse-primary": "#006c49",
+                    "on-background": "#dde4dd",
+                    "surface": "#0e1511",
+                    "primary-container": "#10b981",
+                    "primary": "#4edea3",
+                    "on-secondary-container": "#00424e",
+                    "on-primary": "#003824",
+                    "on-error-container": "#ffdad6",
+                    "secondary-fixed": "#acedff",
+                    "on-primary-fixed-variant": "#005236",
+                    "on-primary-container": "#00422b",
+                    "on-error": "#690005",
+                    "secondary": "#4cd7f6",
+                    "surface-bright": "#343b36",
+                    "tertiary-container": "#b090ff",
+                    "tertiary": "#d0bcff",
+                    "primary-fixed-dim": "#4edea3",
+                    "on-secondary-fixed-variant": "#004e5c",
+                    "surface-dim": "#0e1511",
+                    "surface-variant": "#2f3632",
+                    "surface-container-lowest": "#09100c",
+                    "on-secondary-fixed": "#001f26",
+                    "inverse-on-surface": "#2b322d",
+                    "inverse-surface": "#dde4dd",
+                    "error": "#ffb4ab",
+                    "primary-fixed": "#6ffbbe",
+                    "on-secondary": "#003640",
+                    "on-primary-fixed": "#002113",
+                    "on-tertiary-fixed": "#23005c",
+                    "tertiary-fixed": "#e9ddff",
+                    "outline-variant": "#3c4a42",
+                    "secondary-fixed-dim": "#4cd7f6",
+                    "on-surface": "#dde4dd",
+                    "error-container": "#93000a",
+                    "surface-tint": "#4edea3",
+                    "tertiary-fixed-dim": "#d0bcff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "16px",
+                    "base": "4px",
+                    "container-max": "1440px",
+                    "margin-mobile": "16px",
+                    "margin-desktop": "32px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "label-md": ["JetBrains Mono"],
+                    "headline-xl": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "label-sm": ["JetBrains Mono"],
+                    "headline-md": ["Inter"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "label-md": ["13px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        }
+      }
+    </script>
+<style>
+        html, body { width: 100%; height: 100%; overflow: hidden; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        .font-jetbrains { font-family: 'JetBrains Mono', monospace; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .fill-icon { font-variation-settings: 'FILL' 1; }
+
+        .btn-new-project {
+            background-color: #10b981 !important;
+            color: #00422b !important;
+            border-left: 4px solid #4edea3 !important;
+            font-weight: 700 !important;
+            transition: all 0.15s ease-in-out !important;
+        }
+        .btn-new-project:hover {
+            background-color: #4edea3 !important;
+            color: #002113 !important;
+            box-shadow: 0 4px 16px rgba(78, 222, 163, 0.4) !important;
+        }
+
+        /* Log severity level badges */
+        .badge-debug { background: rgba(142,165,155,0.15); color: #8ea59b; border: 1px solid rgba(142,165,155,0.25); }
+        .badge-info { background: rgba(78,222,163,0.12); color: #4edea3; border: 1px solid rgba(78,222,163,0.25); }
+        .badge-warning { background: rgba(255,190,92,0.12); color: #ffbe5c; border: 1px solid rgba(255,190,92,0.25); }
+        .badge-error { background: rgba(255,127,127,0.12); color: #ff7f7f; border: 1px solid rgba(255,127,127,0.25); }
+        .badge-critical { background: rgba(208,188,255,0.15); color: #d0bcff; border: 1px solid rgba(208,188,255,0.3); }
+
+        /* Category chips */
+        .chip-system { background: rgba(142,165,155,0.1); color: #8ea59b; border: 1px solid rgba(142,165,155,0.2); }
+        .chip-ingest { background: rgba(76,215,246,0.1); color: #4cd7f6; border: 1px solid rgba(76,215,246,0.2); }
+        .chip-project { background: rgba(78,222,163,0.1); color: #4edea3; border: 1px solid rgba(78,222,163,0.2); }
+        .chip-pathfinder { background: rgba(208,188,255,0.1); color: #d0bcff; border: 1px solid rgba(208,188,255,0.2); }
+        .chip-privesc { background: rgba(255,190,92,0.1); color: #ffbe5c; border: 1px solid rgba(255,190,92,0.2); }
+        .chip-remediation { background: rgba(255,127,127,0.1); color: #ff7f7f; border: 1px solid rgba(255,127,127,0.2); }
+        .chip-database { background: rgba(76,215,246,0.1); color: #4cd7f6; border: 1px solid rgba(76,215,246,0.2); }
+        .chip-config { background: rgba(142,165,155,0.1); color: #8ea59b; border: 1px solid rgba(142,165,155,0.2); }
+        .chip-auth { background: rgba(255,190,92,0.1); color: #ffbe5c; border: 1px solid rgba(255,190,92,0.2); }
+        .chip-api { background: rgba(78,222,163,0.1); color: #4edea3; border: 1px solid rgba(78,222,163,0.2); }
+
+        /* Log row */
+        .log-row {
+            transition: background-color 0.15s ease;
+            border-bottom: 1px solid rgba(60, 74, 66, 0.3);
+        }
+        .log-row:hover {
+            background-color: rgba(255,255,255,0.02);
+        }
+        .log-row.expanded {
+            background-color: rgba(78,222,163,0.03);
+        }
+
+        /* Filter button states */
+        .filter-btn {
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+        .filter-btn.active {
+            background: rgba(78,222,163,0.15);
+            border-color: rgba(78,222,163,0.4);
+            color: #4edea3;
+        }
+
+        /* Scroll container */
+        .log-container::-webkit-scrollbar { width: 6px; }
+        .log-container::-webkit-scrollbar-track { background: transparent; }
+        .log-container::-webkit-scrollbar-thumb { background: rgba(142,165,155,0.2); border-radius: 3px; }
+        .log-container::-webkit-scrollbar-thumb:hover { background: rgba(142,165,155,0.35); }
+
+        /* Stream status pulse */
+        @keyframes stream-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .stream-active { animation: stream-pulse 2s ease-in-out infinite; }
+
+        /* New log entry flash */
+        @keyframes log-flash-in {
+            0% { background-color: rgba(78,222,163,0.12); }
+            100% { background-color: transparent; }
+        }
+        .log-flash { animation: log-flash-in 1.5s ease-out; }
+
+        .nav-link-active {
+            background-color: rgba(78,222,163,0.1);
+            color: #4edea3 !important;
+            border-left: 3px solid #4edea3;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface flex min-h-screen h-screen overflow-hidden">
+
+{% include 'sidebar.html' %}
+
+<!-- Main Content Area -->
+<main class="flex-1 ml-64 w-[calc(100%-16rem)] h-screen max-h-screen flex flex-col bg-background overflow-hidden box-border">
+
+<!-- Top Header Bar -->
+<header class="w-full flex-shrink-0 px-6 pt-5 pb-3 border-b border-outline-variant/40">
+<div class="flex items-center justify-between">
+<div>
+<h1 class="text-headline-lg font-headline-lg text-on-surface font-bold flex items-center gap-2 tracking-tight">
+<span class="material-symbols-outlined text-primary text-2xl">terminal</span>
+Global Audit Logs
+</h1>
+<p class="text-body-md font-body-md text-on-surface-variant mt-0.5">Persistent forensic evidence trail — every system action recorded permanently.</p>
+</div>
+<div class="flex items-center gap-3">
+<!-- Stream Status -->
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border font-jetbrains text-xs font-bold" id="stream-status">
+<span class="w-2 h-2 rounded-full bg-[#8ea59b]" id="stream-dot"></span>
+<span id="stream-label">Connecting...</span>
+</div>
+<!-- Log Count -->
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container border border-outline-variant/50 font-jetbrains text-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">receipt_long</span>
+<span id="log-total-count">0</span> entries
+</div>
+</div>
+</div>
+</header>
+
+<!-- Filter Toolbar -->
+<div class="flex-shrink-0 px-6 py-3 border-b border-outline-variant/30 flex items-center gap-3 flex-wrap">
+<!-- Level Filters -->
+<div class="flex items-center gap-1.5" id="level-filters">
+<span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mr-1">Level:</span>
+<button class="filter-btn px-2.5 py-1 rounded text-[11px] font-bold border border-outline-variant/40 text-on-surface-variant hover:text-on-surface" data-level="DEBUG">
+DEBUG <span class="opacity-60 ml-0.5" data-level-count="DEBUG">0</span>
+</button>
+<button class="filter-btn active px-2.5 py-1 rounded text-[11px] font-bold border border-outline-variant/40 text-on-surface-variant hover:text-on-surface" data-level="INFO">
+INFO <span class="opacity-60 ml-0.5" data-level-count="INFO">0</span>
+</button>
+<button class="filter-btn active px-2.5 py-1 rounded text-[11px] font-bold border border-outline-variant/40 text-on-surface-variant hover:text-on-surface" data-level="WARNING">
+WARNING <span class="opacity-60 ml-0.5" data-level-count="WARNING">0</span>
+</button>
+<button class="filter-btn active px-2.5 py-1 rounded text-[11px] font-bold border border-outline-variant/40 text-on-surface-variant hover:text-on-surface" data-level="ERROR">
+ERROR <span class="opacity-60 ml-0.5" data-level-count="ERROR">0</span>
+</button>
+<button class="filter-btn active px-2.5 py-1 rounded text-[11px] font-bold border border-outline-variant/40 text-on-surface-variant hover:text-on-surface" data-level="CRITICAL">
+CRITICAL <span class="opacity-60 ml-0.5" data-level-count="CRITICAL">0</span>
+</button>
+</div>
+
+<!-- Separator -->
+<div class="w-px h-5 bg-outline-variant/40"></div>
+
+<!-- Category Filter -->
+<div class="flex items-center gap-1.5">
+<span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mr-1">Category:</span>
+<select id="category-filter" class="bg-surface-container-low border border-outline-variant rounded px-2.5 py-1 text-[11px] text-on-surface font-jetbrains focus:border-primary focus:outline-none cursor-pointer">
+<option value="">All Categories</option>
+<option value="SYSTEM">SYSTEM</option>
+<option value="INGEST">INGEST</option>
+<option value="PROJECT">PROJECT</option>
+<option value="PATHFINDER">PATHFINDER</option>
+<option value="PRIVESC">PRIVESC</option>
+<option value="REMEDIATION">REMEDIATION</option>
+<option value="DATABASE">DATABASE</option>
+<option value="CONFIG">CONFIG</option>
+<option value="AUTH">AUTH</option>
+<option value="API">API</option>
+</select>
+</div>
+
+<!-- Separator -->
+<div class="w-px h-5 bg-outline-variant/40"></div>
+
+<!-- Project Filter -->
+<div class="flex items-center gap-1.5">
+<span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mr-1">Project:</span>
+<select id="project-filter" class="bg-surface-container-low border border-outline-variant rounded px-2.5 py-1 text-[11px] text-on-surface font-jetbrains focus:border-primary focus:outline-none cursor-pointer">
+<option value="">All Projects &amp; System</option>
+<option value="__NONE__">System / Global (No Project)</option>
+</select>
+</div>
+
+<!-- Separator -->
+<div class="w-px h-5 bg-outline-variant/40"></div>
+
+<!-- Search -->
+<div class="flex items-center gap-1.5 flex-1 max-w-xs">
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm pointer-events-none">search</span>
+<input type="text" id="search-input" placeholder="Search logs..." class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-3 py-1 text-[11px] text-on-surface font-jetbrains focus:border-primary focus:outline-none placeholder:text-on-surface-variant/50" />
+</div>
+</div>
+
+<!-- Spacer -->
+<div class="flex-1"></div>
+
+<!-- Action Buttons -->
+<div class="flex items-center gap-2">
+<button id="btn-auto-scroll" class="filter-btn active flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold border border-outline-variant/40 text-on-surface-variant hover:text-on-surface" title="Auto-scroll to latest">
+<span class="material-symbols-outlined text-sm">vertical_align_bottom</span>
+Auto-scroll
+</button>
+<button id="btn-pause-stream" class="filter-btn flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold border border-outline-variant/40 text-on-surface-variant hover:text-on-surface" title="Pause/Resume stream">
+<span class="material-symbols-outlined text-sm" id="pause-icon">pause</span>
+<span id="pause-label">Pause</span>
+</button>
+<button id="btn-export" class="filter-btn flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold border border-outline-variant/40 text-on-surface-variant hover:text-on-surface" title="Export visible logs as JSONL">
+<span class="material-symbols-outlined text-sm">download</span>
+Export
+</button>
+<button id="btn-clear-display" class="filter-btn flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold border border-outline-variant/40 text-on-surface-variant hover:text-on-surface" title="Clear display (logs are preserved on disk)">
+<span class="material-symbols-outlined text-sm">clear_all</span>
+Clear
+</button>
+</div>
+</div>
+
+<!-- Log Table Header -->
+<div class="flex-shrink-0 px-6 py-1.5 border-b border-outline-variant/50 bg-surface-container-low/50 grid grid-cols-[180px_70px_90px_140px_1fr_220px] gap-3 items-center">
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Timestamp</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Level</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Category</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Action</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Message</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Project</span>
+</div>
+
+<!-- Log Entries Container -->
+<div class="flex-1 overflow-y-auto log-container" id="log-container">
+<!-- Dynamic log entries rendered by logs.js -->
+<div class="flex items-center justify-center h-full text-on-surface-variant text-sm" id="log-empty-state">
+<div class="text-center">
+<span class="material-symbols-outlined text-4xl text-outline mb-2 block">receipt_long</span>
+<p class="font-bold text-on-surface-variant mb-1">Waiting for log entries...</p>
+<p class="text-xs text-on-surface-variant/60">Logs will appear here in real-time as actions are performed.</p>
+</div>
+</div>
+</div>
+
+<!-- Footer Status Bar -->
+<div class="flex-shrink-0 px-6 py-1.5 border-t border-outline-variant/40 bg-surface-container-low/30 flex items-center justify-between text-[10px] font-jetbrains text-on-surface-variant">
+<div class="flex items-center gap-4">
+<span>Displayed: <strong id="displayed-count" class="text-on-surface">0</strong></span>
+<span>Total on disk: <strong id="disk-count" class="text-on-surface">0</strong></span>
+<span>Storage: <strong class="text-on-surface">data/logs/viperacl_audit.jsonl</strong></span>
+</div>
+<div class="flex items-center gap-4">
+<span>Stream: <strong id="footer-stream-state" class="text-primary">connecting</strong></span>
+<span>Last entry: <strong id="last-entry-time" class="text-on-surface">—</strong></span>
+</div>
+</div>
+
+</main>
+
+<script>
+  window.VIPERACL_STATE = {
+    healthUrl: "/api/health",
+    logsUrl: "/api/logs",
+    logsStreamUrl: "/api/logs/stream",
+    logsStatsUrl: "/api/logs/stats",
+    projectsUrl: "/api/projects"
+  };
+</script>
+<script src="/static/sidebar.js?v=1"></script>
+<script src="/static/logs.js?v=2"></script>
+</body></html>

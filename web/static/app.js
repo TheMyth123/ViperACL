@@ -83,51 +83,9 @@ function appendConsole(message, tone = "neutral") {
 }
 
 function renderProjectsDrawer(projects, activeProjectId) {
-  if (!elements.projectsDrawer) return;
-
-  if (!projects || projects.length === 0) {
-    elements.projectsDrawer.innerHTML = '<div class="text-xs text-on-surface-variant italic px-3 py-1">No saved projects</div>';
-    return;
+  if (typeof renderGlobalProjectsDrawer === "function") {
+    renderGlobalProjectsDrawer(projects, activeProjectId);
   }
-
-  elements.projectsDrawer.innerHTML = "";
-
-  projects.forEach((proj) => {
-    const item = document.createElement("div");
-    item.className = "flex items-center justify-between p-2 px-2.5 rounded text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border border-outline-variant/30 transition-colors group cursor-default";
-
-    item.innerHTML = `
-      <div class="flex items-center gap-2 overflow-hidden flex-1 select-none">
-        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-primary/60"></span>
-        <div class="truncate">
-          <div class="truncate font-medium text-on-surface">${proj.name}</div>
-          <div class="text-[10px] text-on-surface-variant opacity-70">${proj.nodes || 0} nodes · ${proj.relationships || 0} rels</div>
-        </div>
-      </div>
-      <button class="delete-proj-btn opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error p-1 transition-opacity cursor-pointer" data-id="${proj.project_id}" title="Delete project">
-        <span class="material-symbols-outlined text-sm pointer-events-none">delete</span>
-      </button>
-    `;
-
-    // Click item body: irresponsive for now until project view/dashboard is implemented
-    item.addEventListener("click", (e) => {
-      if (e.target.closest(".delete-proj-btn")) return;
-      // Intentionally irresponsive until multi-phase project dashboard is built
-    });
-
-    // Click trash to delete project
-    const delBtn = item.querySelector(".delete-proj-btn");
-    if (delBtn) {
-      delBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (confirm(`Delete project "${proj.name}" and remove its Neo4j graph data?`)) {
-          deleteProject(proj.project_id);
-        }
-      });
-    }
-
-    elements.projectsDrawer.appendChild(item);
-  });
 }
 
 async function selectProject(projectId) {
@@ -672,7 +630,7 @@ function wireEvents() {
         } else if (action === "refresh-status") {
           openSettingsModal();
         } else if (action === "open-logs") {
-          setConsole("Global logs are not wired yet; use the workflow controls below.", "muted");
+          window.location.href = "/logs";
         }
       } catch (error) {
         setConsole(`${action} failed: ${error.message}`, "muted");

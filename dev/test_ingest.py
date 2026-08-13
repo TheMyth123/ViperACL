@@ -23,7 +23,7 @@ def main():
     # 2. Project 1: Primary Target (Latest ZIP)
     p1_id = "proj_20260702105422_VIPERTECH"
     p1_name = "VIPERTECH Primary Domain"
-    p1_zip = "dev/20260702105422_VIPERTECH.zip"
+    p1_zip = "dev/202607002052333_VIPERTECH.zip"
 
     ingestor1 = SharpHoundIngestor(db, project_id=p1_id)
     ingestor1.clear_database(project_id=p1_id)

@@ -1,0 +1,251 @@
+<!-- ViperACL Reusable Sidebar & Global Modals Partial -->
+
+<!-- SideNavBar -->
+<nav class="flex bg-surface-container fixed left-0 top-0 h-full w-64 border-r border-outline-variant shadow-lg flex-col py-5 gap-2 z-40">
+  <!-- Header -->
+  <div class="px-5 pb-5 mb-1 border-b border-outline-variant">
+    <a href="/" class="block no-underline">
+      <h1 class="text-headline-md font-headline-md font-black text-primary flex items-center gap-2 tracking-tight">
+        <span class="material-symbols-outlined fill-icon text-primary">security</span>
+        ViperACL
+      </h1>
+    </a>
+    <p class="text-label-sm font-label-sm text-on-surface-variant mt-1 tracking-widest uppercase">Tactical Command</p>
+  </div>
+
+  <!-- Navigation Links -->
+  <div class="flex-1 px-3 space-y-2">
+    <!-- Launchpad / Home link -->
+    <a href="/" class="w-full flex items-center gap-3 rounded-lg px-4 py-2.5 text-left no-underline cursor-pointer transition-all {{ 'btn-new-project' if active_page == 'launchpad' else 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}">
+      <span class="material-symbols-outlined fill-icon pointer-events-none">dashboard</span>
+      <span class="text-label-md font-label-md font-bold pointer-events-none">Launchpad</span>
+    </a>
+
+    <!-- New Project Trigger -->
+    <button class="w-full flex items-center gap-3 text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer" id="open-new-project-modal-btn" type="button">
+      <span class="material-symbols-outlined fill-icon pointer-events-none">add_box</span>
+      <span class="text-label-md font-label-md pointer-events-none">New Project</span>
+    </button>
+
+    <!-- Projects Archive Accordion Drawer -->
+    <details class="group rounded-lg transition-all" id="archive-details">
+      <summary class="w-full flex items-center justify-between text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden" id="toggle-archive-btn">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined">inventory_2</span>
+          <span class="text-label-md font-label-md">Projects Archive</span>
+        </div>
+        <span class="material-symbols-outlined text-sm inline-block transition-transform duration-200 group-open:rotate-180" id="archive-chevron">expand_more</span>
+      </summary>
+      <div class="pl-2 pr-1 py-1.5 space-y-1.5 max-h-56 overflow-y-auto" id="projects-drawer">
+        <!-- Dynamic list of projects rendered with delete buttons by sidebar.js -->
+        <div class="text-xs text-on-surface-variant italic px-3 py-1">Loading projects...</div>
+      </div>
+    </details>
+
+    <!-- Global Logs Link -->
+    <a class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all no-underline cursor-pointer {{ 'nav-link-active' if active_page == 'logs' else 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}" href="/logs">
+      <span class="material-symbols-outlined">terminal</span>
+      <span class="text-label-md font-label-md font-bold">Global Logs</span>
+    </a>
+
+    <!-- Settings Trigger -->
+    <button class="w-full flex items-center gap-3 text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer" id="open-settings-btn" type="button">
+      <span class="material-symbols-outlined pointer-events-none">settings</span>
+      <span class="text-label-md font-label-md pointer-events-none">Settings</span>
+    </button>
+  </div>
+
+  <!-- Status / Footer -->
+  <div class="px-5 pt-3 border-t border-outline-variant mt-auto">
+    <div class="flex items-center gap-2 text-label-sm font-label-sm transition-colors {{ 'text-[#10b981]' if snapshot.connected and runtime.model_available else ('text-[#ffbe5c]' if snapshot.connected else 'text-[#ff7f7f]') }}" id="sidebar-status-container">
+      <span class="w-2 h-2 rounded-full animate-pulse {{ 'bg-[#10b981] shadow-[0_0_8px_#10b981]' if snapshot.connected and runtime.model_available else ('bg-[#ffbe5c] shadow-[0_0_8px_#ffbe5c]' if snapshot.connected else 'bg-[#ff7f7f] shadow-[0_0_8px_#ff7f7f]') }}" id="sidebar-status-dot"></span>
+      Status: <span id="sidebar-model-state">{{ 'Active' if snapshot.connected and runtime.model_available else ('Degraded (No ML)' if snapshot.connected else 'Offline (No DB)') }}</span>
+    </div>
+  </div>
+</nav>
+
+<!-- New Project Modal Dialog -->
+<div class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4" id="new-project-modal">
+  <div class="bg-[#1E293B] border border-[#334155] rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 relative">
+    <div class="flex items-center justify-between border-b border-outline-variant pb-3">
+      <h3 class="text-headline-md font-bold text-on-surface flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">add_box</span>
+        Create New Project
+      </h3>
+      <button class="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer" id="close-modal-btn" type="button">
+        <span class="material-symbols-outlined pointer-events-none">close</span>
+      </button>
+    </div>
+    <form id="new-project-form" class="space-y-4">
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">Project Name</label>
+        <input type="text" id="project-name-input" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none font-jetbrains" placeholder="e.g. VIPERTECH AD Audit" required />
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">SharpHound Data ZIP</label>
+        <select id="project-zip-select" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none font-jetbrains">
+          <option value="dev/20260702105422_VIPERTECH.zip">dev/20260702105422_VIPERTECH.zip (Latest)</option>
+          <option value="dev/20260702104256_VIPERTECH.zip">dev/20260702104256_VIPERTECH.zip</option>
+          <option value="dev/20260702103028_VIPERTECH.zip">dev/20260702103028_VIPERTECH.zip</option>
+          <option value="dev/20260702101545_VIPERTECH.zip">dev/20260702101545_VIPERTECH.zip</option>
+          <option value="dev/20260702080052_VIPERTECH.zip">dev/20260702080052_VIPERTECH.zip</option>
+          <option value="dev/20260702052333_VIPERTECH.zip">dev/20260702052333_VIPERTECH.zip</option>
+        </select>
+      </div>
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer">Cancel</button>
+        <button type="submit" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-colors flex items-center gap-1.5 cursor-pointer">
+          <span class="material-symbols-outlined text-sm">rocket_launch</span>
+          Ingest &amp; Launch
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- IDE-Style Settings Modal Dialog -->
+<div class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="settings-modal">
+  <div class="bg-[#1E293B] border border-[#334155] rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] transform scale-95 opacity-0 transition-all duration-200 ease-out" id="settings-modal-box">
+    <!-- Modal Header -->
+    <div class="flex items-center justify-between border-b border-outline-variant p-4 bg-surface-container-low flex-shrink-0">
+      <div class="flex items-center gap-2 text-on-surface font-bold text-headline-sm">
+        <span class="material-symbols-outlined text-primary">settings</span>
+        System Preferences &amp; Config
+      </div>
+      <button class="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer" id="close-settings-modal-btn" type="button">
+        <span class="material-symbols-outlined pointer-events-none">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Content: Sidebar Tab Switcher + Panel -->
+    <div class="flex flex-1 overflow-hidden min-h-[360px]">
+      <!-- Left Tab Menu -->
+      <div class="w-48 bg-surface-container-lowest border-r border-outline-variant p-2 space-y-1 flex-shrink-0">
+        <button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors bg-primary/15 text-primary border border-primary/30 cursor-pointer" data-tab="tab-db" type="button">
+          <span class="material-symbols-outlined text-sm">database</span>
+          Database
+        </button>
+        <button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high cursor-pointer" data-tab="tab-engine" type="button">
+          <span class="material-symbols-outlined text-sm">psychology</span>
+          Engine &amp; ML
+        </button>
+        <button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high cursor-pointer" data-tab="tab-remediation" type="button">
+          <span class="material-symbols-outlined text-sm">healing</span>
+          Remediation
+        </button>
+      </div>
+
+      <!-- Right Tab Panels Container -->
+      <div class="flex-1 p-5 overflow-y-auto">
+        <!-- 1. Database Connection Tab -->
+        <div class="settings-panel space-y-4" id="tab-db">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Neo4j Database Connection</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Bolt URI</label>
+              <input type="text" id="settings-db-uri" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="{{ settings.neo4j_uri if settings else 'bolt://127.0.0.1:7687' }}" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Username</label>
+                <input type="text" id="settings-db-user" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="{{ settings.neo4j_username if settings else 'neo4j' }}" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Password</label>
+                <input type="password" id="settings-db-pass" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="{{ settings.neo4j_password if settings else 'viperacl' }}" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Database Name</label>
+              <input type="text" id="settings-db-name" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="{{ settings.neo4j_database if settings else 'neo4j' }}" />
+            </div>
+            <div class="pt-3 border-t border-outline-variant/30 space-y-2">
+              <button type="button" id="btn-test-db" class="px-4 py-2 bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant text-xs font-bold rounded flex items-center gap-1.5 transition-colors cursor-pointer">
+                <span class="material-symbols-outlined text-sm text-primary">network_check</span>
+                Test Connection
+              </button>
+              <div id="test-db-feedback" class="text-xs font-jetbrains font-bold leading-relaxed hidden p-2.5 rounded bg-surface-container-lowest border border-outline-variant/30"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Engine & ML Preferences Tab -->
+        <div class="settings-panel hidden space-y-4" id="tab-engine">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Pathfinder &amp; Model Engine Defaults</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Default Path Mode</label>
+              <select id="settings-default-mode" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none">
+                <option value="tactical">Tactical (Strict Choke Point Focus)</option>
+                <option value="fasttrack">FastTrack (Shortest Path Speed)</option>
+                <option value="predictive">Predictive (Random Forest Probability)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Max Path Hops Limit</label>
+              <input type="number" id="settings-max-hops" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" min="1" max="50" value="10" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">ML Predictive Confidence Threshold</label>
+              <input type="number" id="settings-ml-threshold" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" step="0.05" min="0.0" max="1.0" value="0.70" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Remediation Tab -->
+        <div class="settings-panel hidden space-y-4" id="tab-remediation">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Remediation Settings</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Script Export Directory</label>
+              <input type="text" id="settings-remediation-dir" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="data/scripts" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Target Script Format</label>
+              <p class="text-xs text-on-surface-variant opacity-80 font-jetbrains">Active Directory PowerShell Script (.ps1)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="flex items-center justify-end gap-3 border-t border-outline-variant p-4 bg-surface-container-low flex-shrink-0">
+      <button type="button" id="cancel-settings-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer">Cancel</button>
+      <button type="button" id="save-settings-btn" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-colors flex items-center gap-1.5 cursor-pointer">
+        <span class="material-symbols-outlined text-sm pointer-events-none">save</span>
+        Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Delete Confirmation Modal Dialog -->
+<div class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="delete-project-modal">
+  <div class="bg-[#1E293B] border border-red-900/50 rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 relative transform scale-95 opacity-0 transition-all duration-200 ease-out" id="delete-project-modal-box">
+    <div class="flex items-center gap-3.5 border-b border-outline-variant/40 pb-3">
+      <div class="w-10 h-10 rounded-full bg-red-950/80 text-red-400 border border-red-800/50 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-xl">warning</span>
+      </div>
+      <div>
+        <h3 class="text-sm font-bold text-on-surface">Delete Project Evidence</h3>
+        <p class="text-xs text-on-surface-variant/80">Confirm graph data removal</p>
+      </div>
+    </div>
+    
+    <div class="text-xs text-on-surface-variant/90 leading-relaxed bg-surface-container-low p-3.5 rounded-lg border border-outline-variant/30 font-jetbrains space-y-2">
+      <p>Are you sure you want to delete project <strong id="delete-modal-project-name" class="text-on-surface font-bold"></strong>?</p>
+      <p class="text-red-400/90 text-[11px]">This will clear its graph nodes and relationships from Neo4j while retaining metadata logs for audit evidence.</p>
+    </div>
+
+    <div class="flex items-center justify-end gap-3 pt-2">
+      <button type="button" id="cancel-delete-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded transition-colors cursor-pointer">
+        Cancel
+      </button>
+      <button type="button" id="confirm-delete-modal-btn" class="px-4 py-2 text-xs font-bold bg-error hover:bg-error/90 text-on-error rounded shadow-lg shadow-error/20 transition-all flex items-center gap-1.5 cursor-pointer">
+        <span class="material-symbols-outlined text-sm">delete</span>
+        Delete Project
+      </button>
+    </div>
+  </div>
+</div>

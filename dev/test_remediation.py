@@ -133,6 +133,6 @@ else:
 
 # 5. Hand over to Remediation Engine
 print("\n" + "=" * 60)
-remediation_engine = RemediationEngine(output_dir="scripts")
+remediation_engine = RemediationEngine(output_dir="data/scripts")
 success = remediation_engine.generate_script(selected_targets)
 print("=" * 60)

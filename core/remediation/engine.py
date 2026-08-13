@@ -4,7 +4,7 @@ from .builder import ScriptBuilder
 from . import ps_templates
 
 class RemediationEngine:
-    def __init__(self, output_dir="scripts"):
+    def __init__(self, output_dir="data/scripts"):
         self.output_dir = output_dir
         self.builder = ScriptBuilder()
         self.last_output_path = None
