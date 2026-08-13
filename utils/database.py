@@ -46,6 +46,7 @@ class DatabaseManager:
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:User) ON (n.name)")
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Group) ON (n.name)")
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Computer) ON (n.name)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.project_id)")
             except Exception:
                 # Non-fatal: if index creation fails, continue — queries will still run.
                 pass
@@ -74,3 +75,36 @@ class DatabaseManager:
             result = session.run(query, parameters or {})
             records = [record.data() for record in result]
             return records
+
+    def get_project_snapshot(self, project_id=None):
+        """Returns node and relationship counts for a specific project_id (or overall if None)."""
+        snapshot = {
+            "connected": False,
+            "nodes": None,
+            "relationships": None,
+            "database": self.database,
+            "uri": self.uri,
+            "project_id": project_id
+        }
+
+        if not self.driver:
+            return snapshot
+
+        try:
+            snapshot["connected"] = True
+            if project_id:
+                node_res = self.run_query("MATCH (n {project_id: $pid}) RETURN count(n) AS node_count", {"pid": project_id})
+                rel_res = self.run_query("MATCH ()-[r {project_id: $pid}]->() RETURN count(r) AS rel_count", {"pid": project_id})
+            else:
+                node_res = self.run_query("MATCH (n) RETURN count(n) AS node_count")
+                rel_res = self.run_query("MATCH ()-[r]->() RETURN count(r) AS rel_count")
+
+            if node_res:
+                snapshot["nodes"] = node_res[0].get("node_count", 0)
+            if rel_res:
+                snapshot["relationships"] = rel_res[0].get("rel_count", 0)
+        except Exception as e:
+            print(f"[!] Snapshot error: {e}")
+            snapshot["connected"] = False
+
+        return snapshot

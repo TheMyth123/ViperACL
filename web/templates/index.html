@@ -1,50 +1,528 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ settings.title }}</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ViperACL - Global Launchpad</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container": "#1a211d",
+                    "secondary-container": "#03b5d3",
+                    "background": "#0e1511",
+                    "outline": "#86948a",
+                    "on-tertiary-fixed-variant": "#5516be",
+                    "on-surface-variant": "#bbcabf",
+                    "surface-container-low": "#161d19",
+                    "on-tertiary": "#3c0091",
+                    "on-tertiary-container": "#4600a7",
+                    "surface-container-highest": "#2f3632",
+                    "surface-container-high": "#242c27",
+                    "inverse-primary": "#006c49",
+                    "on-background": "#dde4dd",
+                    "surface": "#0e1511",
+                    "primary-container": "#10b981",
+                    "primary": "#4edea3",
+                    "on-secondary-container": "#00424e",
+                    "on-primary": "#003824",
+                    "on-error-container": "#ffdad6",
+                    "secondary-fixed": "#acedff",
+                    "on-primary-fixed-variant": "#005236",
+                    "on-primary-container": "#00422b",
+                    "on-error": "#690005",
+                    "secondary": "#4cd7f6",
+                    "surface-bright": "#343b36",
+                    "tertiary-container": "#b090ff",
+                    "tertiary": "#d0bcff",
+                    "primary-fixed-dim": "#4edea3",
+                    "on-secondary-fixed-variant": "#004e5c",
+                    "surface-dim": "#0e1511",
+                    "surface-variant": "#2f3632",
+                    "surface-container-lowest": "#09100c",
+                    "on-secondary-fixed": "#001f26",
+                    "inverse-on-surface": "#2b322d",
+                    "inverse-surface": "#dde4dd",
+                    "error": "#ffb4ab",
+                    "primary-fixed": "#6ffbbe",
+                    "on-secondary": "#003640",
+                    "on-primary-fixed": "#002113",
+                    "on-tertiary-fixed": "#23005c",
+                    "tertiary-fixed": "#e9ddff",
+                    "outline-variant": "#3c4a42",
+                    "secondary-fixed-dim": "#4cd7f6",
+                    "on-surface": "#dde4dd",
+                    "error-container": "#93000a",
+                    "surface-tint": "#4edea3",
+                    "tertiary-fixed-dim": "#d0bcff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "16px",
+                    "base": "4px",
+                    "container-max": "1440px",
+                    "margin-mobile": "16px",
+                    "margin-desktop": "32px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "label-md": ["JetBrains Mono"],
+                    "headline-xl": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "label-sm": ["JetBrains Mono"],
+                    "headline-md": ["Inter"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "label-md": ["13px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        }
+      }
+    </script>
+<style>
+        html, body { width: 100%; height: 100%; overflow: hidden; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        .font-jetbrains { font-family: 'JetBrains Mono', monospace; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .fill-icon { font-variation-settings: 'FILL' 1; }
+        .tactical-card {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+        .tactical-card:hover { transform: translateY(-2px); }
+        .nav-link, .pipeline-card, .action-button { cursor: pointer; }
+        .nav-link { text-decoration: none; }
+        
+        /* New Project Sidebar Button consistency matching Create New Project */
+        .btn-new-project {
+            background-color: #10b981 !important;
+            color: #00422b !important;
+            border-left: 4px solid #4edea3 !important;
+            font-weight: 700 !important;
+            transition: all 0.15s ease-in-out !important;
+        }
+        .btn-new-project:hover {
+            background-color: #4edea3 !important;
+            color: #002113 !important;
+            box-shadow: 0 4px 16px rgba(78, 222, 163, 0.4) !important;
+        }
+
+        main { height: 100vh; max-height: 100vh; overflow: hidden; }
+        .console-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style>
+<script>
+  function openSettingsModal(e) {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+    var modal = document.getElementById("settings-modal");
+    var box = document.getElementById("settings-modal-box");
+    if (modal) {
+      modal.classList.remove("hidden");
+      requestAnimationFrame(function() {
+        modal.classList.remove("opacity-0");
+        if (box) {
+          box.classList.remove("scale-95", "opacity-0");
+          box.classList.add("scale-100", "opacity-100");
+        }
+      });
+    }
+    return false;
+  }
+  function closeSettingsModal(e) {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+    var modal = document.getElementById("settings-modal");
+    var box = document.getElementById("settings-modal-box");
+    if (modal) {
+      modal.classList.add("opacity-0");
+      if (box) {
+        box.classList.remove("scale-100", "opacity-100");
+        box.classList.add("scale-95", "opacity-0");
+      }
+      setTimeout(function() {
+        modal.classList.add("hidden");
+      }, 200);
+    }
+    return false;
+  }
+</script>
 </head>
-<body>
-  <main class="shell">
-    <section class="hero">
-      <div>
-        <p class="eyebrow">ViperACL base</p>
-        <h1>Web-first attack path planning</h1>
-        <p class="lede">
-          The app boots as a local web service, assigns a port on startup, and connects to your own Neo4j instance.
-        </p>
-      </div>
-      <div class="status-card">
-        <span class="status-label">Server</span>
-        <strong>Ready for expansion</strong>
-        <p>{{ settings.host }} : auto port</p>
-      </div>
-    </section>
+<body class="bg-background text-on-surface flex min-h-screen h-screen overflow-hidden">
+<!-- JSON Generated Component: SideNavBar -->
+<nav class="flex bg-surface-container fixed left-0 top-0 h-full w-64 border-r border-outline-variant shadow-lg flex-col py-5 gap-2 z-40">
+<!-- Header -->
+<div class="px-5 pb-5 mb-1 border-b border-outline-variant">
+<h1 class="text-headline-md font-headline-md font-black text-primary flex items-center gap-2 tracking-tight">
+<span class="material-symbols-outlined fill-icon text-primary">security</span>
+                ViperACL
+            </h1>
+<p class="text-label-sm font-label-sm text-on-surface-variant mt-1 tracking-widest uppercase">Tactical Command</p>
+</div>
+<!-- Navigation Links -->
+<div class="flex-1 px-3 space-y-2">
+<!-- Active Tab: New Project -->
+<button class="w-full flex items-center gap-3 rounded-lg px-4 py-2.5 border-l-4 btn-new-project text-left cursor-pointer" id="open-new-project-modal-btn" type="button">
+<span class="material-symbols-outlined fill-icon pointer-events-none">add_box</span>
+<span class="text-label-md font-label-md font-bold pointer-events-none">New Project</span>
+</button>
+<!-- Projects Archive Accordion Toggle -->
+<details class="group rounded-lg transition-all">
+<summary class="w-full flex items-center justify-between text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden" id="toggle-archive-btn">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="text-label-md font-label-md">Projects Archive</span>
+</div>
+<span class="material-symbols-outlined text-sm inline-block transition-transform duration-200 group-open:rotate-180" id="archive-chevron">expand_more</span>
+</summary>
+<div class="pl-2 pr-1 py-1.5 space-y-1.5 max-h-56 overflow-y-auto" id="projects-drawer">
+<!-- Dynamic list of projects rendered by app.js -->
+<div class="text-xs text-on-surface-variant italic px-3 py-1">Loading projects...</div>
+</div>
+</details>
+<!-- Inactive Tabs -->
+<a class="flex items-center gap-3 text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all nav-link" href="#" data-action="open-logs">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+<span class="text-label-md font-label-md">Global Logs</span>
+</a>
+<button class="w-full flex items-center gap-3 text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer" id="open-settings-btn" type="button" onclick="openSettingsModal(event)">
+<span class="material-symbols-outlined pointer-events-none">settings</span>
+<span class="text-label-md font-label-md pointer-events-none">Settings</span>
+</button>
+</div>
+<!-- CTA / Footer -->
+<div class="px-5 pt-3 border-t border-outline-variant mt-auto">
+<div class="flex items-center gap-2 text-label-sm font-label-sm transition-colors {{ 'text-[#10b981]' if snapshot.connected and runtime.model_available else ('text-[#ffbe5c]' if snapshot.connected else 'text-[#ff7f7f]') }}" id="sidebar-status-container">
+<span class="w-2 h-2 rounded-full animate-pulse {{ 'bg-[#10b981] shadow-[0_0_8px_#10b981]' if snapshot.connected and runtime.model_available else ('bg-[#ffbe5c] shadow-[0_0_8px_#ffbe5c]' if snapshot.connected else 'bg-[#ff7f7f] shadow-[0_0_8px_#ff7f7f]') }}" id="sidebar-status-dot"></span>
+                Status: <span id="sidebar-model-state">{{ 'Active' if snapshot.connected and runtime.model_available else ('Degraded (No ML)' if snapshot.connected else 'Offline (No DB)') }}</span>
+</div>
+</div>
+</nav>
 
-    <section class="grid">
-      <article class="panel">
-        <h2>Database</h2>
-        <dl>
-          <div><dt>Connected</dt><dd>{{ snapshot.connected }}</dd></div>
-          <div><dt>URI</dt><dd>{{ snapshot.uri }}</dd></div>
-          <div><dt>Database</dt><dd>{{ snapshot.database }}</dd></div>
-          <div><dt>Nodes</dt><dd>{{ snapshot.nodes if snapshot.nodes is not none else "n/a" }}</dd></div>
-          <div><dt>Relationships</dt><dd>{{ snapshot.relationships if snapshot.relationships is not none else "n/a" }}</dd></div>
-        </dl>
-      </article>
+<!-- Main Content Area - Dynamic 1-Page Layout without Scrollbar -->
+<main class="flex-1 ml-64 w-[calc(100%-16rem)] h-screen max-h-screen flex flex-col gap-5 p-6 bg-background overflow-hidden box-border">
+<!-- Header Section -->
+<header class="w-full flex-shrink-0">
+<h1 class="text-headline-xl font-headline-xl text-on-surface mb-1 font-bold flex items-center tracking-tight">
+<span class="text-primary font-black">V</span>iperACL Launchpad
+</h1>
+<p class="text-body-md font-body-md text-on-surface-variant max-w-4xl leading-relaxed">
+Automated machine learning-driven Active Directory attack path navigation, exploitation, <span class="whitespace-nowrap">and surgical remediation.</span>
+</p>
+</header>
 
-      <article class="panel">
-        <h2>Foundation</h2>
-        <ul>
-          <li>FastAPI web host</li>
-          <li>Dedicated Neo4j service</li>
-          <li>Config-driven startup</li>
-          <li>API surface ready for UI work</li>
-        </ul>
-      </article>
-    </section>
-  </main>
-</body>
-</html>
+<!-- Hero Start From Scratch Block (Main Feature - Flex 1.3) -->
+<section class="w-full flex-[1.3] min-h-[200px] flex flex-col">
+<div class="bg-surface-container border border-outline-variant rounded-lg p-7 flex-1 flex flex-col items-center justify-center text-center shadow-lg tactical-card relative overflow-hidden">
+<div class="absolute inset-0 opacity-10 pointer-events-none" style="background-size: 36px 36px; background-image: linear-gradient(to right, #3c4a42 1px, transparent 1px), linear-gradient(to bottom, #3c4a42 1px, transparent 1px);"></div>
+<span class="material-symbols-outlined text-[52px] text-primary-container mb-3 drop-shadow-md relative z-10">account_tree</span>
+<h2 class="text-headline-lg font-headline-lg text-on-surface mb-2 relative z-10 font-bold">Start From Scratch</h2>
+<p class="text-body-md font-body-md text-on-surface-variant mb-5 max-w-lg relative z-10">Initialize a new secure workspace to orchestrate multi-stage pathfinding and mitigation logic.</p>
+<button class="bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors text-label-md font-label-md px-8 py-3.5 rounded-lg font-bold flex items-center gap-2 shadow-lg relative z-10 active:scale-95 duration-150 action-button" id="create-project-button" type="button">
+<span class="material-symbols-outlined fill-icon">add</span>
+Create New Project
+</button>
+</div>
+</section>
+
+<!-- System Status Cards (Dynamic Status Hooks) -->
+<section class="grid grid-cols-2 gap-5 w-full flex-[0.95] min-h-[180px]">
+<!-- Database Status -->
+<div class="bg-[#1E293B] border-t-2 border-primary rounded-lg p-5 flex flex-col justify-between tactical-card border border-[#334155]">
+<div class="flex items-center gap-3 mb-2.5">
+<span class="material-symbols-outlined text-primary text-2xl">database</span>
+<h3 class="text-headline-md font-headline-md text-on-surface text-lg font-bold">Database Status</h3>
+</div>
+<div class="space-y-3 font-jetbrains flex-1 flex flex-col justify-center">
+<div class="flex items-center justify-between bg-surface-container-low p-3 px-4 rounded border border-outline-variant text-xs">
+<span class="text-on-surface-variant font-medium">Neo4j Graph Database</span>
+<div class="flex items-center gap-2 px-2.5 py-1 rounded font-bold border {{ 'text-primary bg-primary/10 border-primary/20' if snapshot.connected else 'text-[#ff7f7f] bg-red-950/60 border-red-500/50' }}" id="connection-badge">
+<span class="w-2 h-2 rounded-full {{ 'bg-[#10b981] shadow-[0_0_8px_#10b981]' if snapshot.connected else 'bg-[#ff7f7f] shadow-[0_0_8px_#ff7f7f]' }}" id="connection-state-dot"></span> <span id="connection-state">{{ "Connected" if snapshot.connected else "Disconnected" }}</span>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex-1 bg-surface-container-low p-3 px-4 rounded border border-outline-variant">
+<span class="block text-xs text-on-surface-variant mb-1 font-medium">Nodes</span>
+<span class="text-xl font-black text-on-surface" id="node-count">{{ snapshot.nodes if snapshot.nodes is not none else "0" }}</span>
+</div>
+<div class="flex-1 bg-surface-container-low p-3 px-4 rounded border border-outline-variant">
+<span class="block text-xs text-on-surface-variant mb-1 font-medium">Relationships</span>
+<span class="text-xl font-black text-on-surface" id="relationship-count">{{ snapshot.relationships if snapshot.relationships is not none else "0" }}</span>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ML Core Engine -->
+<div class="bg-[#1E293B] border-t-2 border-secondary rounded-lg p-5 flex flex-col justify-between tactical-card border border-[#334155]">
+<div class="flex items-center gap-3 mb-2.5">
+<span class="material-symbols-outlined text-secondary text-2xl">memory</span>
+<h3 class="text-headline-md font-headline-md text-on-surface text-lg font-bold">ML Core Engine</h3>
+</div>
+<div class="space-y-3 font-jetbrains flex-1 flex flex-col justify-center">
+<div class="bg-surface-container-low p-3 px-4 rounded border border-outline-variant text-xs flex items-center justify-between gap-2">
+<div>
+<span class="block text-on-surface-variant mb-0.5 font-medium">Model Architecture</span>
+<span class="text-on-surface font-bold text-sm" id="ml-model-type">{{ runtime.model_type if runtime.model_type else "Random Forest" }}</span>
+</div>
+<span class="text-[11px] font-mono text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded border border-outline-variant whitespace-nowrap" id="ml-model-file">{{ runtime.model_name if runtime.model_available else "viper_rf_model.pkl" }}</span>
+</div>
+<div class="flex items-center justify-between bg-surface-container-low p-3 px-4 rounded border border-outline-variant text-xs">
+<span class="text-on-surface-variant font-medium">Engine Status</span>
+<div class="flex items-center gap-2 px-3 py-1 rounded border font-bold transition-all {{ 'text-[#4cd7f6] bg-[#4cd7f6]/10 border-[#4cd7f6]/30' if runtime.model_available else 'text-[#ff7f7f] bg-red-950/60 border-red-500/50 shadow-[0_0_12px_rgba(239,68,68,0.2)]' }}" id="ml-engine-status">
+{{ "Optimized & Ready" if runtime.model_available else "Model Unavailable" }}
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- 4 Phase Pipeline Preview -->
+<section class="w-full flex-shrink-0">
+<h3 class="text-sm font-bold text-on-surface mb-2.5 border-b border-outline-variant pb-1.5 uppercase tracking-wider">Operational Pipeline Preview</h3>
+<div class="grid grid-cols-4 gap-5">
+<!-- Phase 1 -->
+<div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary rounded-lg p-4 tactical-card flex flex-col justify-between pipeline-card" data-action="phase-ingest">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[11px] font-bold text-secondary tracking-widest uppercase bg-secondary/10 px-2 py-0.5 rounded">Phase 1</span>
+<span class="material-symbols-outlined text-secondary opacity-70 text-xl">upload_file</span>
+</div>
+<h4 class="text-base font-bold text-on-surface mb-1">Ingest</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">Parse BloodHound/SharpHound JSON data to populate target domain graph.</p>
+</div>
+<!-- Phase 2 -->
+<div class="bg-surface-container border border-outline-variant border-t-2 border-t-tertiary rounded-lg p-4 tactical-card flex flex-col justify-between pipeline-card" data-action="phase-pathfinder">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[11px] font-bold text-tertiary tracking-widest uppercase bg-tertiary/10 px-2 py-0.5 rounded">Phase 2</span>
+<span class="material-symbols-outlined text-tertiary opacity-70 text-xl">route</span>
+</div>
+<h4 class="text-base font-bold text-on-surface mb-1">Pathfinder</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">Leverage Random Forest predictive models to analyze attack paths.</p>
+</div>
+<!-- Phase 3 -->
+<div class="bg-surface-container border border-outline-variant border-t-2 border-t-error rounded-lg p-4 tactical-card flex flex-col justify-between pipeline-card" data-action="phase-privesc">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[11px] font-bold text-error tracking-widest uppercase bg-error/10 px-2 py-0.5 rounded">Phase 3</span>
+<span class="material-symbols-outlined text-error opacity-70 text-xl">admin_panel_settings</span>
+</div>
+<h4 class="text-base font-bold text-on-surface mb-1">Privesc</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">Execute automated ACL privilege escalation chains safely.</p>
+</div>
+<!-- Phase 4 -->
+<div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary-container rounded-lg p-4 tactical-card flex flex-col justify-between pipeline-card" data-action="phase-remediation">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[11px] font-bold text-secondary-container tracking-widest uppercase bg-secondary-container/10 px-2 py-0.5 rounded">Phase 4</span>
+<span class="material-symbols-outlined text-secondary-container opacity-70 text-xl">healing</span>
+</div>
+<h4 class="text-base font-bold text-on-surface mb-1 whitespace-nowrap">Remediation</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">Generate surgical PowerShell scripts to neutralize choke points.</p>
+</div>
+</div>
+</section>
+
+<!-- Hidden fallback containers for script hooks -->
+<div class="hidden">
+<div id="latest-path-meta"></div>
+<div id="latest-path-count"></div>
+<div id="latest-plan-count"></div>
+<div id="latest-remediation-count"></div>
+<div id="latest-plan-meta"></div>
+<div id="latest-remediation-meta"></div>
+<div id="console"></div>
+<span id="footer-model-state"></span>
+</div>
+
+<!-- New Project Modal Dialog -->
+<div class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4" id="new-project-modal">
+<div class="bg-[#1E293B] border border-[#334155] rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 relative">
+<div class="flex items-center justify-between border-b border-outline-variant pb-3">
+<h3 class="text-headline-md font-bold text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">add_box</span>
+          Create New Project
+</h3>
+<button class="text-on-surface-variant hover:text-on-surface p-1 rounded" id="close-modal-btn" type="button">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<form id="new-project-form" class="space-y-4">
+<div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">Project Name</label>
+<input type="text" id="project-name-input" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none font-jetbrains" placeholder="e.g. VIPERTECH AD Audit" required />
+</div>
+<div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">SharpHound Data ZIP</label>
+<select id="project-zip-select" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none font-jetbrains">
+<option value="dev/20260702105422_VIPERTECH.zip">dev/20260702105422_VIPERTECH.zip (Latest)</option>
+<option value="dev/20260702104256_VIPERTECH.zip">dev/20260702104256_VIPERTECH.zip</option>
+<option value="dev/20260702103028_VIPERTECH.zip">dev/20260702103028_VIPERTECH.zip</option>
+<option value="dev/20260702101545_VIPERTECH.zip">dev/20260702101545_VIPERTECH.zip</option>
+<option value="dev/20260702080052_VIPERTECH.zip">dev/20260702080052_VIPERTECH.zip</option>
+<option value="dev/20260702052333_VIPERTECH.zip">dev/20260702052333_VIPERTECH.zip</option>
+</select>
+</div>
+<div class="flex items-center justify-end gap-3 pt-2">
+<button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded">Cancel</button>
+<button type="submit" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">rocket_launch</span>
+          Ingest &amp; Launch
+</button>
+</div>
+</form>
+</div>
+</div>
+
+<!-- IDE-Style Settings Modal Dialog -->
+<div class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="settings-modal">
+<div class="bg-[#1E293B] border border-[#334155] rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] transform scale-95 opacity-0 transition-all duration-200 ease-out" id="settings-modal-box">
+<!-- Modal Header -->
+<div class="flex items-center justify-between border-b border-outline-variant p-4 bg-surface-container-low flex-shrink-0">
+<div class="flex items-center gap-2 text-on-surface font-bold text-headline-sm">
+<span class="material-symbols-outlined text-primary">settings</span>
+        System Preferences &amp; Config
+      </div>
+<button class="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer" id="close-settings-modal-btn" type="button" onclick="closeSettingsModal(event)">
+<span class="material-symbols-outlined pointer-events-none">close</span>
+</button>
+</div>
+
+<!-- Modal Content: Sidebar Tab Switcher + Panel -->
+<div class="flex flex-1 overflow-hidden min-h-[360px]">
+<!-- Left Tab Menu -->
+<div class="w-48 bg-surface-container-lowest border-r border-outline-variant p-2 space-y-1 flex-shrink-0">
+<button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors bg-primary/15 text-primary border border-primary/30 cursor-pointer" data-tab="tab-db" type="button">
+<span class="material-symbols-outlined text-sm">database</span>
+          Database
+        </button>
+<button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high cursor-pointer" data-tab="tab-engine" type="button">
+<span class="material-symbols-outlined text-sm">psychology</span>
+          Engine &amp; ML
+        </button>
+<button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high cursor-pointer" data-tab="tab-remediation" type="button">
+<span class="material-symbols-outlined text-sm">healing</span>
+          Remediation
+        </button>
+</div>
+
+<!-- Right Tab Panels Container -->
+<div class="flex-1 p-5 overflow-y-auto">
+<!-- 1. Database Connection Tab -->
+<div class="settings-panel space-y-4" id="tab-db">
+<h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Neo4j Database Connection</h4>
+<div class="space-y-3">
+<div>
+<label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Bolt URI</label>
+<input type="text" id="settings-db-uri" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="bolt://127.0.0.1:7687" />
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Username</label>
+<input type="text" id="settings-db-user" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="neo4j" />
+</div>
+<div>
+<label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Password</label>
+<input type="password" id="settings-db-pass" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="viperacl" />
+</div>
+</div>
+<div>
+<label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Database Name</label>
+<input type="text" id="settings-db-name" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="neo4j" />
+</div>
+<div class="pt-3 border-t border-outline-variant/30 space-y-2">
+<button type="button" id="btn-test-db" class="px-4 py-2 bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant text-xs font-bold rounded flex items-center gap-1.5 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-sm text-primary">network_check</span>
+                Test Connection
+              </button>
+<div id="test-db-feedback" class="text-xs font-jetbrains font-bold leading-relaxed hidden p-2.5 rounded bg-surface-container-lowest border border-outline-variant/30"></div>
+</div>
+</div>
+</div>
+
+<!-- 2. Engine & ML Preferences Tab -->
+<div class="settings-panel hidden space-y-4" id="tab-engine">
+<h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Pathfinder &amp; Model Engine Defaults</h4>
+<div class="space-y-3">
+<div>
+<label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Default Path Mode</label>
+<select id="settings-default-mode" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none">
+<option value="tactical">Tactical (Strict Choke Point Focus)</option>
+<option value="fasttrack">FastTrack (Shortest Path Speed)</option>
+<option value="predictive">Predictive (Random Forest Probability)</option>
+</select>
+</div>
+<div>
+<label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Max Path Hops Limit</label>
+<input type="number" id="settings-max-hops" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" min="1" max="50" value="10" />
+</div>
+<div>
+<label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">ML Predictive Confidence Threshold</label>
+<input type="number" id="settings-ml-threshold" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" step="0.05" min="0.0" max="1.0" value="0.70" />
+</div>
+</div>
+</div>
+
+<!-- 3. Remediation Tab -->
+<div class="settings-panel hidden space-y-4" id="tab-remediation">
+<h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Remediation Settings</h4>
+<div class="space-y-3">
+<div>
+<label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Script Export Directory</label>
+<input type="text" id="settings-remediation-dir" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="scripts" />
+</div>
+<div>
+<label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Target Script Format</label>
+<p class="text-xs text-on-surface-variant opacity-80 font-jetbrains">Active Directory PowerShell Script (.ps1)</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Modal Footer -->
+<div class="flex items-center justify-end gap-3 border-t border-outline-variant p-4 bg-surface-container-low flex-shrink-0">
+<button type="button" id="cancel-settings-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer" onclick="closeSettingsModal(event)">Cancel</button>
+<button type="button" id="save-settings-btn" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-colors flex items-center gap-1.5 cursor-pointer">
+<span class="material-symbols-outlined text-sm pointer-events-none">save</span>
+        Save Changes
+      </button>
+</div>
+</div>
+</div>
+
+<script>
+  function openSettingsModal(e) {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    var modal = document.getElementById("settings-modal");
+    if (modal) modal.classList.remove("hidden");
+  }
+  function closeSettingsModal(e) {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    var modal = document.getElementById("settings-modal");
+    if (modal) modal.classList.add("hidden");
+  }
+
+  window.VIPERACL_STATE = {
+    healthUrl: "/api/health",
+    ingestUrl: "/api/ingest",
+    pathfindUrl: "/api/pathfind",
+    privescUrl: "/api/privesc/plan",
+    remediationUrl: "/api/remediation"
+  };
+</script>
+<script src="/static/app.js?v=10"></script>
+</body></html>

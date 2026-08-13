@@ -7,12 +7,15 @@ class RemediationEngine:
     def __init__(self, output_dir="scripts"):
         self.output_dir = output_dir
         self.builder = ScriptBuilder()
+        self.last_output_path = None
 
     def generate_script(self, remediation_targets: list) -> bool:
         """
         Takes a list of relationships and writes a unified PowerShell script.
         Expected format: [{'type': 'GenericAll', 'source': 'UserA', 'target': 'GroupB'}, ...]
         """
+        self.last_output_path = None
+
         if not remediation_targets:
             print("[-] No relationships provided for remediation.")
             return False
@@ -51,6 +54,7 @@ class RemediationEngine:
         try:
             with open(output_path, "w") as f:
                 f.write("".join(script_content))
+            self.last_output_path = os.path.abspath(output_path)
             print(f"[+] Remediation script successfully saved to: {os.path.abspath(output_path)}")
             return True
         except Exception as e:

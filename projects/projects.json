@@ -1,0 +1,23 @@
+{
+  "active_project_id": null,
+  "projects": {
+    "proj_20260702105422_VIPERTECH": {
+      "project_id": "proj_20260702105422_VIPERTECH",
+      "name": "VIPERTECH Primary Domain",
+      "source_zip": "dev/20260702105422_VIPERTECH.zip",
+      "nodes": 584,
+      "relationships": 3867,
+      "created_at": "2026-08-13 04:43:46",
+      "status": "Ready"
+    },
+    "proj_20260702104256_VIPERTECH": {
+      "project_id": "proj_20260702104256_VIPERTECH",
+      "name": "VIPERTECH Secondary Audit",
+      "source_zip": "dev/20260702104256_VIPERTECH.zip",
+      "nodes": 292,
+      "relationships": 1933,
+      "created_at": "2026-08-13 04:43:47",
+      "status": "Ready"
+    }
+  }
+}
