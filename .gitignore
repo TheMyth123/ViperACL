@@ -1,55 +1,33 @@
-# =========================
 # Environments & Secrets
-# =========================
 .env
 .venv/
 venv/
 env/
-*.yaml
 config.yaml
 
-# =========================
 # Data Storage & Dynamic Artifacts
-# =========================
 data/
-data/logs/
-data/logs/*.jsonl
-data/projects/
-data/projects/*.json
-data/scripts/
-data/scripts/*.ps1
 
-# =========================
 # Python Cache & Bytecode
-# =========================
-__pycache__
 __pycache__/
 *.py[cod]
 *$py.class
 
-# =========================
 # Packaging & Distribution
-# =========================
 build/
 dist/
 *.egg-info/
 
-# =========================
 # IDEs, Agents & Internal Tools
-# =========================
 .vscode/
 .roo/
 .gemini/
 .agents/
 scratch/
 
-# =========================
 # OS Generated Files
-# =========================
 .DS_Store
 Thumbs.db
 
-# =========================
 # Raw Zip Archives
-# =========================
 *.zip

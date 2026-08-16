@@ -127,42 +127,7 @@
         main { height: 100vh; max-height: 100vh; overflow: hidden; }
         .console-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     </style>
-<script>
-  function openSettingsModal(e) {
-    if (e && typeof e.preventDefault === "function") e.preventDefault();
-    if (e && typeof e.stopPropagation === "function") e.stopPropagation();
-    var modal = document.getElementById("settings-modal");
-    var box = document.getElementById("settings-modal-box");
-    if (modal) {
-      modal.classList.remove("hidden");
-      requestAnimationFrame(function() {
-        modal.classList.remove("opacity-0");
-        if (box) {
-          box.classList.remove("scale-95", "opacity-0");
-          box.classList.add("scale-100", "opacity-100");
-        }
-      });
-    }
-    return false;
-  }
-  function closeSettingsModal(e) {
-    if (e && typeof e.preventDefault === "function") e.preventDefault();
-    if (e && typeof e.stopPropagation === "function") e.stopPropagation();
-    var modal = document.getElementById("settings-modal");
-    var box = document.getElementById("settings-modal-box");
-    if (modal) {
-      modal.classList.add("opacity-0");
-      if (box) {
-        box.classList.remove("scale-100", "opacity-100");
-        box.classList.add("scale-95", "opacity-0");
-      }
-      setTimeout(function() {
-        modal.classList.add("hidden");
-      }, 200);
-    }
-    return false;
-  }
-</script>
+
 </head>
 <body class="bg-background text-on-surface flex min-h-screen h-screen overflow-hidden">
 {% include 'sidebar.html' %}

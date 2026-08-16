@@ -7,7 +7,7 @@ from pathlib import Path
 
 import uvicorn
 
-from utils.database import DatabaseManager
+from core.database import DatabaseManager
 from web.app import create_app
 from web.config import load_settings
 

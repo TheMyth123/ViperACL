@@ -6,7 +6,7 @@ import joblib
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-from utils.database import DatabaseManager
+from core.database import DatabaseManager
 from core.pathfinder.pathfinder import PathfinderCoordinator
 
 def print_path_results(results, mode):

@@ -5,7 +5,7 @@ import logging
 # This forces Python to add your root ViperACL folder to its search path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.database import DatabaseManager
+from core.database import DatabaseManager
 from core.pathfinder.pathfinder import PathfinderCoordinator
 from core.privesc.engine import PrivescEngine
 from core.privesc.state_context import SessionContext

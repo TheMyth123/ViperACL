@@ -1,39 +1,33 @@
-import os
 import json
-import time
 from datetime import datetime
+from pathlib import Path
+
 
 class ProjectManager:
     def __init__(self, projects_dir=None):
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        self.projects_dir = projects_dir or os.path.join(base_dir, "data", "projects")
-        self.registry_file = os.path.join(self.projects_dir, "projects.json")
+        base_dir = Path(__file__).resolve().parent.parent
+        self.projects_dir = Path(projects_dir) if projects_dir else base_dir / "data" / "projects"
+        self.registry_file = self.projects_dir / "projects.json"
         self._ensure_storage()
 
     def _ensure_storage(self):
         """Ensures the projects directory and projects.json file exist."""
-        os.makedirs(self.projects_dir, exist_ok=True)
-        if not os.path.exists(self.registry_file):
-            default_data = {
-                "active_project_id": None,
-                "projects": {}
-            }
-            self._save_data(default_data)
+        self.projects_dir.mkdir(parents=True, exist_ok=True)
+        if not self.registry_file.exists():
+            self._save_data({"active_project_id": None, "projects": {}})
 
     def _load_data(self):
         """Loads data from projects.json safely."""
         try:
-            with open(self.registry_file, "r") as f:
-                return json.load(f)
+            return json.loads(self.registry_file.read_text(encoding="utf-8"))
         except Exception:
             return {"active_project_id": None, "projects": {}}
 
     def _save_data(self, data):
         """Saves data to projects.json atomically."""
-        temp_file = f"{self.registry_file}.tmp"
-        with open(temp_file, "w") as f:
-            json.dump(data, f, indent=2)
-        os.replace(temp_file, self.registry_file)
+        temp_file = self.registry_file.with_suffix(".tmp")
+        temp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        temp_file.replace(self.registry_file)
 
     def list_projects(self, include_deleted=False):
         """
@@ -52,7 +46,6 @@ class ProjectManager:
             info_copy["is_active"] = (p_id == active_id)
             result.append(info_copy)
 
-        # Sort by creation time descending
         result.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         return result
 
