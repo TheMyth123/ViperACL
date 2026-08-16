@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from core.ingestor.parser import SharpHoundIngestor
 from core.logger import logger
-from core.projects import ProjectManager
+from core.projects import ProjectManager, validate_project_name, generate_safe_project_id
 from web.helpers import build_runtime_state, build_neo4j_snapshot, db_manager, resolve_project_path
 from web.models import SelectProjectRequest, CreateProjectRequest
 
@@ -50,73 +50,63 @@ def select_project(request: SelectProjectRequest, req: Request):
         "active_project_id": request.project_id,
         "project": project_mgr.get_project(request.project_id),
         "snapshot": runtime["snapshot"],
+        "redirect_url": "/workspace",
     }
 
 
 @router.post("/create")
 def create_project(request: CreateProjectRequest, req: Request):
-    settings = req.app.state.settings
+    valid, result = validate_project_name(request.name)
+    if not valid:
+        logger.warning(
+            "PROJECT", "project.create.invalid_name",
+            f"Project creation rejected due to invalid name: {result}",
+            source="web.app",
+            details={"raw_name": request.name, "error": result},
+        )
+        raise HTTPException(status_code=400, detail=result)
+
+    cleaned_name = result
     project_mgr = ProjectManager()
-    target_path = resolve_project_path(request.zip_path)
-    if not target_path.exists():
-        logger.error(
-            "PROJECT", "project.create.failed",
-            f"Source zip file not found: {request.zip_path}",
+
+    # Duplicate check across ALL projects (both active and soft-deleted)
+    if project_mgr.project_name_exists(cleaned_name):
+        logger.warning(
+            "PROJECT", "project.create.duplicate_name",
+            f"Project creation rejected: duplicate name \"{cleaned_name}\" (unique name required across active and archived records)",
             source="web.app",
-            details={"zip_path": request.zip_path},
+            details={"name": cleaned_name},
         )
-        raise HTTPException(status_code=404, detail=f"Source zip file not found: {request.zip_path}")
-
-    timestamp_slug = Path(request.zip_path).stem
-    project_id = f"proj_{timestamp_slug}"
-
-    logger.info(
-        "PROJECT", "project.create.started",
-        f"Creating project \"{request.name}\" from {request.zip_path}",
-        project_id=project_id,
-        source="web.app",
-        details={"name": request.name, "zip_path": request.zip_path},
-    )
-
-    manager = db_manager(settings)
-    try:
-        ingestor = SharpHoundIngestor(manager, project_id=project_id)
-        ingestor.ingest_zip(str(target_path))
-        snapshot = manager.get_project_snapshot(project_id)
-    except Exception as exc:
-        logger.error(
-            "INGEST", "project.create.ingest_failed",
-            f"Ingestion failed for project \"{request.name}\": {exc}",
-            project_id=project_id,
-            source="web.app",
-            details={"error": str(exc)},
+        raise HTTPException(
+            status_code=409,
+            detail="Project name duplicate. Choose a new name.",
         )
-        raise
-    finally:
-        manager.close()
 
-    nodes = snapshot.get("nodes", 0)
-    rels = snapshot.get("relationships", 0)
+    # Generate a safe, collision-resistant project ID
+    project_id = generate_safe_project_id(cleaned_name)
+
+    # Register project with clean initial state (0 nodes, 0 rels, no zip yet)
     project_entry = project_mgr.register_project(
         project_id=project_id,
-        name=request.name,
-        source_zip=str(request.zip_path),
-        nodes=nodes,
-        relationships=rels,
+        name=cleaned_name,
+        source_zip=None,
+        nodes=0,
+        relationships=0,
     )
 
     logger.info(
         "PROJECT", "project.created",
-        f"Project \"{request.name}\" created successfully — {nodes} nodes, {rels} relationships",
+        f"Project \"{cleaned_name}\" created successfully (ID: {project_id})",
         project_id=project_id,
         source="web.app",
-        details={"name": request.name, "nodes": nodes, "relationships": rels, "zip_path": request.zip_path},
+        details={"name": cleaned_name, "project_id": project_id},
     )
 
     return {
         "status": "ok",
         "project": project_entry,
-        "snapshot": snapshot,
+        "active_project_id": project_id,
+        "redirect_url": "/workspace",
     }
 
 

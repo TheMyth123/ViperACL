@@ -1,22 +1,87 @@
 /**
  * ViperACL Shared Sidebar & Global Modals Manager
  *
- * Provides sidebar drawer rendering (with delete project buttons),
- * New Project modal orchestration, Settings modal orchestration,
- * and Custom Delete Confirmation modal orchestration across all pages.
+ * Provides sidebar drawer rendering (with project switching & custom delete modal),
+ * New Project modal orchestration (name-only creation, duplicate rejection, and redirection),
+ * Settings modal orchestration, and system status synchronization.
  */
 
 let pendingDeleteCallback = null;
 
+// Show error inside the New Project Modal
+function showNewProjectError(message) {
+  const errorBox = document.getElementById("new-project-error");
+  const errorText = document.getElementById("new-project-error-text");
+  const nameInput = document.getElementById("project-name-input");
+  if (errorBox && errorText) {
+    errorText.textContent = message;
+    errorBox.classList.remove("hidden");
+  }
+  if (nameInput) {
+    nameInput.classList.add("border-red-500", "focus:border-red-500", "focus:ring-red-500");
+    nameInput.classList.remove("border-outline-variant", "focus:border-primary", "focus:ring-primary");
+    nameInput.focus();
+  }
+}
+
+// Clear error inside the New Project Modal
+function clearNewProjectError() {
+  const errorBox = document.getElementById("new-project-error");
+  const nameInput = document.getElementById("project-name-input");
+  if (errorBox) {
+    errorBox.classList.add("hidden");
+  }
+  if (nameInput) {
+    nameInput.classList.remove("border-red-500", "focus:border-red-500", "focus:ring-red-500");
+    nameInput.classList.add("border-outline-variant", "focus:border-primary", "focus:ring-primary");
+  }
+}
+
 // Modal Utility Functions
 function openNewProjectModal() {
   const modal = document.getElementById("new-project-modal");
-  if (modal) modal.classList.remove("hidden");
+  const box = document.getElementById("new-project-modal-box");
+  const nameInput = document.getElementById("project-name-input");
+  const counter = document.getElementById("project-name-counter");
+  const submitBtn = document.getElementById("submit-new-project-btn");
+  const btnLabel = document.getElementById("new-project-btn-label");
+
+  clearNewProjectError();
+  if (nameInput) nameInput.value = "";
+  if (counter) counter.textContent = "0 / 64";
+  if (submitBtn) submitBtn.disabled = false;
+  if (btnLabel) btnLabel.textContent = "Create Project";
+
+  if (modal) {
+    modal.classList.remove("hidden");
+    requestAnimationFrame(() => {
+      modal.classList.remove("opacity-0");
+      if (box) {
+        box.classList.remove("scale-95", "opacity-0");
+        box.classList.add("scale-100", "opacity-100");
+      }
+      setTimeout(() => {
+        if (nameInput) nameInput.focus();
+      }, 100);
+    });
+  }
 }
 
-function closeNewProjectModal() {
+function closeNewProjectModal(e) {
+  if (e && typeof e.preventDefault === "function") e.preventDefault();
   const modal = document.getElementById("new-project-modal");
-  if (modal) modal.classList.add("hidden");
+  const box = document.getElementById("new-project-modal-box");
+  if (modal) {
+    modal.classList.add("opacity-0");
+    if (box) {
+      box.classList.remove("scale-100", "opacity-100");
+      box.classList.add("scale-95", "opacity-0");
+    }
+    setTimeout(() => {
+      modal.classList.add("hidden");
+      clearNewProjectError();
+    }, 200);
+  }
 }
 
 function openSettingsModal(e) {
@@ -91,7 +156,7 @@ function closeCustomDeleteModal() {
   }
 }
 
-// Render Projects Drawer with Custom Delete Confirmation Modal Trigger
+// Render Projects Drawer with selection and delete triggers
 function renderGlobalProjectsDrawer(projects, activeProjectId, onProjectDeleted) {
   const drawer = document.getElementById("projects-drawer");
   if (!drawer) return;
@@ -106,28 +171,54 @@ function renderGlobalProjectsDrawer(projects, activeProjectId, onProjectDeleted)
   drawer.innerHTML = "";
 
   activeProjects.forEach((proj) => {
+    const isCurrent = proj.project_id === activeProjectId;
     const item = document.createElement("div");
-    item.className = "flex items-center justify-between p-2 px-2.5 rounded text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border border-outline-variant/30 transition-colors group cursor-default";
+    item.className = `flex items-center justify-between p-2 px-2.5 rounded text-xs transition-all group cursor-pointer ${
+      isCurrent
+        ? "bg-primary/15 border border-primary/40 text-on-surface font-semibold"
+        : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border border-outline-variant/30"
+    }`;
+    item.title = `Switch to project: ${proj.name || proj.project_id}`;
     item.innerHTML = `
       <div class="flex items-center gap-2 overflow-hidden flex-1 select-none">
-        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-primary/60"></span>
+        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 ${isCurrent ? 'bg-primary shadow-[0_0_6px_#4edea3]' : 'bg-primary/40'}"></span>
         <div class="truncate">
-          <div class="truncate font-medium text-on-surface">${proj.name || proj.project_id}</div>
+          <div class="truncate ${isCurrent ? 'text-primary font-bold' : 'text-on-surface font-medium'}">${proj.name || proj.project_id}</div>
           <div class="text-[10px] text-on-surface-variant opacity-70">${proj.nodes || 0} nodes · ${proj.relationships || 0} rels</div>
         </div>
       </div>
-      <button class="delete-proj-btn opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error p-1 transition-opacity cursor-pointer" data-id="${proj.project_id}" title="Delete project (clears graph DB, retains metadata evidence)">
+      <button class="delete-proj-btn opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error p-1 transition-opacity cursor-pointer flex-shrink-0" data-id="${proj.project_id}" title="Delete project (clears graph DB, retains metadata evidence)">
         <span class="material-symbols-outlined text-sm pointer-events-none">delete</span>
       </button>
     `;
 
-    // Click trash to open custom delete modal
+    // Click project row to switch active project and navigate to /workspace
+    item.addEventListener("click", async (e) => {
+      if (e.target.closest(".delete-proj-btn")) return;
+      try {
+        const res = await fetch("/api/projects/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ project_id: proj.project_id }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          window.location.href = data.redirect_url || "/workspace";
+        } else {
+          alert(`Failed to select project: ${data.detail || "Error"}`);
+        }
+      } catch (err) {
+        console.error("Failed to select project:", err);
+      }
+    });
+
+    // Click trash icon to open custom delete modal
     const delBtn = item.querySelector(".delete-proj-btn");
     if (delBtn) {
       delBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         openCustomDeleteModal(proj.name || proj.project_id, () => {
-          // Smooth fade-out and slide-up collapse animation
+          // Smooth collapse animation
           item.style.transition = "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)";
           item.style.opacity = "0";
           item.style.transform = "translateY(-8px)";
@@ -153,6 +244,10 @@ function renderGlobalProjectsDrawer(projects, activeProjectId, onProjectDeleted)
               }
               if (window.refreshHealth && typeof window.refreshHealth === "function") {
                 window.refreshHealth();
+              }
+              // If deleted project was active on workspace page, reload page
+              if (isCurrent && window.location.pathname.includes("workspace")) {
+                window.location.reload();
               }
             } catch (err) {
               alert(`Error deleting project: ${err.message}`);
@@ -215,7 +310,7 @@ async function testGlobalDatabaseConnection() {
 
 // Wire Global Sidebar Events
 function initSidebarEvents() {
-  // ESC Key Listener to close Modals and discard unsaved changes
+  // ESC Key Listener to close Modals
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" || e.code === "Escape") {
       const deleteModal = document.getElementById("delete-project-modal");
@@ -258,12 +353,25 @@ function initSidebarEvents() {
 
   const closeModalBtn = document.getElementById("close-modal-btn");
   if (closeModalBtn) {
-    closeModalBtn.addEventListener("click", () => closeNewProjectModal());
+    closeModalBtn.addEventListener("click", (e) => closeNewProjectModal(e));
   }
 
   const cancelModalBtn = document.getElementById("cancel-modal-btn");
   if (cancelModalBtn) {
-    cancelModalBtn.addEventListener("click", () => closeNewProjectModal());
+    cancelModalBtn.addEventListener("click", (e) => closeNewProjectModal(e));
+  }
+
+  // Character Counter & Live Validation Listener
+  const nameInput = document.getElementById("project-name-input");
+  const nameCounter = document.getElementById("project-name-counter");
+  if (nameInput) {
+    nameInput.addEventListener("input", () => {
+      const currentLen = nameInput.value.length;
+      if (nameCounter) {
+        nameCounter.textContent = `${currentLen} / 64`;
+      }
+      clearNewProjectError();
+    });
   }
 
   // New Project Form Submit
@@ -271,28 +379,57 @@ function initSidebarEvents() {
   if (newProjForm) {
     newProjForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const name = document.getElementById("project-name-input")?.value?.trim();
-      const zipPath = document.getElementById("project-zip-select")?.value;
-      if (name && zipPath) {
-        closeNewProjectModal();
-        try {
-          const res = await fetch("/api/projects/create", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, zip_path: zipPath }),
-          });
-          if (!res.ok) {
-            const err = await res.json();
-            alert(`Failed to create project: ${err.detail || "Error"}`);
-            return;
-          }
-          fetchGlobalProjects();
-          if (window.refreshHealth && typeof window.refreshHealth === "function") {
-            window.refreshHealth();
-          }
-        } catch (err) {
-          alert(`Project creation failed: ${err.message}`);
+      const rawName = nameInput ? nameInput.value : "";
+      const cleaned = rawName.trim();
+
+      // Client-side Security & Length Pre-validation
+      if (!cleaned || cleaned.length < 3) {
+        showNewProjectError("Project name must be at least 3 characters long.");
+        return;
+      }
+      if (cleaned.length > 64) {
+        showNewProjectError("Project name cannot exceed 64 characters.");
+        return;
+      }
+      if (/[<>"'\\/`;\0]/.test(cleaned)) {
+        showNewProjectError("Project name contains disallowed or invalid characters.");
+        return;
+      }
+      if (!/^[a-zA-Z0-9_\-\. ()\[\]]+$/.test(cleaned)) {
+        showNewProjectError("Use only letters, numbers, spaces, dashes, dots, underscores, or parentheses.");
+        return;
+      }
+
+      const submitBtn = document.getElementById("submit-new-project-btn");
+      const btnLabel = document.getElementById("new-project-btn-label");
+      if (submitBtn) submitBtn.disabled = true;
+      if (btnLabel) btnLabel.textContent = "Creating...";
+
+      try {
+        const res = await fetch("/api/projects/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: cleaned }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          // Handle duplicate name (409) or validation failure (400/422)
+          const errorMsg = data.detail || (data.message ? data.message : "Failed to create project");
+          showNewProjectError(errorMsg);
+          if (submitBtn) submitBtn.disabled = false;
+          if (btnLabel) btnLabel.textContent = "Create Project";
+          return;
         }
+
+        // Project created successfully -> redirect to workspace
+        closeNewProjectModal();
+        window.location.href = data.redirect_url || "/workspace";
+      } catch (err) {
+        showNewProjectError(`Network or server error: ${err.message}`);
+        if (submitBtn) submitBtn.disabled = false;
+        if (btnLabel) btnLabel.textContent = "Create Project";
       }
     });
   }
@@ -354,9 +491,17 @@ function initSidebarEvents() {
   fetchGlobalProjects();
 }
 
+// Expose functions globally for page-level scripts
+window.fetchGlobalProjects = fetchGlobalProjects;
+window.openNewProjectModal = openNewProjectModal;
+window.closeNewProjectModal = closeNewProjectModal;
+window.openSettingsModal = openSettingsModal;
+window.closeSettingsModal = closeSettingsModal;
+
 // Auto-run on DOMContentLoaded or immediately if DOM is ready
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initSidebarEvents);
 } else {
   initSidebarEvents();
 }
+

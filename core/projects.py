@@ -1,6 +1,48 @@
 import json
+import re
 from datetime import datetime
 from pathlib import Path
+
+
+# Strict regex pattern for safe project names: alphanumeric, spaces, hyphens, underscores, dots, parentheses, brackets
+PROJECT_NAME_REGEX = re.compile(r"^[a-zA-Z0-9_\-\. ()\[\]]{3,64}$")
+
+
+def validate_project_name(name: str) -> tuple[bool, str]:
+    """
+    Validates a project name against security requirements:
+    - Strips whitespace and normalizes spaces
+    - Length between 3 and 64 characters
+    - Only safe characters allowed (no path traversal, script tags, quotes, control chars)
+    Returns (is_valid, cleaned_name_or_error_message).
+    """
+    if not name or not isinstance(name, str):
+        return False, "Project name is required and cannot be empty."
+
+    cleaned = " ".join(name.strip().split())
+    if len(cleaned) < 3:
+        return False, "Project name must be at least 3 characters long."
+    if len(cleaned) > 64:
+        return False, "Project name cannot exceed 64 characters."
+
+    # Prevent path traversal, null bytes, HTML/script tags, control characters
+    if any(c in cleaned for c in ["\0", "<", ">", '"', "'", "\\", "/", "`", ";"]):
+        return False, "Project name contains disallowed or potentially malicious characters."
+
+    if not PROJECT_NAME_REGEX.match(cleaned):
+        return False, "Project name contains invalid characters. Use letters, numbers, spaces, underscores, dashes, dots, or parentheses."
+
+    return True, cleaned
+
+
+def generate_safe_project_id(name: str) -> str:
+    """Generates a sanitized, deterministic-prefix project_id with timestamp."""
+    cleaned = " ".join(name.strip().split())
+    slug = re.sub(r"[^a-zA-Z0-9]+", "_", cleaned.lower()).strip("_")
+    if not slug:
+        slug = "project"
+    timestamp_slug = datetime.now().strftime("%Y%m%d%H%M%S")
+    return f"proj_{slug[:32]}_{timestamp_slug}"
 
 
 class ProjectManager:
@@ -28,6 +70,23 @@ class ProjectManager:
         temp_file = self.registry_file.with_suffix(".tmp")
         temp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
         temp_file.replace(self.registry_file)
+
+    def project_name_exists(self, name: str) -> bool:
+        """
+        Checks if a project name already exists in projects.json (case-insensitive).
+        Checks ALL projects, including soft-deleted projects, to ensure each
+        project is uniquely identifiable in audit logs.
+        """
+        if not name:
+            return False
+        normalized_target = " ".join(name.strip().lower().split())
+        data = self._load_data()
+        projects_dict = data.get("projects", {})
+        for p_info in projects_dict.values():
+            existing_name = p_info.get("name", "")
+            if " ".join(existing_name.strip().lower().split()) == normalized_target:
+                return True
+        return False
 
     def list_projects(self, include_deleted=False):
         """
@@ -73,7 +132,7 @@ class ProjectManager:
             return True
         return False
 
-    def register_project(self, project_id, name, source_zip, nodes=0, relationships=0):
+    def register_project(self, project_id, name, source_zip=None, nodes=0, relationships=0):
         """Registers or updates a project in the registry."""
         data = self._load_data()
         projects = data.get("projects", {})
@@ -96,16 +155,18 @@ class ProjectManager:
         self._save_data(data)
         return project_entry
 
-    def update_project_stats(self, project_id, nodes, relationships):
-        """Updates node and relationship counts for a project."""
+    def update_project_stats(self, project_id, nodes, relationships, source_zip=None):
+        """Updates node, relationship counts, and source zip for a project."""
         data = self._load_data()
         projects = data.get("projects", {})
         if project_id in projects and not projects[project_id].get("is_deleted"):
             projects[project_id]["nodes"] = nodes
             projects[project_id]["relationships"] = relationships
+            if source_zip is not None:
+                projects[project_id]["source_zip"] = source_zip
             self._save_data(data)
-            return True
-        return False
+            return projects[project_id]
+        return None
 
     def delete_project(self, project_id):
         """

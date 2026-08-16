@@ -2,7 +2,9 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from core.projects import validate_project_name
 
 
 class IngestRequest(BaseModel):
@@ -11,13 +13,27 @@ class IngestRequest(BaseModel):
     clear_database: bool = False
 
 
+class ExecuteIngestRequest(BaseModel):
+    staged_path: str = Field(..., min_length=1)
+    project_id: str | None = None
+    clear_database: bool = True
+
+
 class SelectProjectRequest(BaseModel):
     project_id: str = Field(..., min_length=1)
 
 
 class CreateProjectRequest(BaseModel):
-    name: str = Field(..., min_length=1)
-    zip_path: str = Field("dev/20260702105422_VIPERTECH.zip", min_length=1)
+    name: str = Field(..., min_length=3, max_length=64, description="Unique project assessment name")
+    zip_path: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def check_project_name(cls, v: str) -> str:
+        valid, result = validate_project_name(v)
+        if not valid:
+            raise ValueError(result)
+        return result
 
 
 class PathfindRequest(BaseModel):

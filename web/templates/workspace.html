@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>ViperACL - Tactical Workspace</title>
+  {% include 'head_assets.html' %}
+  <style>
+    /* Browser Tab Strip Styling */
+    .phase-tab {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    .phase-tab.active {
+      background-color: #1a211d !important;
+      color: #dde4dd !important;
+      border-bottom: 2px solid #4edea3 !important;
+    }
+    .phase-tab.active .tab-icon {
+      color: #4edea3 !important;
+    }
+    .phase-tab.locked {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .phase-tab.locked:hover {
+      background-color: transparent !important;
+    }
+    .phase-tab-panel {
+      transition: opacity 0.2s ease-in-out;
+    }
+    @keyframes pulse-lock {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+    .shake-lock {
+      animation: pulse-lock 0.3s ease-in-out;
+    }
+    .dropzone-area {
+      background-image: repeating-linear-gradient(0deg, #3c4a42, #3c4a42 10px, transparent 10px, transparent 20px), repeating-linear-gradient(90deg, #3c4a42, #3c4a42 10px, transparent 10px, transparent 20px), repeating-linear-gradient(180deg, #3c4a42, #3c4a42 10px, transparent 10px, transparent 20px), repeating-linear-gradient(270deg, #3c4a42, #3c4a42 10px, transparent 10px, transparent 20px);
+      background-size: 2px 100%, 100% 2px, 2px 100%, 100% 2px;
+      background-position: 0 0, 0 0, 100% 0, 0 100%;
+      background-repeat: no-repeat;
+      transition: all 0.2s ease;
+    }
+    .dropzone-area.dragover, .dropzone-area:hover {
+      background-image: repeating-linear-gradient(0deg, #4edea3, #4edea3 10px, transparent 10px, transparent 20px), repeating-linear-gradient(90deg, #4edea3, #4edea3 10px, transparent 10px, transparent 20px), repeating-linear-gradient(180deg, #4edea3, #4edea3 10px, transparent 10px, transparent 20px), repeating-linear-gradient(270deg, #4edea3, #4edea3 10px, transparent 10px, transparent 20px);
+      background-color: rgba(78, 222, 163, 0.02);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface flex min-h-screen h-screen overflow-hidden">
+  {% include 'sidebar.html' %}
+
+  <!-- Main Content Area: Tactical Workspace Dashboard -->
+  <main class="flex-1 ml-64 w-[calc(100%-16rem)] h-screen max-h-screen flex flex-col p-5 bg-background overflow-hidden box-border gap-3.5">
+    
+    <!-- Workspace Header -->
+    <header class="flex items-center justify-between pb-2.5 border-b border-outline-variant/60 flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
+          <span class="material-symbols-outlined text-lg">account_tree</span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold text-on-surface tracking-tight">Tactical Operations Workspace</h1>
+            <span class="bg-primary/15 text-primary border border-primary/30 text-[10px] font-jetbrains font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Live
+            </span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant font-jetbrains">
+            Active Directory domain graph assessment, ML pathfinding, privilege escalation, and remediation execution.
+          </p>
+        </div>
+      </div>
+
+      <!-- Engine Status Indicator -->
+      <div class="hidden sm:flex items-center gap-2 text-xs font-jetbrains text-on-surface-variant bg-surface-container-low px-3 py-1 rounded-lg border border-outline-variant/40">
+        <span class="w-2 h-2 rounded-full {{ 'bg-primary animate-pulse' if snapshot.connected else 'bg-red-400' }}"></span>
+        <span>Graph Engine: <strong class="{{ 'text-primary' if snapshot.connected else 'text-red-400' }}">{{ 'Connected' if snapshot.connected else 'Offline' }}</strong></span>
+      </div>
+    </header>
+
+    <!-- Active Project Details Banner -->
+    <section class="bg-surface-container border border-outline-variant rounded-xl p-3.5 shadow-lg tactical-card relative overflow-hidden flex-shrink-0">
+      <div class="absolute top-0 right-0 w-64 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
+      {% if active_project %}
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 relative z-10">
+        <div class="space-y-0.5">
+          <div class="flex items-center gap-2.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_#4edea3]"></span>
+            <h2 class="text-base font-bold text-on-surface font-jetbrains" id="active-project-name-display">{{ active_project.name }}</h2>
+            <span class="text-[11px] font-jetbrains text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded border border-outline-variant" id="active-project-id-badge">{{ active_project.project_id }}</span>
+          </div>
+          <div class="flex items-center gap-3 text-xs font-jetbrains text-on-surface-variant">
+            <span>Created: <strong class="text-on-surface font-medium">{{ active_project.created_at or 'Just now' }}</strong></span>
+            <span>·</span>
+            <span>Status: <strong class="text-primary font-medium" id="active-project-status-badge">{{ active_project.status or 'Ready' }}</strong></span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 font-jetbrains">
+          <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg px-3.5 py-1 text-center min-w-[90px]">
+            <div class="text-[10px] uppercase tracking-wider text-on-surface-variant">Domain Nodes</div>
+            <div class="text-base font-black text-on-surface" id="workspace-node-count">{{ active_project.nodes or 0 }}</div>
+          </div>
+          <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg px-3.5 py-1 text-center min-w-[90px]">
+            <div class="text-[10px] uppercase tracking-wider text-on-surface-variant">Relationships</div>
+            <div class="text-base font-black text-on-surface" id="workspace-rel-count">{{ active_project.relationships or 0 }}</div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="flex items-center justify-between p-1">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-amber-400 text-xl">info</span>
+          <div>
+            <h3 class="text-xs font-bold text-on-surface">No Active Project Selected</h3>
+            <p class="text-[11px] text-on-surface-variant">Select an existing project from the sidebar archive or initialize a new project.</p>
+          </div>
+        </div>
+        <button type="button" onclick="openNewProjectModal()" class="px-3.5 py-1.5 bg-primary text-on-primary text-xs font-bold rounded hover:bg-primary/90 transition-colors flex items-center gap-1 cursor-pointer">
+          <span class="material-symbols-outlined text-sm">add_box</span>
+          Create Project
+        </button>
+      </div>
+      {% endif %}
+    </section>
+
+    <!-- Browser-Like Tactical Phase Tabs & Full-Height Content Container -->
+    <section class="flex-1 flex flex-col bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden shadow-xl min-h-0">
+      
+      <!-- Mini Browser Tab Strip Header -->
+      <div class="flex items-center justify-between bg-surface-container-lowest border-b border-outline-variant/80 px-2 pt-2 gap-1 select-none overflow-x-auto flex-shrink-0" id="phase-tab-strip">
+        <div class="flex items-center gap-1 flex-1">
+          
+          <!-- Tab 1: Ingest (Always Unlocked) -->
+          <button type="button" class="phase-tab active flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-bold text-on-surface bg-surface-container border-t border-l border-r border-outline-variant/60 cursor-pointer" data-tab="tab-phase-1" id="tab-btn-1">
+            <span class="material-symbols-outlined text-sm tab-icon text-secondary">upload_file</span>
+            <span>Phase 1: Ingest</span>
+            <span class="text-[9px] bg-secondary/15 text-secondary px-1.5 py-0.2 rounded font-mono uppercase">Step 1</span>
+          </button>
+
+          <!-- Tab 2: Pathfinder & ML (Unlocked if Phase 1 has data) -->
+          {% set phase2_unlocked = (active_project and active_project.nodes > 0) %}
+          <button type="button" class="phase-tab {{ 'cursor-pointer hover:bg-surface-container-high' if phase2_unlocked else 'locked' }} flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium text-on-surface-variant border-t border-l border-r border-transparent" data-tab="tab-phase-2" data-locked="{{ 'false' if phase2_unlocked else 'true' }}" id="tab-btn-2">
+            <span class="material-symbols-outlined text-sm tab-icon text-tertiary">route</span>
+            <span>Phase 2: Pathfinder</span>
+            <span class="material-symbols-outlined text-[13px] text-on-surface-variant/60 {{ 'hidden' if phase2_unlocked else '' }}" id="lock-icon-phase-2" title="Locked">lock</span>
+            <span class="text-[9px] bg-tertiary/15 text-tertiary px-1.5 py-0.2 rounded font-mono uppercase {{ '' if phase2_unlocked else 'hidden' }}" id="unlocked-badge-phase-2">Unlocked</span>
+          </button>
+
+          <!-- Tab 3: PrivEsc (Unlocked with Phase 4 after Path selection) -->
+          <button type="button" class="phase-tab locked flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium text-on-surface-variant border-t border-l border-r border-transparent" data-tab="tab-phase-3" data-locked="true" id="tab-btn-3">
+            <span class="material-symbols-outlined text-sm tab-icon text-error">admin_panel_settings</span>
+            <span>Phase 3: PrivEsc</span>
+            <span class="material-symbols-outlined text-[13px] text-on-surface-variant/60" id="lock-icon-phase-3" title="Locked">lock</span>
+          </button>
+
+          <!-- Tab 4: Remediation (Unlocked with Phase 3 after Path selection) -->
+          <button type="button" class="phase-tab locked flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium text-on-surface-variant border-t border-l border-r border-transparent" data-tab="tab-phase-4" data-locked="true" id="tab-btn-4">
+            <span class="material-symbols-outlined text-sm tab-icon text-secondary-container">healing</span>
+            <span>Phase 4: Remediation</span>
+            <span class="material-symbols-outlined text-[13px] text-on-surface-variant/60" id="lock-icon-phase-4" title="Locked">lock</span>
+          </button>
+
+        </div>
+
+        <!-- Blank tab space -->
+        <div class="px-2"></div>
+      </div>
+
+      <!-- Tab Content Panels Container -->
+      <div class="flex-1 p-5 overflow-y-auto bg-surface-container flex flex-col min-h-0">
+
+        <!-- Panel 1: SharpHound Archive Upload & Ingestion -->
+        <div class="phase-tab-panel flex-1 flex flex-col gap-4 min-h-0" id="tab-phase-1">
+          
+          <!-- Collector Guide Referral Banner -->
+          <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-jetbrains flex-shrink-0">
+            <div class="flex items-center gap-2 text-on-surface-variant">
+              <span class="material-symbols-outlined text-secondary text-base">info</span>
+              <span>Need to collect Active Directory data first?</span>
+            </div>
+            <a href="/sharphound" class="text-secondary hover:text-secondary/80 font-bold flex items-center gap-1 no-underline whitespace-nowrap">
+              <span>SharpHound Collector &amp; Guide</span>
+              <span class="material-symbols-outlined text-xs">arrow_forward</span>
+            </a>
+          </div>
+
+          <!-- Hidden Native File Input (Accepts .zip only) -->
+          <input type="file" id="sharphound-file-input" accept=".zip,application/zip,application/x-zip-compressed" class="hidden" />
+
+          <!-- Main Upload / Dropzone Container (Entire zone clickable) -->
+          {% set has_ingested = (active_project and (active_project.nodes > 0 or active_project.source_zip)) %}
+          <div class="flex-1 bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col justify-center items-center text-center dropzone-area relative overflow-hidden group min-h-[240px] cursor-pointer" id="ingest-dropzone">
+            
+            <!-- Default Idle Upload State (Hidden if project already has ingested archive) -->
+            <div class="{{ 'hidden' if has_ingested else '' }} flex flex-col items-center justify-center space-y-3 max-w-lg select-none" id="upload-idle-state">
+              <div class="w-16 h-16 rounded-2xl bg-secondary/10 border border-secondary/30 flex items-center justify-center text-secondary group-hover:scale-110 transition-transform shadow-lg">
+                <span class="material-symbols-outlined text-3xl pointer-events-none">cloud_upload</span>
+              </div>
+              <div class="space-y-1">
+                <h3 class="text-base font-bold text-on-surface">Attach your SharpHound .zip here</h3>
+                <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed">
+                  Click anywhere to browse or drag &amp; drop your collection archive
+                </p>
+              </div>
+              <span class="mt-2 px-5 py-2.5 bg-secondary text-on-secondary-container group-hover:bg-secondary/90 font-jetbrains font-bold text-xs rounded-lg transition-all inline-flex items-center gap-1.5 shadow">
+                <span class="material-symbols-outlined text-sm">folder_open</span>
+                Browse Computer
+              </span>
+            </div>
+
+            <!-- Uploading / Inspecting Progress State (Hidden initially) -->
+            <div class="hidden flex-col items-center justify-center space-y-3 py-6" id="upload-loading-state">
+              <div class="w-12 h-12 rounded-full border-2 border-secondary/30 border-t-secondary animate-spin"></div>
+              <p class="text-xs font-jetbrains font-bold text-secondary" id="upload-loading-text">Analyzing SharpHound collection archive...</p>
+            </div>
+
+            <!-- Non-SharpHound / Invalid Archive Error State (Hidden initially) -->
+            <div class="hidden flex-col items-center justify-center space-y-3.5 max-w-lg select-none py-2 cursor-default" id="upload-error-state" onclick="event.stopPropagation()">
+              <div class="w-16 h-16 rounded-2xl bg-red-950/50 border border-red-500/40 flex items-center justify-center text-red-400 shadow-xl">
+                <span class="material-symbols-outlined text-3xl pointer-events-none">warning</span>
+              </div>
+              <div class="space-y-1.5 text-center">
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-950/60 border border-red-500/30 text-red-400 text-[10px] font-jetbrains font-bold uppercase tracking-wider">
+                  <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                  Invalid Archive Format
+                </div>
+                <h3 class="text-base font-bold text-on-surface">Non-SharpHound Archive Detected</h3>
+                <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed max-w-md mx-auto" id="upload-error-message">
+                  The uploaded .zip archive does not contain valid SharpHound Active Directory collection data. This format is not supported. Please upload a valid SharpHound collection archive.
+                </p>
+                <div class="pt-1 flex items-center justify-center gap-2 text-[11px] font-jetbrains text-on-surface-variant">
+                  <span>Attached: <code class="text-red-400 font-bold" id="upload-error-filename">archive.zip</code></span>
+                </div>
+              </div>
+              
+              <div class="flex items-center gap-3 pt-2">
+                <button type="button" id="btn-retry-upload" class="px-5 py-2.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant text-on-surface font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow">
+                  <span class="material-symbols-outlined text-sm">folder_open</span>
+                  <span>Attach Different File</span>
+                </button>
+                <a href="/sharphound" class="px-4 py-2.5 bg-secondary/15 hover:bg-secondary/25 text-secondary border border-secondary/30 font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1 no-underline">
+                  <span>SharpHound Guide</span>
+                  <span class="material-symbols-outlined text-xs">arrow_forward</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- Inspected Archive Staged Summary State (Persistent if already ingested) -->
+            <div class="{{ '' if has_ingested else 'hidden' }} flex flex-col items-center justify-between w-full max-w-2xl bg-surface-container border border-outline-variant rounded-xl p-5 shadow-xl space-y-4 cursor-default" id="upload-staged-state" onclick="event.stopPropagation()">
+              <div class="w-full flex items-center justify-between border-b border-outline-variant/40 pb-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-primary">
+                    <span class="material-symbols-outlined text-xl">folder_zip</span>
+                  </div>
+                  <div class="text-left">
+                    <h4 class="text-sm font-bold text-on-surface font-jetbrains" id="staged-filename">{{ active_project.source_zip if (active_project and active_project.source_zip) else (ingest_metadata.filename if ingest_metadata else 'archive.zip') }}</h4>
+                    <p class="text-[11px] text-on-surface-variant font-jetbrains" id="staged-filesize">{{ (ingest_metadata.file_size_formatted ~ ' · SharpHound Collection') if (ingest_metadata and ingest_metadata.file_size_formatted) else 'Active Directory Collection Archive' }}</p>
+                  </div>
+                </div>
+                <span class="px-2.5 py-0.5 rounded text-[11px] font-jetbrains font-bold bg-primary/15 text-primary border border-primary/30">
+                  SharpHound Verified
+                </span>
+              </div>
+
+              <!-- Extracted Data Metrics Grid -->
+              <div class="w-full grid grid-cols-2 sm:grid-cols-4 gap-3 font-jetbrains">
+                <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg p-2.5 text-center">
+                  <div class="text-[10px] text-on-surface-variant uppercase">Target Domain</div>
+                  <div class="text-xs font-bold text-secondary truncate mt-0.5" id="staged-domain">{{ ingest_metadata.primary_domain if (ingest_metadata and ingest_metadata.primary_domain) else 'VIPERTECH' }}</div>
+                </div>
+                <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg p-2.5 text-center">
+                  <div class="text-[10px] text-on-surface-variant uppercase">Users</div>
+                  <div class="text-xs font-bold text-on-surface mt-0.5" id="staged-users">{{ ingest_metadata.counts.users if (ingest_metadata and ingest_metadata.counts) else '-' }}</div>
+                </div>
+                <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg p-2.5 text-center">
+                  <div class="text-[10px] text-on-surface-variant uppercase">Computers</div>
+                  <div class="text-xs font-bold text-on-surface mt-0.5" id="staged-computers">{{ ingest_metadata.counts.computers if (ingest_metadata and ingest_metadata.counts) else '-' }}</div>
+                </div>
+                <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg p-2.5 text-center">
+                  <div class="text-[10px] text-on-surface-variant uppercase">Groups / ACLs</div>
+                  <div class="text-xs font-bold text-on-surface mt-0.5" id="staged-groups-acls">{{ ingest_metadata.counts.groups if (ingest_metadata and ingest_metadata.counts) else '-' }} / {{ active_project.relationships if active_project else 0 }}</div>
+                </div>
+              </div>
+
+              <!-- Controls & Ingest Action Button -->
+              <div class="w-full flex items-center justify-end gap-3 pt-2 border-t border-outline-variant/30">
+                <button type="button" id="btn-change-file" class="px-4 py-2 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant text-on-surface text-xs font-jetbrains font-bold rounded transition-colors cursor-pointer">
+                  Change File
+                </button>
+                {% if has_ingested and active_project.nodes > 0 %}
+                <button type="button" id="btn-execute-ingest" class="px-6 py-2 bg-emerald-950/60 border border-primary/40 text-primary font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-default">
+                  <span class="material-symbols-outlined text-sm">check</span>
+                  <span>Ingested Successfully</span>
+                </button>
+                {% else %}
+                <button type="button" id="btn-execute-ingest" class="px-6 py-2 bg-primary text-on-primary hover:bg-primary/90 font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-primary/20">
+                  <span class="material-symbols-outlined text-sm">rocket_launch</span>
+                  <span>Ingest into Database</span>
+                </button>
+                {% endif %}
+              </div>
+
+              <!-- Ingestion Alert Banner (Persistent if already ingested) -->
+              {% if has_ingested and active_project.nodes > 0 %}
+              <div id="ingest-alert-banner" class="w-full p-3 rounded text-xs font-jetbrains leading-relaxed text-left flex items-start gap-2 bg-emerald-950/70 border border-primary/50 text-primary">
+                <span class="material-symbols-outlined text-base flex-shrink-0 text-primary">check_circle</span>
+                <div class="flex-1">
+                  <strong>Ingestion Complete!</strong> Successfully loaded <strong>{{ active_project.nodes }}</strong> nodes and <strong>{{ active_project.relationships }}</strong> relationships. Phase 2 Pathfinder is unlocked!
+                </div>
+              </div>
+              {% else %}
+              <div id="ingest-alert-banner" class="w-full hidden p-3 rounded text-xs font-jetbrains leading-relaxed text-left flex items-start gap-2"></div>
+              {% endif %}
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Panel 2: Attack Pathfinder & ML (Unlocked if Phase 1 Done) -->
+        <div class="phase-tab-panel hidden flex-1 flex flex-col gap-4 min-h-0" id="tab-phase-2">
+          <div class="flex-1 bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col justify-center items-center text-center space-y-3">
+            <div class="w-14 h-14 rounded-2xl bg-tertiary/10 border border-tertiary/30 flex items-center justify-center text-tertiary">
+              <span class="material-symbols-outlined text-3xl">route</span>
+            </div>
+            <h3 class="text-base font-bold text-on-surface">Attack Path Navigation &amp; Machine Learning</h3>
+            <p class="text-xs text-on-surface-variant max-w-lg mx-auto leading-relaxed font-jetbrains">
+              Query source and target Active Directory principals to calculate tactical attack paths with Random Forest classifier probabilities.
+            </p>
+          </div>
+        </div>
+
+        <!-- Panel 3: Privilege Escalation -->
+        <div class="phase-tab-panel hidden flex-1 flex flex-col gap-4 min-h-0" id="tab-phase-3">
+          <div class="flex-1 bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col justify-center items-center text-center space-y-3">
+            <div class="w-14 h-14 rounded-2xl bg-error/10 border border-error/30 flex items-center justify-center text-error">
+              <span class="material-symbols-outlined text-3xl">admin_panel_settings</span>
+            </div>
+            <h3 class="text-base font-bold text-on-surface">Privilege Escalation Planning &amp; Abuse Modules</h3>
+            <p class="text-xs text-on-surface-variant max-w-lg mx-auto leading-relaxed font-jetbrains">
+              Generate sequential ACL abuse tasks and execute validated privilege escalation chains.
+            </p>
+          </div>
+        </div>
+
+        <!-- Panel 4: Surgical Remediation -->
+        <div class="phase-tab-panel hidden flex-1 flex flex-col gap-4 min-h-0" id="tab-phase-4">
+          <div class="flex-1 bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col justify-center items-center text-center space-y-3">
+            <div class="w-14 h-14 rounded-2xl bg-secondary-container/10 border border-secondary-container/30 flex items-center justify-center text-secondary-container">
+              <span class="material-symbols-outlined text-3xl">healing</span>
+            </div>
+            <h3 class="text-base font-bold text-on-surface">Surgical Active Directory Remediation Playbooks</h3>
+            <p class="text-xs text-on-surface-variant max-w-lg mx-auto leading-relaxed font-jetbrains">
+              Export production-ready PowerShell scripts (`.ps1`) to remove unauthorized ACEs and close discovered choke points.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Overwrite Confirmation Modal Dialog -->
+  <div class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="overwrite-ingest-modal">
+    <div class="bg-[#1E293B] border border-amber-500/50 rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 relative transform scale-95 opacity-0 transition-all duration-200 ease-out" id="overwrite-ingest-modal-box">
+      <div class="flex items-center gap-3.5 border-b border-outline-variant/40 pb-3">
+        <div class="w-10 h-10 rounded-full bg-amber-950/80 text-amber-400 border border-amber-700/50 flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-xl">warning</span>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-on-surface">Overwrite Active Directory Data?</h3>
+          <p class="text-xs text-on-surface-variant/80">Existing graph partition detected</p>
+        </div>
+      </div>
+      
+      <div class="text-xs text-on-surface-variant/90 leading-relaxed bg-surface-container-low p-3.5 rounded-lg border border-outline-variant/30 font-jetbrains space-y-2">
+        <p>This project already contains ingested Active Directory graph data (<strong id="overwrite-modal-nodes-count" class="text-primary font-bold"></strong> nodes, <strong id="overwrite-modal-rels-count" class="text-primary font-bold"></strong> relationships).</p>
+        <p class="text-amber-300/90 text-[11px]">Ingesting this new collection will clear and overwrite previous Active Directory data for this project. Do you want to proceed?</p>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button type="button" id="cancel-overwrite-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded transition-colors cursor-pointer">
+          Cancel
+        </button>
+        <button type="button" id="confirm-overwrite-modal-btn" class="px-4 py-2 text-xs font-bold bg-primary hover:bg-primary/90 text-on-primary rounded shadow-lg transition-all flex items-center gap-1.5 cursor-pointer">
+          <span class="material-symbols-outlined text-sm">restart_alt</span>
+          Proceed &amp; Overwrite
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workspace Interactive Ingest & Tab Switcher Script -->
+  <script>
+    let currentStagedPath = null;
+    let currentStagedFileName = null;
+    let lastIngestedFileName = "{{ active_project.source_zip if (active_project and active_project.source_zip) else '' }}";
+    let isIngested = {{ 'true' if (active_project and active_project.nodes > 0) else 'false' }};
+    let currentProjectNodes = {{ active_project.nodes if (active_project and active_project.nodes) else 0 }};
+    let currentProjectRels = {{ active_project.relationships if (active_project and active_project.relationships) else 0 }};
+
+    function initWorkspace() {
+      initTabs();
+      initIngestUpload();
+      initModals();
+    }
+
+    function initTabs() {
+      const tabs = document.querySelectorAll(".phase-tab");
+      const panels = document.querySelectorAll(".phase-tab-panel");
+
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          const isLocked = tab.dataset.locked === "true";
+          const targetTabId = tab.dataset.tab;
+
+          if (isLocked) {
+            tab.classList.add("shake-lock");
+            setTimeout(() => tab.classList.remove("shake-lock"), 350);
+            return;
+          }
+
+          tabs.forEach((t) => {
+            if (t === tab) {
+              t.classList.add("active", "text-on-surface", "bg-surface-container");
+              t.classList.remove("text-on-surface-variant");
+            } else {
+              t.classList.remove("active", "bg-surface-container");
+              t.classList.add("text-on-surface-variant");
+            }
+          });
+
+          panels.forEach((p) => {
+            if (p.id === targetTabId) {
+              p.classList.remove("hidden");
+              p.style.opacity = "0";
+              requestAnimationFrame(() => {
+                p.style.opacity = "1";
+              });
+            } else {
+              p.classList.add("hidden");
+            }
+          });
+        });
+      });
+    }
+
+    function unlockPhase2() {
+      const tab2 = document.getElementById("tab-btn-2");
+      const lockIcon = document.getElementById("lock-icon-phase-2");
+      const unlockBadge = document.getElementById("unlocked-badge-phase-2");
+
+      if (tab2) {
+        tab2.dataset.locked = "false";
+        tab2.classList.remove("locked");
+        tab2.classList.add("cursor-pointer", "hover:bg-surface-container-high");
+      }
+      if (lockIcon) lockIcon.classList.add("hidden");
+      if (unlockBadge) unlockBadge.classList.remove("hidden");
+    }
+
+    function initModals() {
+      const modal = document.getElementById("overwrite-ingest-modal");
+      const modalBox = document.getElementById("overwrite-ingest-modal-box");
+      const cancelBtn = document.getElementById("cancel-overwrite-modal-btn");
+      const confirmBtn = document.getElementById("confirm-overwrite-modal-btn");
+
+      if (cancelBtn && modal) {
+        cancelBtn.addEventListener("click", () => {
+          hideOverwriteModal();
+        });
+      }
+
+      if (confirmBtn) {
+        confirmBtn.addEventListener("click", () => {
+          hideOverwriteModal();
+          executeDatabaseIngestion();
+        });
+      }
+
+      if (modal) {
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) hideOverwriteModal();
+        });
+      }
+    }
+
+    function showOverwriteModal() {
+      const modal = document.getElementById("overwrite-ingest-modal");
+      const modalBox = document.getElementById("overwrite-ingest-modal-box");
+      const nodesSpan = document.getElementById("overwrite-modal-nodes-count");
+      const relsSpan = document.getElementById("overwrite-modal-rels-count");
+
+      if (nodesSpan) nodesSpan.textContent = currentProjectNodes;
+      if (relsSpan) relsSpan.textContent = currentProjectRels;
+
+      if (modal && modalBox) {
+        modal.classList.remove("hidden");
+        requestAnimationFrame(() => {
+          modal.classList.remove("opacity-0");
+          modalBox.classList.remove("scale-95", "opacity-0");
+        });
+      }
+    }
+
+    function hideOverwriteModal() {
+      const modal = document.getElementById("overwrite-ingest-modal");
+      const modalBox = document.getElementById("overwrite-ingest-modal-box");
+      if (modal && modalBox) {
+        modal.classList.add("opacity-0");
+        modalBox.classList.add("scale-95", "opacity-0");
+        setTimeout(() => modal.classList.add("hidden"), 200);
+      }
+    }
+
+    function initIngestUpload() {
+      const fileInput = document.getElementById("sharphound-file-input");
+      const dropzone = document.getElementById("ingest-dropzone");
+      const idleState = document.getElementById("upload-idle-state");
+      const loadingState = document.getElementById("upload-loading-state");
+      const loadingText = document.getElementById("upload-loading-text");
+      const stagedState = document.getElementById("upload-staged-state");
+      const errorState = document.getElementById("upload-error-state");
+      const errorMsgEl = document.getElementById("upload-error-message");
+      const errorFileEl = document.getElementById("upload-error-filename");
+      const retryUploadBtn = document.getElementById("btn-retry-upload");
+      const changeFileBtn = document.getElementById("btn-change-file");
+      const executeIngestBtn = document.getElementById("btn-execute-ingest");
+      const alertBanner = document.getElementById("ingest-alert-banner");
+
+      if (!fileInput || !dropzone) return;
+
+      function showError(fileName, message) {
+        idleState.classList.add("hidden");
+        stagedState.classList.add("hidden");
+        loadingState.classList.add("hidden");
+        currentStagedPath = null;
+
+        if (errorMsgEl) {
+          errorMsgEl.textContent = message || "The uploaded .zip archive does not contain valid SharpHound Active Directory collection data. This format is not supported. Please upload a valid SharpHound collection archive.";
+        }
+        if (errorFileEl) {
+          errorFileEl.textContent = fileName || "unknown_file.zip";
+        }
+        if (errorState) {
+          errorState.classList.remove("hidden");
+          errorState.classList.add("flex");
+        }
+      }
+
+      function hideError() {
+        if (errorState) {
+          errorState.classList.add("hidden");
+          errorState.classList.remove("flex");
+        }
+      }
+
+      // Dropzone click triggers file picker if idle or in error state
+      dropzone.addEventListener("click", (e) => {
+        if (!idleState.classList.contains("hidden") || (errorState && !errorState.classList.contains("hidden"))) {
+          fileInput.click();
+        }
+      });
+
+      if (retryUploadBtn) {
+        retryUploadBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          fileInput.value = "";
+          fileInput.click();
+        });
+      }
+
+      // Drag and drop events
+      ["dragenter", "dragover"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add("dragover");
+        });
+      });
+
+      ["dragleave", "drop"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove("dragover");
+        });
+      });
+
+      dropzone.addEventListener("drop", (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+          handleFile(files[0]);
+        }
+      });
+
+      fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+          handleFile(e.target.files[0]);
+        }
+      });
+
+      if (changeFileBtn) {
+        changeFileBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          fileInput.value = "";
+          fileInput.click();
+        });
+      }
+
+      async function handleFile(file) {
+        if (!file.name.toLowerCase().endsWith(".zip")) {
+          showError(file.name, "The selected file is not a .zip archive. ViperACL only accepts SharpHound Active Directory collection archives in .zip format.");
+          return;
+        }
+
+        // If file is the exact same name and already ingested, remain in current state
+        if (file.name === lastIngestedFileName && isIngested) {
+          hideError();
+          stagedState.classList.remove("hidden");
+          return;
+        }
+
+        // A new or different file is being attached
+        hideError();
+        idleState.classList.add("hidden");
+        stagedState.classList.add("hidden");
+        loadingState.classList.remove("hidden");
+        loadingText.textContent = `Analyzing ${file.name}...`;
+
+        // Clear previous alert banner for new file
+        if (alertBanner) {
+          alertBanner.classList.add("hidden");
+          alertBanner.innerHTML = "";
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const res = await fetch("/api/ingest/upload", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await res.json();
+
+          if (!res.ok) {
+            const errDetail = data.detail || "Non-SharpHound archive structure detected.";
+            showError(file.name, `Validation Failed: ${errDetail} Please upload a valid SharpHound collection archive.`);
+            return;
+          }
+
+          currentStagedPath = data.staged_path;
+          currentStagedFileName = file.name;
+          const meta = data.metadata;
+
+          // Populate Staged Card
+          document.getElementById("staged-filename").textContent = meta.filename;
+          document.getElementById("staged-filesize").textContent = `${meta.file_size_formatted} · SharpHound Collection`;
+          document.getElementById("staged-domain").textContent = meta.primary_domain || "DOMAIN";
+          document.getElementById("staged-users").textContent = meta.counts.users || 0;
+          document.getElementById("staged-computers").textContent = meta.counts.computers || 0;
+          document.getElementById("staged-groups-acls").textContent = `${meta.counts.groups || 0} / ${meta.counts.acls || 0}`;
+
+          // Reset Ingest Action Button for the new file
+          if (executeIngestBtn) {
+            executeIngestBtn.disabled = false;
+            executeIngestBtn.className = "px-6 py-2 bg-primary text-on-primary hover:bg-primary/90 font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-primary/20";
+            executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm">rocket_launch</span><span>Ingest into Database</span>`;
+          }
+
+          loadingState.classList.add("hidden");
+          stagedState.classList.remove("hidden");
+        } catch (err) {
+          showError(file.name, `Upload/Inspection Error: ${err.message}. Please attach a valid SharpHound archive.`);
+        }
+      }
+
+      if (executeIngestBtn) {
+        executeIngestBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!currentStagedPath) {
+            if (isIngested) return;
+            showError("None", "No staged archive found. Please attach a valid SharpHound .zip archive.");
+            return;
+          }
+
+          // If current project already has graph data, show overwrite modal
+          if (currentProjectNodes > 0) {
+            showOverwriteModal();
+          } else {
+            executeDatabaseIngestion();
+          }
+        });
+      }
+    }
+
+    async function executeDatabaseIngestion() {
+      const executeIngestBtn = document.getElementById("btn-execute-ingest");
+      const alertBanner = document.getElementById("ingest-alert-banner");
+      if (!currentStagedPath || !executeIngestBtn) return;
+
+      executeIngestBtn.disabled = true;
+      executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm animate-spin">refresh</span> Ingesting...`;
+
+      try {
+        const res = await fetch("/api/ingest/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            staged_path: currentStagedPath,
+            clear_database: true,
+          }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.detail || "Ingestion execution failed.");
+        }
+
+        // Update state tracking
+        lastIngestedFileName = currentStagedFileName;
+        isIngested = true;
+        currentProjectNodes = data.snapshot.nodes || 0;
+        currentProjectRels = data.snapshot.relationships || 0;
+        currentStagedPath = null;
+
+        // Update live metrics on workspace header
+        const nodeDisplay = document.getElementById("workspace-node-count");
+        const relDisplay = document.getElementById("workspace-rel-count");
+        if (nodeDisplay) nodeDisplay.textContent = currentProjectNodes;
+        if (relDisplay) relDisplay.textContent = currentProjectRels;
+
+        // Ping sidebar to immediately refresh projects drawer stats (nodes & rels) without page reload
+        if (typeof window.fetchGlobalProjects === "function") {
+          window.fetchGlobalProjects();
+        }
+
+        // Show Success Alert
+        if (alertBanner) {
+          alertBanner.className = "w-full p-3 rounded text-xs font-jetbrains leading-relaxed text-left flex items-start gap-2 bg-emerald-950/70 border border-primary/50 text-primary";
+          alertBanner.innerHTML = `
+            <span class="material-symbols-outlined text-base flex-shrink-0 text-primary">check_circle</span>
+            <div class="flex-1">
+              <strong>Ingestion Complete!</strong> Successfully loaded <strong>${data.snapshot.nodes}</strong> nodes and <strong>${data.snapshot.relationships}</strong> relationships. Phase 2 Pathfinder is unlocked!
+            </div>
+          `;
+          alertBanner.classList.remove("hidden");
+        }
+
+        // Unlock Phase 2 Tab
+        unlockPhase2();
+
+        executeIngestBtn.className = "px-6 py-2 bg-emerald-950/60 border border-primary/40 text-primary font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-default";
+        executeIngestBtn.disabled = false;
+        executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm">check</span> Ingested Successfully`;
+      } catch (err) {
+        executeIngestBtn.disabled = false;
+        executeIngestBtn.className = "px-6 py-2 bg-primary text-on-primary hover:bg-primary/90 font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-primary/20";
+        executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm">rocket_launch</span> Ingest into Database`;
+        if (alertBanner) {
+          alertBanner.className = "w-full p-3 rounded text-xs font-jetbrains leading-relaxed text-left flex items-start gap-2 bg-red-950/70 border border-red-500/50 text-error";
+          alertBanner.innerHTML = `
+            <span class="material-symbols-outlined text-base flex-shrink-0 text-red-400">error</span>
+            <div class="flex-1"><strong>Error:</strong> ${err.message}</div>
+          `;
+          alertBanner.classList.remove("hidden");
+        }
+      }
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initWorkspace);
+    } else {
+      initWorkspace();
+    }
+  </script>
+
+  <script src="/static/sidebar.js?v=2"></script>
+</body>
+</html>

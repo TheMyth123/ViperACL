@@ -21,6 +21,12 @@
       <span class="text-label-md font-label-md font-bold pointer-events-none">Launchpad</span>
     </a>
 
+    <!-- Tactical Workspace / 4 Phases link -->
+    <a href="/workspace" class="w-full flex items-center gap-3 rounded-lg px-4 py-2.5 text-left no-underline cursor-pointer transition-all {{ 'btn-new-project' if active_page == 'workspace' else 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}">
+      <span class="material-symbols-outlined fill-icon pointer-events-none">account_tree</span>
+      <span class="text-label-md font-label-md font-bold pointer-events-none">Workspace</span>
+    </a>
+
     <!-- New Project Trigger -->
     <button class="w-full flex items-center gap-3 text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer" id="open-new-project-modal-btn" type="button">
       <span class="material-symbols-outlined fill-icon pointer-events-none">add_box</span>
@@ -28,7 +34,7 @@
     </button>
 
     <!-- Projects Archive Accordion Drawer -->
-    <details class="group rounded-lg transition-all" id="archive-details">
+    <details class="group rounded-lg transition-all" id="archive-details" open>
       <summary class="w-full flex items-center justify-between text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden" id="toggle-archive-btn">
         <div class="flex items-center gap-3">
           <span class="material-symbols-outlined">inventory_2</span>
@@ -48,6 +54,12 @@
       <span class="text-label-md font-label-md font-bold">Global Logs</span>
     </a>
 
+    <!-- SharpHound Link -->
+    <a href="/sharphound" class="w-full flex items-center gap-3 rounded-lg px-4 py-2.5 text-left no-underline cursor-pointer transition-all {{ 'btn-new-project' if active_page == 'sharphound' else 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}">
+      <span class="material-symbols-outlined pointer-events-none">download</span>
+      <span class="text-label-md font-label-md font-bold pointer-events-none">SharpHound</span>
+    </a>
+
     <!-- Settings Trigger -->
     <button class="w-full flex items-center gap-3 text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer" id="open-settings-btn" type="button">
       <span class="material-symbols-outlined pointer-events-none">settings</span>
@@ -65,38 +77,52 @@
 </nav>
 
 <!-- New Project Modal Dialog -->
-<div class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4" id="new-project-modal">
-  <div class="bg-[#1E293B] border border-[#334155] rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 relative">
+<div class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="new-project-modal">
+  <div class="bg-[#1E293B] border border-[#334155] rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 relative transform scale-95 opacity-0 transition-all duration-200 ease-out" id="new-project-modal-box">
     <div class="flex items-center justify-between border-b border-outline-variant pb-3">
       <h3 class="text-headline-md font-bold text-on-surface flex items-center gap-2">
         <span class="material-symbols-outlined text-primary">add_box</span>
         Create New Project
       </h3>
-      <button class="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer" id="close-modal-btn" type="button">
+      <button class="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer transition-colors" id="close-modal-btn" type="button" title="Close">
         <span class="material-symbols-outlined pointer-events-none">close</span>
       </button>
     </div>
-    <form id="new-project-form" class="space-y-4">
+
+    <!-- Error / Validation Alert Box -->
+    <div id="new-project-error" class="hidden p-3 rounded bg-red-950/70 border border-red-500/50 text-error text-xs font-jetbrains leading-relaxed flex items-start gap-2">
+      <span class="material-symbols-outlined text-base flex-shrink-0 text-red-400">error</span>
+      <span id="new-project-error-text" class="flex-1"></span>
+    </div>
+
+    <form id="new-project-form" class="space-y-4" novalidate>
       <div>
-        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">Project Name</label>
-        <input type="text" id="project-name-input" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none font-jetbrains" placeholder="e.g. VIPERTECH AD Audit" required />
+        <div class="flex items-center justify-between mb-1.5">
+          <label for="project-name-input" class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">Project Name</label>
+          <span class="text-[10px] text-on-surface-variant/70 font-jetbrains" id="project-name-counter">0 / 64</span>
+        </div>
+        <input 
+          type="text" 
+          id="project-name-input" 
+          name="name"
+          maxlength="64"
+          autocomplete="off"
+          class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
+          placeholder="e.g. VIPERTECH AD Assessment" 
+          required 
+        />
+        <p class="text-[11px] text-on-surface-variant/75 mt-1.5 leading-snug">
+          3–64 characters. Letters, numbers, spaces, dashes, dots, and underscores allowed. Must be unique across all assessment records.
+        </p>
       </div>
-      <div>
-        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">SharpHound Data ZIP</label>
-        <select id="project-zip-select" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none font-jetbrains">
-          <option value="dev/20260702105422_VIPERTECH.zip">dev/20260702105422_VIPERTECH.zip (Latest)</option>
-          <option value="dev/20260702104256_VIPERTECH.zip">dev/20260702104256_VIPERTECH.zip</option>
-          <option value="dev/20260702103028_VIPERTECH.zip">dev/20260702103028_VIPERTECH.zip</option>
-          <option value="dev/20260702101545_VIPERTECH.zip">dev/20260702101545_VIPERTECH.zip</option>
-          <option value="dev/20260702080052_VIPERTECH.zip">dev/20260702080052_VIPERTECH.zip</option>
-          <option value="dev/20260702052333_VIPERTECH.zip">dev/20260702052333_VIPERTECH.zip</option>
-        </select>
-      </div>
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer">Cancel</button>
-        <button type="submit" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-colors flex items-center gap-1.5 cursor-pointer">
-          <span class="material-symbols-outlined text-sm">rocket_launch</span>
-          Ingest &amp; Launch
+
+      <div class="flex items-center justify-end gap-3 pt-2 border-t border-outline-variant/30">
+        <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer transition-colors">
+          Cancel
+        </button>
+        <button type="submit" id="submit-new-project-btn" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined text-sm pointer-events-none" id="new-project-btn-icon">rocket_launch</span>
+          <span id="new-project-btn-label">Create Project</span>
         </button>
       </div>
     </form>
