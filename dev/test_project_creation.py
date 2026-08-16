@@ -39,12 +39,14 @@ def test_duplicate_name_detection_including_soft_deleted():
     app = create_app()
     client = TestClient(app)
 
-    # Fetch existing projects
     mgr = ProjectManager()
     all_projects = mgr.list_projects(include_deleted=True)
-    assert len(all_projects) > 0, "Expected at least one project in test data"
-
-    existing_name = all_projects[0]["name"]
+    if len(all_projects) == 0:
+        create_res = client.post("/api/projects/create", json={"name": "Initial Baseline Project"})
+        assert create_res.status_code == 200
+        existing_name = "Initial Baseline Project"
+    else:
+        existing_name = all_projects[0]["name"]
 
     # Attempt to create duplicate with exact name
     res = client.post("/api/projects/create", json={"name": existing_name})
@@ -86,6 +88,21 @@ def test_create_unique_project_and_redirect():
     res_dup_after_del = client.post("/api/projects/create", json={"name": unique_name})
     assert res_dup_after_del.status_code == 409
     assert "Project name duplicate" in res_dup_after_del.json()["detail"]
+
+
+def test_workspace_no_active_project_greyed_out():
+    app = create_app()
+    client = TestClient(app)
+
+    # Set active project to None
+    mgr = ProjectManager()
+    mgr._save_data({"active_project_id": None, "projects": mgr._load_data().get("projects", {})})
+
+    res = client.get("/workspace")
+    assert res.status_code == 200
+    assert "No Project Selected" in res.text
+    assert "opacity-30 pointer-events-none" in res.text
+    assert "Create New Project" in res.text
 
 
 if __name__ == "__main__":

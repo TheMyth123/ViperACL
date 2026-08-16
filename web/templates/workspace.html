@@ -128,13 +128,32 @@
     </section>
 
     <!-- Browser-Like Tactical Phase Tabs & Full-Height Content Container -->
-    <section class="flex-1 flex flex-col bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden shadow-xl min-h-0">
+    <section class="flex-1 flex flex-col bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden shadow-xl min-h-0 relative">
       
+      {% if not active_project %}
+      <!-- Disabled / Greyed-out Workspace Overlay with Create Project Trigger -->
+      <div class="absolute inset-0 bg-background/85 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-6 text-center space-y-4 select-none">
+        <div class="w-16 h-16 rounded-2xl bg-surface-container border border-outline-variant flex items-center justify-center text-on-surface-variant shadow-2xl">
+          <span class="material-symbols-outlined text-4xl text-primary">add_box</span>
+        </div>
+        <div class="space-y-1.5 max-w-md">
+          <h3 class="text-lg font-bold text-on-surface font-jetbrains tracking-tight">No Project Selected</h3>
+          <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed">
+            An active project workspace is required to ingest domain data, navigate attack paths, and generate remediations.
+          </p>
+        </div>
+        <button type="button" onclick="openNewProjectModal()" class="px-6 py-3 bg-primary text-on-primary hover:bg-primary/90 font-jetbrains font-bold text-xs rounded-xl shadow-[0_0_20px_rgba(78,222,163,0.3)] transition-all flex items-center gap-2 cursor-pointer transform hover:scale-105">
+          <span class="material-symbols-outlined text-base">add_box</span>
+          <span>Create New Project</span>
+        </button>
+      </div>
+      {% endif %}
+
       <!-- Mini Browser Tab Strip Header -->
-      <div class="flex items-center justify-between bg-surface-container-lowest border-b border-outline-variant/80 px-2 pt-2 gap-1 select-none overflow-x-auto flex-shrink-0" id="phase-tab-strip">
+      <div class="flex items-center justify-between bg-surface-container-lowest border-b border-outline-variant/80 px-2 pt-2 gap-1 select-none overflow-x-auto flex-shrink-0 {{ 'opacity-30 pointer-events-none' if not active_project else '' }}" id="phase-tab-strip">
         <div class="flex items-center gap-1 flex-1">
           
-          <!-- Tab 1: Ingest (Always Unlocked) -->
+          <!-- Tab 1: Ingest (Always Unlocked when active project present) -->
           <button type="button" class="phase-tab active flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-bold text-on-surface bg-surface-container border-t border-l border-r border-outline-variant/60 cursor-pointer" data-tab="tab-phase-1" id="tab-btn-1">
             <span class="material-symbols-outlined text-sm tab-icon text-secondary">upload_file</span>
             <span>Phase 1: Ingest</span>
@@ -171,7 +190,7 @@
       </div>
 
       <!-- Tab Content Panels Container -->
-      <div class="flex-1 p-5 overflow-y-auto bg-surface-container flex flex-col min-h-0">
+      <div class="flex-1 p-5 overflow-y-auto bg-surface-container flex flex-col min-h-0 {{ 'opacity-30 pointer-events-none' if not active_project else '' }}">
 
         <!-- Panel 1: SharpHound Archive Upload & Ingestion -->
         <div class="phase-tab-panel flex-1 flex flex-col gap-4 min-h-0" id="tab-phase-1">
@@ -395,14 +414,24 @@
     </div>
   </div>
 
+  <!-- Workspace Configuration Context Data -->
+  <div id="workspace-context"
+    data-has-project="{{ 'true' if active_project else 'false' }}"
+    data-project-id="{{ active_project.project_id if active_project else '' }}"
+    data-source-zip="{{ active_project.source_zip if (active_project and active_project.source_zip) else '' }}"
+    data-nodes="{{ active_project.nodes if (active_project and active_project.nodes) else 0 }}"
+    data-relationships="{{ active_project.relationships if (active_project and active_project.relationships) else 0 }}"
+    class="hidden"></div>
+
   <!-- Workspace Interactive Ingest & Tab Switcher Script -->
   <script>
+    const wsContext = document.getElementById("workspace-context")?.dataset || {};
     let currentStagedPath = null;
     let currentStagedFileName = null;
-    let lastIngestedFileName = "{{ active_project.source_zip if (active_project and active_project.source_zip) else '' }}";
-    let isIngested = {{ 'true' if (active_project and active_project.nodes > 0) else 'false' }};
-    let currentProjectNodes = {{ active_project.nodes if (active_project and active_project.nodes) else 0 }};
-    let currentProjectRels = {{ active_project.relationships if (active_project and active_project.relationships) else 0 }};
+    let lastIngestedFileName = wsContext.sourceZip || "";
+    let isIngested = parseInt(wsContext.nodes || "0", 10) > 0;
+    let currentProjectNodes = parseInt(wsContext.nodes || "0", 10);
+    let currentProjectRels = parseInt(wsContext.relationships || "0", 10);
 
     function initWorkspace() {
       initTabs();
