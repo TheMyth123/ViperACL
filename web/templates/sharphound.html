@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html class="dark" lang="en">
+
 <head>
-  <meta charset="utf-8"/>
-  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
   <title>ViperACL - SharpHound Collector &amp; Command Guide</title>
   {% include 'head_assets.html' %}
 </head>
+
 <body class="bg-background text-on-surface flex min-h-screen h-screen overflow-hidden">
   {% include 'sidebar.html' %}
 
-  <!-- Main Content Area -->
-  <main class="flex-1 ml-64 w-[calc(100%-16rem)] h-screen max-h-screen flex flex-col p-6 bg-background overflow-y-auto box-border space-y-6">
-    
+  <!-- Main Content Area - Single Screen Viewport without Scrolling -->
+  <main class="flex-1 ml-64 w-[calc(100%-16rem)] h-screen max-h-screen flex flex-col justify-between p-5 xl:p-6 bg-background overflow-hidden box-border gap-4">
+
     <!-- Page Header -->
-    <header class="flex items-center justify-between pb-3 border-b border-outline-variant/60 flex-shrink-0">
+    <header class="flex items-center justify-between pb-2 border-b border-outline-variant/60 flex-shrink-0">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-secondary/15 border border-secondary/30 flex items-center justify-center text-secondary shadow">
           <span class="material-symbols-outlined text-2xl">download</span>
@@ -28,7 +30,7 @@
     </header>
 
     <!-- 1. PRIMARY MAIN FUNCTION: Prominent Download Hero Card -->
-    <section class="bg-gradient-to-r from-surface-container via-surface-container to-surface-container-high border-2 border-secondary/40 rounded-2xl p-6 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+    <section class="bg-gradient-to-r from-surface-container via-surface-container to-surface-container-high border-2 border-secondary/40 rounded-2xl p-5 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 flex-shrink-0">
       <div class="space-y-2 max-w-xl">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/15 border border-secondary/30 text-secondary text-xs font-jetbrains font-bold">
           <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
@@ -36,11 +38,9 @@
         </div>
         <h2 class="text-2xl font-black text-on-surface tracking-tight">Download SharpHound.exe</h2>
         <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed">
-          The standalone data collection executable for Windows domain environments. Collects user accounts, groups, computer objects, domain trusts, and ACL permissions.
+          The standalone data collection executable for Windows domain environments. Collects accounts, groups, computer objects, trusts, and ACL permissions.
         </p>
-        <div class="flex items-center gap-4 text-[11px] font-jetbrains text-on-surface-variant pt-1">
-          <span>File: <strong class="text-on-surface">SharpHound.exe</strong></span>
-          <span>·</span>
+        <div class="flex items-center gap-4 text-[11px] font-jetbrains text-on-surface-variant pt-0.5">
           <span>Target: <strong class="text-on-surface">Windows x64 (.NET 4.5+)</strong></span>
           <span>·</span>
           <span>Status: <strong class="text-primary">Ready</strong></span>
@@ -48,15 +48,15 @@
       </div>
 
       <!-- Large Prominent Download Button -->
-      <a href="/api/tools/sharphound/download" class="flex-shrink-0 px-8 py-4 bg-secondary hover:bg-secondary/90 text-on-secondary-container rounded-xl font-jetbrains font-black text-sm tracking-wide transition-all duration-200 transform hover:scale-105 shadow-[0_0_20px_rgba(76,215,246,0.3)] flex items-center gap-3 no-underline">
+      <a href="/api/tools/sharphound/download" class="flex-shrink-0 px-8 py-3.5 bg-secondary hover:bg-secondary/90 text-on-secondary-container rounded-xl font-jetbrains font-black text-sm tracking-wide transition-all duration-200 transform hover:scale-105 shadow-[0_0_20px_rgba(76,215,246,0.3)] flex items-center gap-3 no-underline whitespace-nowrap cursor-pointer">
         <span class="material-symbols-outlined text-2xl">download</span>
         <span>Download SharpHound.exe</span>
       </a>
     </section>
 
-    <!-- 2. SUB FUNCTION: Full-Width Command Builder -->
-    <section class="bg-surface-container border border-outline-variant rounded-2xl p-6 shadow-lg space-y-4">
-      <div class="flex items-center justify-between border-b border-outline-variant/40 pb-3">
+    <!-- 2. SUB FUNCTION: Full-Width Command Builder (Clean without Flags Block) -->
+    <section class="bg-surface-container border border-outline-variant rounded-2xl p-5 shadow-lg space-y-3 flex-shrink-0">
+      <div class="flex items-center justify-between border-b border-outline-variant/40 pb-2.5">
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-primary text-xl">terminal</span>
           <h3 class="text-base font-bold text-on-surface">Command Builder</h3>
@@ -64,7 +64,7 @@
         <span class="text-xs font-jetbrains text-on-surface-variant">Active Directory Collection Syntax</span>
       </div>
 
-      <div class="space-y-4">
+      <div class="space-y-3">
         <!-- Target Domain Input -->
         <div class="max-w-md space-y-1.5">
           <label for="target-domain-input" class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider font-jetbrains">
@@ -103,39 +103,17 @@
             </button>
           </div>
         </div>
-
-        <!-- Command Flags Breakdown -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-          <div class="bg-surface-container-low border border-outline-variant/40 rounded-xl p-4 space-y-1.5">
-            <div class="text-xs font-jetbrains font-bold text-primary flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-sm">tune</span>
-              <code>-c All</code> (Collection Methods)
-            </div>
-            <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed">
-              Gathers all domain objects: User accounts, Security Groups, Computers, Group Policy Objects (GPOs), Organizational Units (OUs), and Access Control Entries (ACEs).
-            </p>
-          </div>
-          <div class="bg-surface-container-low border border-outline-variant/40 rounded-xl p-4 space-y-1.5">
-            <div class="text-xs font-jetbrains font-bold text-secondary flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-sm">folder_zip</span>
-              <code>--zipfilename &lt;DOMAIN&gt;</code>
-            </div>
-            <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed">
-              Sets the prefix for the output archive (e.g. <code class="text-secondary">20260816120000_VIPERTECH.zip</code>) for direct upload in Workspace Phase 1.
-            </p>
-          </div>
-        </div>
       </div>
     </section>
 
     <!-- 3. Workflow Steps -->
-    <section class="space-y-4">
+    <section class="space-y-2.5 flex-shrink-0">
       <h3 class="text-xs font-bold text-on-surface uppercase tracking-wider border-l-2 border-primary pl-2.5">
         Collection &amp; Ingestion Workflow
       </h3>
 
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-surface-container border border-outline-variant rounded-xl p-4 space-y-2 tactical-card">
+        <div class="bg-surface-container border border-outline-variant rounded-xl p-3.5 space-y-1.5 tactical-card">
           <div class="w-7 h-7 rounded-lg bg-secondary/15 text-secondary flex items-center justify-center font-jetbrains font-bold text-xs">
             1
           </div>
@@ -145,7 +123,7 @@
           </p>
         </div>
 
-        <div class="bg-surface-container border border-outline-variant rounded-xl p-4 space-y-2 tactical-card">
+        <div class="bg-surface-container border border-outline-variant rounded-xl p-3.5 space-y-1.5 tactical-card">
           <div class="w-7 h-7 rounded-lg bg-primary/15 text-primary flex items-center justify-center font-jetbrains font-bold text-xs">
             2
           </div>
@@ -155,7 +133,7 @@
           </p>
         </div>
 
-        <div class="bg-surface-container border border-outline-variant rounded-xl p-4 space-y-2 tactical-card">
+        <div class="bg-surface-container border border-outline-variant rounded-xl p-3.5 space-y-1.5 tactical-card">
           <div class="w-7 h-7 rounded-lg bg-tertiary/15 text-tertiary flex items-center justify-center font-jetbrains font-bold text-xs">
             3
           </div>
@@ -165,17 +143,17 @@
           </p>
         </div>
 
-        <div class="bg-surface-container border border-outline-variant rounded-xl p-4 space-y-2 tactical-card flex flex-col justify-between">
+        <div class="bg-surface-container border border-outline-variant rounded-xl p-3.5 tactical-card flex flex-col justify-between">
           <div>
             <div class="w-7 h-7 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center font-jetbrains font-bold text-xs">
               4
             </div>
-            <h4 class="text-sm font-bold text-on-surface mt-2">Upload &amp; Ingest</h4>
+            <h4 class="text-sm font-bold text-on-surface mt-1">Upload &amp; Ingest</h4>
             <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed">
               Attach the .zip in Workspace Phase 1 to build the graph.
             </p>
           </div>
-          <a href="/workspace" class="w-full py-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-xs font-jetbrains font-bold rounded text-center transition-colors no-underline block mt-2">
+          <a href="/workspace" class="w-full py-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-xs font-jetbrains font-bold rounded text-center transition-colors no-underline block mt-2 cursor-pointer">
             Open Workspace ➔
           </a>
         </div>
@@ -219,4 +197,5 @@
 
   <script src="/static/sidebar.js?v=2"></script>
 </body>
+
 </html>
