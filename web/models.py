@@ -4,7 +4,13 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from core.projects import validate_project_name
+from core.projects import (
+    validate_project_name,
+    validate_dc_ip,
+    validate_foothold_username,
+    validate_foothold_password,
+    validate_domain,
+)
 
 
 class IngestRequest(BaseModel):
@@ -25,12 +31,79 @@ class SelectProjectRequest(BaseModel):
 
 class CreateProjectRequest(BaseModel):
     name: str = Field(..., min_length=3, max_length=64, description="Unique project assessment name")
+    dc_ip: str | None = Field(default="", max_length=128, description="Domain Controller IP or hostname")
+    foothold_username: str | None = Field(default="", max_length=64, description="Foothold account without domain prefix")
+    foothold_password: str | None = Field(default="", max_length=256, description="Foothold account password")
     zip_path: str | None = None
 
     @field_validator("name")
     @classmethod
     def check_project_name(cls, v: str) -> str:
         valid, result = validate_project_name(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+    @field_validator("dc_ip")
+    @classmethod
+    def check_dc_ip(cls, v: str | None) -> str:
+        valid, result = validate_dc_ip(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+    @field_validator("foothold_username")
+    @classmethod
+    def check_foothold_username(cls, v: str | None) -> str:
+        valid, result = validate_foothold_username(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+    @field_validator("foothold_password")
+    @classmethod
+    def check_foothold_password(cls, v: str | None) -> str:
+        valid, result = validate_foothold_password(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+
+class UpdateProjectTargetRequest(BaseModel):
+    project_id: str | None = None
+    dc_ip: str | None = Field(default="", max_length=128)
+    foothold_username: str | None = Field(default="", max_length=64)
+    foothold_password: str | None = Field(default="", max_length=256)
+    domain: str | None = Field(default="", max_length=128)
+
+    @field_validator("dc_ip")
+    @classmethod
+    def check_dc_ip(cls, v: str | None) -> str:
+        valid, result = validate_dc_ip(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+    @field_validator("foothold_username")
+    @classmethod
+    def check_foothold_username(cls, v: str | None) -> str:
+        valid, result = validate_foothold_username(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+    @field_validator("foothold_password")
+    @classmethod
+    def check_foothold_password(cls, v: str | None) -> str:
+        valid, result = validate_foothold_password(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+    @field_validator("domain")
+    @classmethod
+    def check_domain(cls, v: str | None) -> str:
+        valid, result = validate_domain(v)
         if not valid:
             raise ValueError(result)
         return result

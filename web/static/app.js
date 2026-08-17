@@ -232,8 +232,8 @@ function getIngestPayload() {
 
 function getPathfindPayload(modeOverride) {
   return {
-    source_name: window.prompt("Source principal", "BOB_HR@VIPERTECH.LOCAL")?.trim() || "",
-    target_name: window.prompt("Target principal", "SUSAN_ADMIN@VIPERTECH.LOCAL")?.trim() || "",
+    source_name: window.prompt("Source principal", "JDOE@CORP.LOCAL")?.trim() || "",
+    target_name: window.prompt("Target principal", "DOMAIN_ADMIN@CORP.LOCAL")?.trim() || "",
     mode: modeOverride || "tactical",
   };
 }

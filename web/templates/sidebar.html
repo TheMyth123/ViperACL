@@ -78,7 +78,7 @@
 
 <!-- New Project Modal Dialog -->
 <div class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="new-project-modal">
-  <div class="bg-[#1E293B] border border-[#334155] rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 relative transform scale-95 opacity-0 transition-all duration-200 ease-out" id="new-project-modal-box">
+  <div class="bg-[#1E293B] border border-[#334155] rounded-xl p-6 w-full max-w-lg shadow-2xl space-y-4 relative transform scale-95 opacity-0 transition-all duration-200 ease-out" id="new-project-modal-box">
     <div class="flex items-center justify-between border-b border-outline-variant pb-3">
       <h3 class="text-headline-md font-bold text-on-surface flex items-center gap-2">
         <span class="material-symbols-outlined text-primary">add_box</span>
@@ -95,10 +95,10 @@
       <span id="new-project-error-text" class="flex-1"></span>
     </div>
 
-    <form id="new-project-form" class="space-y-4" novalidate>
+    <form id="new-project-form" class="space-y-3.5" novalidate>
       <div>
-        <div class="flex items-center justify-between mb-1.5">
-          <label for="project-name-input" class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">Project Name</label>
+        <div class="flex items-center justify-between mb-1">
+          <label for="project-name-input" class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">Project Name <span class="text-primary">*</span></label>
           <span class="text-[10px] text-on-surface-variant/70 font-jetbrains" id="project-name-counter">0 / 64</span>
         </div>
         <input 
@@ -107,16 +107,77 @@
           name="name"
           maxlength="64"
           autocomplete="off"
-          class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
-          placeholder="e.g. VIPERTECH AD Assessment" 
+          class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
+          placeholder="e.g. Internal AD Assessment" 
           required 
         />
-        <p class="text-[11px] text-on-surface-variant/75 mt-1.5 leading-snug">
-          3–64 characters. Letters, numbers, spaces, dashes, dots, and underscores allowed. Must be unique across all assessment records.
+        <p class="text-[11px] text-on-surface-variant/75 mt-1 leading-snug">
+          3–64 characters. Unique assessment name.
         </p>
       </div>
 
-      <div class="flex items-center justify-end gap-3 pt-2 border-t border-outline-variant/30">
+      <!-- Target DC & Foothold Setup -->
+      <div class="pt-2 border-t border-outline-variant/40 space-y-3">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-sm">target</span>
+          Target Environment &amp; Foothold
+        </div>
+
+        <div>
+          <label for="project-dc-ip-input" class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Domain Controller IP</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">dns</span>
+            <input 
+              type="text" 
+              id="project-dc-ip-input" 
+              name="dc_ip"
+              maxlength="128"
+              autocomplete="off"
+              class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-2.5 py-1.5 text-xs text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
+              placeholder="e.g. 10.10.10.1" 
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="project-foothold-user-input" class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Foothold Username</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">person</span>
+              <input 
+                type="text" 
+                id="project-foothold-user-input" 
+                name="foothold_username"
+                maxlength="64"
+                autocomplete="off"
+                class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-2.5 py-1.5 text-xs text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
+                placeholder="e.g. JDOE" 
+              />
+            </div>
+          </div>
+
+          <div>
+            <label for="project-foothold-pass-input" class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Foothold Password</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">key</span>
+              <input 
+                type="password" 
+                id="project-foothold-pass-input" 
+                name="foothold_password"
+                maxlength="256"
+                autocomplete="off"
+                class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-9 py-1.5 text-xs text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
+                placeholder="Account password" 
+              />
+              <button type="button" id="toggle-new-proj-pass-btn" class="absolute right-2 top-1.5 text-on-surface-variant hover:text-on-surface p-0.5 rounded cursor-pointer transition-colors" title="Toggle password visibility">
+                <span class="material-symbols-outlined text-xs pointer-events-none" id="toggle-new-proj-pass-icon">visibility</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-2.5 border-t border-outline-variant/30">
         <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer transition-colors">
           Cancel
         </button>

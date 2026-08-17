@@ -8,7 +8,14 @@ from core.ingestor.parser import SharpHoundIngestor
 from core.logger import logger
 from core.projects import ProjectManager, validate_project_name, generate_safe_project_id
 from web.helpers import build_runtime_state, build_neo4j_snapshot, db_manager, resolve_project_path
-from web.models import SelectProjectRequest, CreateProjectRequest, UnlockPhaseRequest, SavePathRequest, SetActivePhaseRequest
+from web.models import (
+    SelectProjectRequest,
+    CreateProjectRequest,
+    UpdateProjectTargetRequest,
+    UnlockPhaseRequest,
+    SavePathRequest,
+    SetActivePhaseRequest,
+)
 
 router = APIRouter(prefix="/api/projects")
 
@@ -85,10 +92,13 @@ def create_project(request: CreateProjectRequest, req: Request):
     # Generate a safe, collision-resistant project ID
     project_id = generate_safe_project_id(cleaned_name)
 
-    # Register project with clean initial state (0 nodes, 0 rels, no zip yet)
+    # Register project with clean initial state and target credentials
     project_entry = project_mgr.register_project(
         project_id=project_id,
         name=cleaned_name,
+        dc_ip=request.dc_ip or "",
+        foothold_username=request.foothold_username or "",
+        foothold_password=request.foothold_password or "",
         source_zip=None,
         nodes=0,
         relationships=0,
@@ -99,7 +109,13 @@ def create_project(request: CreateProjectRequest, req: Request):
         f"Project \"{cleaned_name}\" created successfully (ID: {project_id})",
         project_id=project_id,
         source="web.app",
-        details={"name": cleaned_name, "project_id": project_id},
+        details={
+            "name": cleaned_name,
+            "project_id": project_id,
+            "dc_ip": request.dc_ip or "",
+            "foothold_username": request.foothold_username or "",
+            "has_password": bool(request.foothold_password),
+        },
     )
 
     return {
@@ -107,6 +123,46 @@ def create_project(request: CreateProjectRequest, req: Request):
         "project": project_entry,
         "active_project_id": project_id,
         "redirect_url": "/workspace",
+    }
+
+
+@router.post("/target")
+def update_project_target(request: UpdateProjectTargetRequest, req: Request):
+    project_mgr = ProjectManager()
+    target_project_id = request.project_id or project_mgr.get_active_project_id()
+    if not target_project_id:
+        raise HTTPException(status_code=400, detail="No active project selected.")
+
+    project = project_mgr.get_project(target_project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    updated = project_mgr.update_project_target(
+        project_id=target_project_id,
+        dc_ip=request.dc_ip,
+        foothold_username=request.foothold_username,
+        foothold_password=request.foothold_password,
+        domain=request.domain,
+    )
+
+    logger.info(
+        "PROJECT", "project.target.updated",
+        f"Target foothold configuration updated for project '{project.get('name', target_project_id)}'",
+        project_id=target_project_id,
+        source="web.app",
+        details={
+            "project_id": target_project_id,
+            "dc_ip": updated.get("dc_ip") if updated else "",
+            "foothold_username": updated.get("foothold_username") if updated else "",
+            "domain": updated.get("domain") if updated else "",
+            "has_password": bool(updated.get("foothold_password")) if updated else False,
+        },
+    )
+
+    return {
+        "status": "ok",
+        "project": updated,
+        "project_id": target_project_id,
     }
 
 

@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from core.ingestor import SharpHoundIngestor, inspect_sharphound_zip
 from core.logger import logger
 from core.privesc.engine import PrivescEngine
+from core.privesc.state_context import SessionContext
 from core.projects import ProjectManager
 from core.remediation.engine import RemediationEngine
 from web.helpers import (
@@ -186,6 +187,16 @@ def execute_ingest(request: ExecuteIngestRequest, req: Request):
     finally:
         manager.close()
 
+    # Auto-detect domain from archive inspection if project domain is not yet set
+    try:
+        inspect_result = inspect_sharphound_zip(target_path)
+        primary_domain = inspect_result.get("primary_domain")
+        proj = project_mgr.get_project(project_id)
+        if primary_domain and proj and not proj.get("domain"):
+            project_mgr.update_project_target(project_id, domain=primary_domain)
+    except Exception:
+        pass
+
     updated_proj = project_mgr.update_project_stats(
         project_id,
         snapshot.get("nodes", 0),
@@ -252,7 +263,22 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
         source="web.app",
     )
 
-    engine = PrivescEngine(None, settings.neo4j_database, settings.neo4j_uri, make_privesc_context())
+    # Retrieve active project's target credentials
+    project_mgr = ProjectManager()
+    active_id = project_mgr.get_active_project_id()
+    project_info = project_mgr.get_project(active_id) if active_id else {}
+    target_domain = (project_info.get("domain") or settings.neo4j_database or "DOMAIN.LOCAL") if project_info else settings.neo4j_database
+    dc_ip = (project_info.get("dc_ip") or "127.0.0.1") if project_info else "127.0.0.1"
+    foothold_user = (project_info.get("foothold_username") or "foothold") if project_info else "foothold"
+    foothold_pass = (project_info.get("foothold_password") or "") if project_info else ""
+
+    session_ctx = SessionContext(
+        domain=target_domain,
+        dc_ip=dc_ip,
+        initial_user=foothold_user,
+        initial_password=foothold_pass,
+    )
+    engine = PrivescEngine(None, target_domain, dc_ip, session_ctx)
     try:
         engine.build_plan([{"p": path}])
     except Exception as exc:

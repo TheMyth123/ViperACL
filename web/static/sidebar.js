@@ -42,12 +42,24 @@ function openNewProjectModal() {
   const modal = document.getElementById("new-project-modal");
   const box = document.getElementById("new-project-modal-box");
   const nameInput = document.getElementById("project-name-input");
+  const dcIpInput = document.getElementById("project-dc-ip-input");
+  const footholdUserInput = document.getElementById("project-foothold-user-input");
+  const footholdPassInput = document.getElementById("project-foothold-pass-input");
   const counter = document.getElementById("project-name-counter");
   const submitBtn = document.getElementById("submit-new-project-btn");
   const btnLabel = document.getElementById("new-project-btn-label");
 
   clearNewProjectError();
   if (nameInput) nameInput.value = "";
+  if (dcIpInput) dcIpInput.value = "";
+  if (footholdUserInput) footholdUserInput.value = "";
+  if (footholdPassInput) {
+    footholdPassInput.value = "";
+    footholdPassInput.type = "password";
+  }
+  const passIcon = document.getElementById("toggle-new-proj-pass-icon");
+  if (passIcon) passIcon.textContent = "visibility";
+
   if (counter) counter.textContent = "0 / 64";
   if (submitBtn) submitBtn.disabled = false;
   if (btnLabel) btnLabel.textContent = "Create Project";
@@ -325,6 +337,24 @@ function initSidebarEvents() {
       if (newProjModal && !newProjModal.classList.contains("hidden")) {
         closeNewProjectModal(e);
       }
+      const editTargetModal = document.getElementById("edit-target-modal");
+      if (editTargetModal && !editTargetModal.classList.contains("hidden")) {
+        if (typeof window.hideEditTargetModal === "function") {
+          window.hideEditTargetModal();
+        } else {
+          editTargetModal.classList.add("opacity-0");
+          setTimeout(() => editTargetModal.classList.add("hidden"), 200);
+        }
+      }
+      const overwriteModal = document.getElementById("confirm-overwrite-modal");
+      if (overwriteModal && !overwriteModal.classList.contains("hidden")) {
+        if (typeof window.hideOverwriteModal === "function") {
+          window.hideOverwriteModal();
+        } else {
+          overwriteModal.classList.add("opacity-0");
+          setTimeout(() => overwriteModal.classList.add("hidden"), 200);
+        }
+      }
     }
   });
 
@@ -374,6 +404,18 @@ function initSidebarEvents() {
     });
   }
 
+  // New Project Password Toggle
+  const togglePassBtn = document.getElementById("toggle-new-proj-pass-btn");
+  const passInput = document.getElementById("project-foothold-pass-input");
+  const passIcon = document.getElementById("toggle-new-proj-pass-icon");
+  if (togglePassBtn && passInput && passIcon) {
+    togglePassBtn.addEventListener("click", () => {
+      const isPass = passInput.type === "password";
+      passInput.type = isPass ? "text" : "password";
+      passIcon.textContent = isPass ? "visibility_off" : "visibility";
+    });
+  }
+
   // New Project Form Submit
   const newProjForm = document.getElementById("new-project-form");
   if (newProjForm) {
@@ -381,6 +423,22 @@ function initSidebarEvents() {
       e.preventDefault();
       const rawName = nameInput ? nameInput.value : "";
       const cleaned = rawName.trim();
+
+      const dcIpInput = document.getElementById("project-dc-ip-input");
+      const footholdUserInput = document.getElementById("project-foothold-user-input");
+      const footholdPassInput = document.getElementById("project-foothold-pass-input");
+
+      const dcIp = dcIpInput ? dcIpInput.value.trim() : "";
+      let footholdUser = footholdUserInput ? footholdUserInput.value.trim() : "";
+      const footholdPass = footholdPassInput ? footholdPassInput.value : "";
+
+      // Strip domain prefix if user entered DOMAIN\user or user@domain
+      if (footholdUser.includes("\\")) {
+        footholdUser = footholdUser.split("\\").pop().trim();
+      }
+      if (footholdUser.includes("@")) {
+        footholdUser = footholdUser.split("@")[0].trim();
+      }
 
       // Client-side Security & Length Pre-validation
       if (!cleaned || cleaned.length < 3) {
@@ -400,6 +458,16 @@ function initSidebarEvents() {
         return;
       }
 
+      if (dcIp && (/[<>"'\\/`;\0 ]/.test(dcIp) || !/^[a-zA-Z0-9_\-\.:]{1,128}$/.test(dcIp))) {
+        showNewProjectError("Domain Controller IP or hostname contains invalid characters.");
+        return;
+      }
+
+      if (footholdUser && (/[<>"'\\/`;\0 ]/.test(footholdUser) || !/^[a-zA-Z0-9_\-\.]{1,64}$/.test(footholdUser))) {
+        showNewProjectError("Foothold username must contain only letters, numbers, dots, dashes, or underscores.");
+        return;
+      }
+
       const submitBtn = document.getElementById("submit-new-project-btn");
       const btnLabel = document.getElementById("new-project-btn-label");
       if (submitBtn) submitBtn.disabled = true;
@@ -409,7 +477,12 @@ function initSidebarEvents() {
         const res = await fetch("/api/projects/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: cleaned }),
+          body: JSON.stringify({
+            name: cleaned,
+            dc_ip: dcIp,
+            foothold_username: footholdUser,
+            foothold_password: footholdPass,
+          }),
         });
 
         const data = await res.json();

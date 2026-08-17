@@ -6,6 +6,12 @@ from pathlib import Path
 
 # Strict regex pattern for safe project names: alphanumeric, spaces, hyphens, underscores, dots, parentheses, brackets
 PROJECT_NAME_REGEX = re.compile(r"^[a-zA-Z0-9_\-\. ()\[\]]{3,64}$")
+# Regex pattern for safe usernames (without domain prefix): alphanumeric, underscores, hyphens, dots
+SAFE_USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]{1,64}$")
+# Regex pattern for safe domain names / hostnames
+SAFE_DOMAIN_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.]{1,128}$")
+# Regex pattern for safe IP addresses / hostnames
+SAFE_IP_REGEX = re.compile(r"^[a-zA-Z0-9_\-\.:]{1,128}$")
 
 
 def validate_project_name(name: str) -> tuple[bool, str]:
@@ -32,6 +38,95 @@ def validate_project_name(name: str) -> tuple[bool, str]:
     if not PROJECT_NAME_REGEX.match(cleaned):
         return False, "Project name contains invalid characters. Use letters, numbers, spaces, underscores, dashes, dots, or parentheses."
 
+    return True, cleaned
+
+
+def validate_dc_ip(dc_ip: str | None) -> tuple[bool, str]:
+    """
+    Validates a Domain Controller IP or hostname.
+    Returns (is_valid, cleaned_ip_or_error_message).
+    """
+    if not dc_ip:
+        return True, ""
+    if not isinstance(dc_ip, str):
+        return False, "Domain Controller IP must be a string."
+
+    cleaned = dc_ip.strip()
+    if not cleaned:
+        return True, ""
+    if len(cleaned) > 128:
+        return False, "Domain Controller IP / host cannot exceed 128 characters."
+    if any(c in cleaned for c in ["\0", "<", ">", '"', "'", "\\", "/", "`", ";", " "]):
+        return False, "Domain Controller IP contains disallowed characters."
+    if not SAFE_IP_REGEX.match(cleaned):
+        return False, "Domain Controller IP must be a valid IP address or hostname."
+    return True, cleaned
+
+
+def validate_foothold_username(username: str | None) -> tuple[bool, str]:
+    """
+    Validates a foothold username (without domain prefix).
+    Automatically strips domain prefixes (DOMAIN\\ or @DOMAIN) if provided.
+    Returns (is_valid, cleaned_username_or_error_message).
+    """
+    if not username:
+        return True, ""
+    if not isinstance(username, str):
+        return False, "Foothold username must be a string."
+
+    cleaned = username.strip()
+    if not cleaned:
+        return True, ""
+
+    # Strip domain prefix if user typed DOMAIN\user or user@domain.local
+    if "\\" in cleaned:
+        cleaned = cleaned.split("\\")[-1].strip()
+    if "@" in cleaned:
+        cleaned = cleaned.split("@")[0].strip()
+
+    if len(cleaned) > 64:
+        return False, "Foothold username cannot exceed 64 characters."
+    if any(c in cleaned for c in ["\0", "<", ">", '"', "'", "\\", "/", "`", ";", " "]):
+        return False, "Foothold username contains disallowed characters."
+    if not SAFE_USERNAME_REGEX.match(cleaned):
+        return False, "Foothold username must contain only letters, numbers, dots, dashes, or underscores."
+    return True, cleaned
+
+
+def validate_foothold_password(password: str | None) -> tuple[bool, str]:
+    """
+    Validates a foothold password against injection and null-byte sequences.
+    Returns (is_valid, password_or_error_message).
+    """
+    if not password:
+        return True, ""
+    if not isinstance(password, str):
+        return False, "Foothold password must be a string."
+    if len(password) > 256:
+        return False, "Foothold password cannot exceed 256 characters."
+    if "\0" in password:
+        return False, "Foothold password contains disallowed null byte characters."
+    return True, password
+
+
+def validate_domain(domain: str | None) -> tuple[bool, str]:
+    """
+    Validates an Active Directory domain name.
+    Returns (is_valid, cleaned_domain_or_error_message).
+    """
+    if not domain:
+        return True, ""
+    if not isinstance(domain, str):
+        return False, "Domain name must be a string."
+    cleaned = domain.strip().upper()
+    if not cleaned:
+        return True, ""
+    if len(cleaned) > 128:
+        return False, "Domain name cannot exceed 128 characters."
+    if any(c in cleaned for c in ["\0", "<", ">", '"', "'", "\\", "/", "`", ";", " "]):
+        return False, "Domain name contains disallowed characters."
+    if not SAFE_DOMAIN_REGEX.match(cleaned):
+        return False, "Domain name must contain only letters, numbers, dots, dashes, or underscores."
     return True, cleaned
 
 
@@ -105,6 +200,10 @@ class ProjectManager:
         info.setdefault("selected_path", None)
         info.setdefault("selected_candidate_paths", [])
         info.setdefault("selected_path_index", 0)
+        info.setdefault("dc_ip", "")
+        info.setdefault("foothold_username", "")
+        info.setdefault("foothold_password", "")
+        info.setdefault("domain", "")
         return info
 
     def list_projects(self, include_deleted=False):
@@ -152,7 +251,19 @@ class ProjectManager:
             return True
         return False
 
-    def register_project(self, project_id, name, source_zip=None, nodes=0, relationships=0, unlocked_phase="phase_1"):
+    def register_project(
+        self,
+        project_id: str,
+        name: str,
+        dc_ip: str = "",
+        foothold_username: str = "",
+        foothold_password: str = "",
+        domain: str = "",
+        source_zip: str | None = None,
+        nodes: int = 0,
+        relationships: int = 0,
+        unlocked_phase: str = "phase_1",
+    ) -> dict:
         """Registers or updates a project in the registry."""
         data = self._load_data()
         projects = data.get("projects", {})
@@ -161,6 +272,10 @@ class ProjectManager:
         project_entry = {
             "project_id": project_id,
             "name": name,
+            "dc_ip": dc_ip or "",
+            "foothold_username": foothold_username or "",
+            "foothold_password": foothold_password or "",
+            "domain": domain or "",
             "source_zip": source_zip,
             "nodes": nodes,
             "relationships": relationships,
@@ -174,7 +289,31 @@ class ProjectManager:
         data["projects"] = projects
         data["active_project_id"] = project_id
         self._save_data(data)
-        return project_entry
+        return self._normalize_project_entry(project_entry)
+
+    def update_project_target(
+        self,
+        project_id: str,
+        dc_ip: str | None = None,
+        foothold_username: str | None = None,
+        foothold_password: str | None = None,
+        domain: str | None = None,
+    ) -> dict | None:
+        """Updates target and foothold credentials for a project."""
+        data = self._load_data()
+        projects = data.get("projects", {})
+        if project_id in projects and not projects[project_id].get("is_deleted"):
+            if dc_ip is not None:
+                projects[project_id]["dc_ip"] = dc_ip
+            if foothold_username is not None:
+                projects[project_id]["foothold_username"] = foothold_username
+            if foothold_password is not None:
+                projects[project_id]["foothold_password"] = foothold_password
+            if domain is not None:
+                projects[project_id]["domain"] = domain
+            self._save_data(data)
+            return self._normalize_project_entry(projects[project_id])
+        return None
 
     def update_project_stats(self, project_id, nodes, relationships, source_zip=None):
         """Updates node, relationship counts, and source zip for a project."""

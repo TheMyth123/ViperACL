@@ -167,6 +167,37 @@
           </div>
         </div>
 
+        <!-- Target & Foothold Context Chip -->
+        <div class="flex items-center gap-2.5 font-jetbrains bg-surface-container-low border border-outline-variant/60 rounded-lg px-3 py-1.5 shadow-sm flex-shrink-0">
+          <div class="flex items-center gap-2 text-left">
+            <span class="material-symbols-outlined text-sm text-primary">dns</span>
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-on-surface-variant font-bold">DC IP</div>
+              <div class="text-xs font-bold text-on-surface" id="workspace-dc-ip-display">{{ active_project.dc_ip if (active_project and active_project.dc_ip) else 'Not Set' }}</div>
+            </div>
+          </div>
+          <span class="text-outline-variant opacity-40">|</span>
+          <div class="flex items-center gap-2 text-left">
+            <span class="material-symbols-outlined text-sm text-[#4edea3]">person</span>
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-on-surface-variant font-bold">Foothold</div>
+              <div class="text-xs font-bold text-[#4edea3]" id="workspace-foothold-display">{{ active_project.foothold_username if (active_project and active_project.foothold_username) else 'Not Set' }}</div>
+            </div>
+          </div>
+          <span class="text-outline-variant opacity-40">|</span>
+          <div class="flex items-center gap-2 text-left">
+            <span class="material-symbols-outlined text-sm text-secondary">domain</span>
+            <div>
+              <div class="text-[9px] uppercase tracking-wider text-on-surface-variant font-bold">Domain</div>
+              <div class="text-xs font-bold text-secondary truncate max-w-[130px]" id="workspace-domain-display" title="{{ active_project.domain if (active_project and active_project.domain) else 'Pending Ingest' }}">{{ active_project.domain if (active_project and active_project.domain) else 'Pending' }}</div>
+            </div>
+          </div>
+          <button type="button" id="btn-open-edit-target-modal" class="ml-1.5 px-2 py-1 bg-surface-container hover:bg-surface-container-high border border-outline-variant/60 hover:border-primary/50 text-on-surface text-[11px] font-bold rounded flex items-center gap-1 cursor-pointer transition-colors" title="Edit Target & Foothold Credentials">
+            <span class="material-symbols-outlined text-xs text-primary">edit</span>
+            <span>Edit</span>
+          </button>
+        </div>
+
         <div class="flex items-center gap-3 font-jetbrains">
           <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg px-3.5 py-1 text-center min-w-[90px]">
             <div class="text-[10px] uppercase tracking-wider text-on-surface-variant">Domain Nodes</div>
@@ -356,7 +387,7 @@
               <div class="w-full grid grid-cols-2 sm:grid-cols-4 gap-3 font-jetbrains">
                 <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg p-2.5 text-center">
                   <div class="text-[10px] text-on-surface-variant uppercase">Target Domain</div>
-                  <div class="text-xs font-bold text-secondary truncate mt-0.5" id="staged-domain">{{ ingest_metadata.primary_domain if (ingest_metadata and ingest_metadata.primary_domain) else 'VIPERTECH' }}</div>
+                  <div class="text-xs font-bold text-secondary truncate mt-0.5" id="staged-domain">{{ ingest_metadata.primary_domain if (ingest_metadata and ingest_metadata.primary_domain) else 'CORP.LOCAL' }}</div>
                 </div>
                 <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg p-2.5 text-center">
                   <div class="text-[10px] text-on-surface-variant uppercase">Users</div>
@@ -417,7 +448,7 @@
                 <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Source Node (Initial Foothold)</label>
                 <div class="relative">
                   <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">person</span>
-                  <input type="text" id="pf-source" class="w-full bg-surface-container border border-outline-variant rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none transition-all" autocomplete="off" placeholder="e.g. BOB_HR@VIPERTECH.LOCAL" />
+                  <input type="text" id="pf-source" class="w-full bg-surface-container border border-outline-variant rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none transition-all" autocomplete="off" placeholder="e.g. JDOE@CORP.LOCAL" />
                 </div>
               </div>
               
@@ -425,7 +456,7 @@
                 <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Target Node (Domain Objective)</label>
                 <div class="relative">
                   <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">target</span>
-                  <input type="text" id="pf-target" class="w-full bg-surface-container border border-outline-variant rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none transition-all" autocomplete="off" placeholder="e.g. SUSAN_ADMIN@VIPERTECH.LOCAL" />
+                  <input type="text" id="pf-target" class="w-full bg-surface-container border border-outline-variant rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none transition-all" autocomplete="off" placeholder="e.g. DOMAIN_ADMIN@CORP.LOCAL" />
                 </div>
               </div>
 
@@ -807,8 +838,8 @@
   </main>
 
   <!-- Clear & Overwrite Existing Data Confirmation Modal -->
-  <div id="confirm-overwrite-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-surface-container border border-outline-variant rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4">
+  <div id="confirm-overwrite-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-surface-container border border-outline-variant rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4 transform scale-95 opacity-0 transition-all duration-200 ease-out" id="confirm-overwrite-modal-box">
       <div class="flex items-center gap-3 border-b border-outline-variant/60 pb-3">
         <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
           <span class="material-symbols-outlined text-xl">warning</span>
@@ -825,9 +856,105 @@
       </div>
 
       <div class="flex items-center justify-end gap-3 pt-2">
-        <button type="button" id="btn-cancel-overwrite" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface">Cancel</button>
-        <button type="button" id="btn-confirm-overwrite" class="px-4 py-2 text-xs font-bold bg-error text-on-error rounded-lg shadow-lg">Confirm & Overwrite</button>
+        <button type="button" id="btn-cancel-overwrite" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface cursor-pointer">Cancel</button>
+        <button type="button" id="btn-confirm-overwrite" class="px-4 py-2 text-xs font-bold bg-error text-on-error rounded-lg shadow-lg cursor-pointer">Confirm & Overwrite</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Edit Target & Foothold Credentials Modal -->
+  <div id="edit-target-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-surface-container border border-outline-variant rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4 transform scale-95 opacity-0 transition-all duration-200 ease-out" id="edit-target-modal-box">
+      <div class="flex items-center justify-between border-b border-outline-variant/60 pb-3">
+        <div class="flex items-center gap-2 text-on-surface font-bold text-headline-sm">
+          <span class="material-symbols-outlined text-primary">target</span>
+          Target &amp; Foothold Context
+        </div>
+        <button class="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer transition-colors" id="btn-close-edit-target-modal" type="button">
+          <span class="material-symbols-outlined pointer-events-none">close</span>
+        </button>
+      </div>
+
+      <!-- Alert Box -->
+      <div id="edit-target-error" class="hidden p-3 rounded bg-red-950/70 border border-red-500/50 text-error text-xs font-jetbrains leading-relaxed flex items-start gap-2">
+        <span class="material-symbols-outlined text-base flex-shrink-0 text-red-400">error</span>
+        <span id="edit-target-error-text" class="flex-1"></span>
+      </div>
+
+      <form id="edit-target-form" class="space-y-3.5 font-jetbrains text-xs" novalidate>
+        <div>
+          <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Domain Controller IP</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">dns</span>
+            <input 
+              type="text" 
+              id="edit-target-dc-ip" 
+              class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none"
+              placeholder="e.g. 10.10.10.1"
+              value="{{ active_project.dc_ip if (active_project and active_project.dc_ip) else '' }}"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Foothold Username</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">person</span>
+              <input 
+                type="text" 
+                id="edit-target-foothold-user" 
+                class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none"
+                placeholder="e.g. JDOE"
+                value="{{ active_project.foothold_username if (active_project and active_project.foothold_username) else '' }}"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Foothold Password</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">key</span>
+              <input 
+                type="password" 
+                id="edit-target-foothold-pass" 
+                class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-9 py-1.5 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none"
+                placeholder="Password"
+                value="{{ active_project.foothold_password if (active_project and active_project.foothold_password) else '' }}"
+              />
+              <button type="button" id="toggle-edit-target-pass-btn" class="absolute right-2 top-1.5 text-on-surface-variant hover:text-on-surface p-0.5 rounded cursor-pointer transition-colors" title="Toggle password visibility">
+                <span class="material-symbols-outlined text-xs pointer-events-none" id="toggle-edit-target-pass-icon">visibility</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Target Active Directory Domain</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">domain</span>
+            <div id="edit-target-domain-display" class="w-full bg-surface-container-lowest border border-outline-variant/60 rounded pl-8 pr-2.5 py-2 text-xs font-jetbrains font-bold flex items-center justify-between">
+              <span id="edit-target-domain-text" class="{{ 'text-secondary font-bold' if (active_project and active_project.domain) else 'text-on-surface-variant/60 italic font-normal' }}">
+                {{ active_project.domain if (active_project and active_project.domain) else 'Pending Ingest Detection (Auto-populated from SharpHound)' }}
+              </span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded font-mono uppercase {{ 'bg-secondary/15 text-secondary border border-secondary/30' if (active_project and active_project.domain) else 'bg-surface-container-high text-on-surface-variant border border-outline-variant/40' }}" id="edit-target-domain-status">
+                {{ 'Detected' if (active_project and active_project.domain) else 'Pending' }}
+              </span>
+            </div>
+          </div>
+          <p class="text-[10px] text-on-surface-variant/70 mt-1 leading-snug">
+            Automatically extracted from SharpHound archive JSON data during Phase 1 ingestion.
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-outline-variant/30">
+          <button type="button" id="btn-cancel-edit-target" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer transition-colors">Cancel</button>
+          <button type="submit" id="btn-save-edit-target" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-all flex items-center gap-1.5 cursor-pointer">
+            <span class="material-symbols-outlined text-sm pointer-events-none" id="save-target-btn-icon">save</span>
+            <span id="save-target-btn-label">Save Target</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -835,6 +962,9 @@
   <div id="workspace-context"
     data-has-project="{{ 'true' if active_project else 'false' }}"
     data-project-id="{{ active_project.project_id if active_project else '' }}"
+    data-dc-ip="{{ active_project.dc_ip if (active_project and active_project.dc_ip) else '' }}"
+    data-foothold-username="{{ active_project.foothold_username if (active_project and active_project.foothold_username) else '' }}"
+    data-domain="{{ active_project.domain if (active_project and active_project.domain) else '' }}"
     data-source-zip="{{ active_project.source_zip if (active_project and active_project.source_zip) else '' }}"
     data-nodes="{{ active_project.nodes if (active_project and active_project.nodes) else 0 }}"
     data-relationships="{{ active_project.relationships if (active_project and active_project.relationships) else 0 }}"
@@ -966,12 +1096,11 @@
     }
 
     function initModals() {
-      const modal = document.getElementById("overwrite-ingest-modal");
-      const modalBox = document.getElementById("overwrite-ingest-modal-box");
-      const cancelBtn = document.getElementById("cancel-overwrite-modal-btn");
-      const confirmBtn = document.getElementById("confirm-overwrite-modal-btn");
+      const overwriteModal = document.getElementById("confirm-overwrite-modal");
+      const cancelBtn = document.getElementById("btn-cancel-overwrite");
+      const confirmBtn = document.getElementById("btn-confirm-overwrite");
 
-      if (cancelBtn && modal) {
+      if (cancelBtn) {
         cancelBtn.addEventListener("click", () => {
           hideOverwriteModal();
         });
@@ -984,16 +1113,166 @@
         });
       }
 
+      if (overwriteModal) {
+        overwriteModal.addEventListener("click", (e) => {
+          if (e.target === overwriteModal) hideOverwriteModal();
+        });
+      }
+
+      // Global ESC Key Listener for workspace modals
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" || e.code === "Escape") {
+          // 1. Edit Target Modal
+          const editTargetModal = document.getElementById("edit-target-modal");
+          if (editTargetModal && !editTargetModal.classList.contains("hidden")) {
+            hideEditTargetModal();
+          }
+
+          // 2. Overwrite Ingest Modal
+          if (overwriteModal && !overwriteModal.classList.contains("hidden")) {
+            hideOverwriteModal();
+          }
+        }
+      });
+
+      // Edit Target Modal Actions
+      initEditTargetModal();
+    }
+
+    function initEditTargetModal() {
+      const openBtn = document.getElementById("btn-open-edit-target-modal");
+      const modal = document.getElementById("edit-target-modal");
+      const modalBox = document.getElementById("edit-target-modal-box");
+      const closeBtn = document.getElementById("btn-close-edit-target-modal");
+      const cancelBtn = document.getElementById("btn-cancel-edit-target");
+      const form = document.getElementById("edit-target-form");
+      const errorBox = document.getElementById("edit-target-error");
+      const errorText = document.getElementById("edit-target-error-text");
+
+      const togglePassBtn = document.getElementById("toggle-edit-target-pass-btn");
+      const passInput = document.getElementById("edit-target-foothold-pass");
+      const passIcon = document.getElementById("toggle-edit-target-pass-icon");
+
+      if (togglePassBtn && passInput && passIcon) {
+        togglePassBtn.addEventListener("click", () => {
+          const isPass = passInput.type === "password";
+          passInput.type = isPass ? "text" : "password";
+          passIcon.textContent = isPass ? "visibility_off" : "visibility";
+        });
+      }
+
+      function showEditTargetModal() {
+        if (!modal || !modalBox) return;
+        if (errorBox) errorBox.classList.add("hidden");
+        modal.classList.remove("hidden");
+        requestAnimationFrame(() => {
+          modal.classList.remove("opacity-0");
+          modalBox.classList.remove("scale-95", "opacity-0");
+          modalBox.classList.add("scale-100", "opacity-100");
+          setTimeout(() => {
+            const dcIpInput = document.getElementById("edit-target-dc-ip");
+            if (dcIpInput) dcIpInput.focus();
+          }, 100);
+        });
+      }
+
+      function hideEditTargetModal() {
+        if (!modal || !modalBox) return;
+        modal.classList.add("opacity-0");
+        modalBox.classList.remove("scale-100", "opacity-100");
+        modalBox.classList.add("scale-95", "opacity-0");
+        setTimeout(() => {
+          modal.classList.add("hidden");
+          if (errorBox) errorBox.classList.add("hidden");
+        }, 200);
+      }
+
+      window.showEditTargetModal = showEditTargetModal;
+      window.hideEditTargetModal = hideEditTargetModal;
+
+      if (openBtn) openBtn.addEventListener("click", showEditTargetModal);
+      if (closeBtn) closeBtn.addEventListener("click", hideEditTargetModal);
+      if (cancelBtn) cancelBtn.addEventListener("click", hideEditTargetModal);
       if (modal) {
         modal.addEventListener("click", (e) => {
-          if (e.target === modal) hideOverwriteModal();
+          if (e.target === modal) hideEditTargetModal();
+        });
+      }
+
+      if (form) {
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const dcIp = document.getElementById("edit-target-dc-ip")?.value.trim() || "";
+          let footholdUser = document.getElementById("edit-target-foothold-user")?.value.trim() || "";
+          const footholdPass = document.getElementById("edit-target-foothold-pass")?.value || "";
+
+          // Strip domain prefixes if entered
+          if (footholdUser.includes("\\")) footholdUser = footholdUser.split("\\").pop().trim();
+          if (footholdUser.includes("@")) footholdUser = footholdUser.split("@")[0].trim();
+
+          const saveBtn = document.getElementById("btn-save-edit-target");
+          const saveIcon = document.getElementById("save-target-btn-icon");
+          const saveLabel = document.getElementById("save-target-btn-label");
+
+          if (saveBtn) saveBtn.disabled = true;
+          if (saveLabel) saveLabel.textContent = "Saving...";
+
+          try {
+            const resp = await fetch("/api/projects/target", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                dc_ip: dcIp,
+                foothold_username: footholdUser,
+                foothold_password: footholdPass,
+              }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+              const msg = data.detail || (data.message ? data.message : "Failed to update target credentials");
+              if (errorBox && errorText) {
+                errorText.textContent = msg;
+                errorBox.classList.remove("hidden");
+              }
+              if (saveBtn) saveBtn.disabled = false;
+              if (saveLabel) saveLabel.textContent = "Save Target";
+              return;
+            }
+
+            // Update workspace banner displays & dataset
+            const dcIpDisplay = document.getElementById("workspace-dc-ip-display");
+            const footholdDisplay = document.getElementById("workspace-foothold-display");
+            if (dcIpDisplay) dcIpDisplay.textContent = dcIp || "Not Set";
+            if (footholdDisplay) footholdDisplay.textContent = footholdUser || "Not Set";
+
+            wsContext.dcIp = dcIp;
+            wsContext.footholdUsername = footholdUser;
+
+            // If pf-source is empty or currently matches old default, update pf-source with USER@DOMAIN
+            const srcInput = document.getElementById("pf-source");
+            if (srcInput && (!srcInput.value || !wsContext.selectedSource || srcInput.value.toUpperCase() === (wsContext.footholdUsername || "").toUpperCase())) {
+              const domain = wsContext.domain ? wsContext.domain.toUpperCase() : "";
+              const formattedUser = footholdUser.toUpperCase();
+              srcInput.value = domain ? `${formattedUser}@${domain}` : formattedUser;
+            }
+
+            hideEditTargetModal();
+          } catch (err) {
+            if (errorBox && errorText) {
+              errorText.textContent = `Network error: ${err.message}`;
+              errorBox.classList.remove("hidden");
+            }
+          } finally {
+            if (saveBtn) saveBtn.disabled = false;
+            if (saveLabel) saveLabel.textContent = "Save Target";
+          }
         });
       }
     }
 
     function showOverwriteModal() {
-      const modal = document.getElementById("overwrite-ingest-modal");
-      const modalBox = document.getElementById("overwrite-ingest-modal-box");
+      const modal = document.getElementById("confirm-overwrite-modal");
+      const modalBox = document.getElementById("confirm-overwrite-modal-box");
       const nodesSpan = document.getElementById("overwrite-modal-nodes-count");
       const relsSpan = document.getElementById("overwrite-modal-rels-count");
 
@@ -1005,19 +1284,24 @@
         requestAnimationFrame(() => {
           modal.classList.remove("opacity-0");
           modalBox.classList.remove("scale-95", "opacity-0");
+          modalBox.classList.add("scale-100", "opacity-100");
         });
       }
     }
 
     function hideOverwriteModal() {
-      const modal = document.getElementById("overwrite-ingest-modal");
-      const modalBox = document.getElementById("overwrite-ingest-modal-box");
+      const modal = document.getElementById("confirm-overwrite-modal");
+      const modalBox = document.getElementById("confirm-overwrite-modal-box");
       if (modal && modalBox) {
         modal.classList.add("opacity-0");
+        modalBox.classList.remove("scale-100", "opacity-100");
         modalBox.classList.add("scale-95", "opacity-0");
         setTimeout(() => modal.classList.add("hidden"), 200);
       }
     }
+
+    window.showOverwriteModal = showOverwriteModal;
+    window.hideOverwriteModal = hideOverwriteModal;
 
     function initIngestUpload() {
       const fileInput = document.getElementById("sharphound-file-input");
@@ -1238,6 +1522,37 @@
         if (nodeDisplay) nodeDisplay.textContent = currentProjectNodes;
         if (relDisplay) relDisplay.textContent = currentProjectRels;
 
+        // Auto-update domain context across UI if detected from SharpHound
+        if (data.project && data.project.domain) {
+          const detectedDomain = data.project.domain.toUpperCase();
+          wsContext.domain = detectedDomain;
+
+          // Update workspace top bar
+          const domainDisplay = document.getElementById("workspace-domain-display");
+          if (domainDisplay) {
+            domainDisplay.textContent = detectedDomain;
+            domainDisplay.title = detectedDomain;
+          }
+
+          // Update edit target modal display
+          const editTargetDomainText = document.getElementById("edit-target-domain-text");
+          const editTargetDomainStatus = document.getElementById("edit-target-domain-status");
+          if (editTargetDomainText) {
+            editTargetDomainText.textContent = detectedDomain;
+            editTargetDomainText.className = "text-secondary font-bold";
+          }
+          if (editTargetDomainStatus) {
+            editTargetDomainStatus.textContent = "Detected";
+            editTargetDomainStatus.className = "text-[9px] px-1.5 py-0.5 rounded font-mono uppercase bg-secondary/15 text-secondary border border-secondary/30";
+          }
+
+          // Auto-populate / update pf-source if foothold username is set
+          const srcInput = document.getElementById("pf-source");
+          if (srcInput && wsContext.footholdUsername && (!srcInput.value || !wsContext.selectedSource || srcInput.value.toUpperCase() === wsContext.footholdUsername.toUpperCase())) {
+            srcInput.value = `${wsContext.footholdUsername.toUpperCase()}@${detectedDomain}`;
+          }
+        }
+
         // Ping sidebar to immediately refresh projects drawer stats (nodes & rels) without page reload
         if (typeof window.fetchGlobalProjects === "function") {
           window.fetchGlobalProjects();
@@ -1322,9 +1637,15 @@
         }, 300);
       });
 
-      // Hide when clicking outside
+      // Hide when clicking outside or pressing Escape
       document.addEventListener("click", (e) => {
         if (e.target !== input && !dropdown.contains(e.target)) {
+          dropdown.classList.add("hidden");
+        }
+      });
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" || e.code === "Escape") {
           dropdown.classList.add("hidden");
         }
       });
@@ -1858,7 +2179,13 @@
       const savedTarget = wsContext.selectedTarget || "";
       const savedIndex = parseInt(wsContext.selectedPathIndex || "0", 10) || 0;
 
-      if (savedSource && srcInput) srcInput.value = savedSource;
+      if (savedSource && srcInput) {
+        srcInput.value = savedSource;
+      } else if (wsContext.footholdUsername && srcInput && !srcInput.value) {
+        const domain = (wsContext.domain || "").toUpperCase();
+        const username = wsContext.footholdUsername.toUpperCase();
+        srcInput.value = domain ? `${username}@${domain}` : username;
+      }
       if (savedTarget && tgtInput) tgtInput.value = savedTarget;
       if (savedEngine && document.getElementById("pf-engine")) {
         document.getElementById("pf-engine").value = savedEngine;
@@ -2806,6 +3133,6 @@
     }
   </script>
 
-  <script src="/static/sidebar.js?v=2"></script>
+  <script src="/static/sidebar.js?v=3"></script>
 </body>
 </html>
