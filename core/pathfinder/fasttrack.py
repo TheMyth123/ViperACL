@@ -1,11 +1,11 @@
-def run_fasttrack(db, source_name, target_name):
+def run_fasttrack(db, source_name, target_name, max_hops=15):
     """
     Viper FastTrack Engine: Finds the path with the absolute fewest hops, 
     ignoring relationship weights.
     """
-    query = """
-    // Node definitions moved directly into shortestPath function
-    MATCH p = shortestPath((source {name: $source_name})-[*1..15]->(target {name: $target_name}))
+    hops_limit = max(1, min(int(max_hops), 50))
+    query = f"""
+    MATCH p = shortestPath((source {{name: $source_name}})-[*1..{hops_limit}]->(target {{name: $target_name}}))
     RETURN p, length(p) AS hops
     LIMIT 1
     """

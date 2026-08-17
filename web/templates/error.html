@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  {% include 'head_assets.html' %}
+  <title>ViperACL — {{ error_code | default('Error') }}</title>
+</head>
+<body class="bg-background text-on-surface flex min-h-screen h-screen overflow-hidden">
+  {% include 'sidebar.html' %}
+
+  <!-- Main Content Area: Error Display -->
+  <main class="flex-1 ml-64 w-[calc(100%-16rem)] h-screen flex flex-col p-6 bg-background overflow-y-auto box-border justify-center items-center">
+    
+    <div class="max-w-md w-full bg-surface-container border border-outline-variant rounded-2xl p-8 shadow-2xl text-center space-y-5 tactical-card">
+      <div class="w-16 h-16 rounded-2xl bg-error/10 border border-error/30 flex items-center justify-center text-error mx-auto">
+        <span class="material-symbols-outlined text-3xl">error_outline</span>
+      </div>
+
+      <div class="space-y-1">
+        <span class="text-xs font-jetbrains font-bold uppercase tracking-wider text-error">Status {{ error_code | default(500) }}</span>
+        <h1 class="text-xl font-bold text-on-surface font-jetbrains">{{ error_title | default('Unexpected System Error') }}</h1>
+      </div>
+
+      <p class="text-xs font-jetbrains text-on-surface-variant leading-relaxed bg-surface-container-low p-3.5 rounded-lg border border-outline-variant/40 break-words">
+        {{ error_message | default('An unexpected error occurred while processing your request. Check system logs or update your configuration.') }}
+      </p>
+
+      <div class="flex items-center justify-center gap-3 pt-2">
+        <a href="/" class="px-4 py-2 bg-primary hover:bg-primary/90 text-on-primary font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow">
+          <span class="material-symbols-outlined text-sm">home</span>
+          Return to Launchpad
+        </a>
+        <button type="button" onclick="if(typeof openSettingsModal==='function')openSettingsModal();" class="px-4 py-2 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant text-on-surface font-jetbrains font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer">
+          <span class="material-symbols-outlined text-sm text-primary">settings</span>
+          Settings
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/static/sidebar.js?v=2"></script>
+</body>
+</html>

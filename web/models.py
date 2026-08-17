@@ -56,3 +56,27 @@ class TestDatabaseRequest(BaseModel):
     username: str = Field("neo4j", min_length=1)
     password: str = Field(..., min_length=1)
     database: str = Field("neo4j", min_length=1)
+
+
+class UnlockPhaseRequest(BaseModel):
+    phase: Literal["phase_1", "phase_2", "all"] = "all"
+    project_id: str | None = None
+
+
+class SavePathRequest(BaseModel):
+    engine: str = Field(..., min_length=1)
+    path: dict[str, Any] = Field(default_factory=dict)
+    candidate_paths: list[dict[str, Any]] | None = None
+    selected_path_index: int | None = 0
+    source_name: str | None = None
+    target_name: str | None = None
+    unlock_phase: Literal["phase_1", "phase_2", "all"] | None = None
+    project_id: str | None = None
+
+
+class SetActivePhaseRequest(BaseModel):
+    phase: Literal["phase_1", "phase_2", "phase_3", "phase_4"] = "phase_1"
+    project_id: str | None = None
+
+
+

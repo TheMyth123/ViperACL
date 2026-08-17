@@ -31,3 +31,8 @@
   - All operations (project creation/selection/deletion, sharpHound ingest, graph clearing, ML scoring, pathfinding, privesc plan generation, remediation script writing, error rejections, and security validation failures) MUST produce structured log events using `core.logger.logger`.
   - Always provide category (`PROJECT`, `INGEST`, `PATHFINDER`, `PRIVESC`, `REMEDIATION`, `DATABASE`, `SYSTEM`, `AUTH`), a dot-delimited `event_type` (e.g. `project.created`, `ingest.completed`, `privesc.plan.built`), appropriate log severity (`INFO`, `WARNING`, `ERROR`, `CRITICAL`), `project_id` context, `source="web.app"`, and relevant non-sensitive payload `details`.
 
+## 5. Python Virtual Environment Standard
+- Always use the dedicated virtual environment located at `/home/kali/ViperACL/venv`.
+- Execute all Python scripts, tests, daemons, and package operations with `./venv/bin/python` and `./venv/bin/pip`.
+- Never force install or modify global system packages with `--break-system-packages`.
+

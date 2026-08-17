@@ -47,6 +47,51 @@
       background-image: repeating-linear-gradient(0deg, #4edea3, #4edea3 10px, transparent 10px, transparent 20px), repeating-linear-gradient(90deg, #4edea3, #4edea3 10px, transparent 10px, transparent 20px), repeating-linear-gradient(180deg, #4edea3, #4edea3 10px, transparent 10px, transparent 20px), repeating-linear-gradient(270deg, #4edea3, #4edea3 10px, transparent 10px, transparent 20px);
       background-color: rgba(78, 222, 163, 0.02);
     }
+    
+    /* BloodHound Dark Graph Canvas Styling */
+    .bloodhound-canvas-container {
+      background-color: #09100c;
+      background-image: radial-gradient(circle, rgba(148, 163, 184, 0.12) 1px, transparent 1px);
+      background-size: 24px 24px;
+      position: relative;
+    }
+    .bloodhound-toolbar-btn {
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 6px;
+      color: #dde4dd;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .bloodhound-toolbar-btn:hover {
+      background: rgba(51, 65, 85, 0.95);
+      border-color: #4edea3;
+      color: #4edea3;
+    }
+    .bloodhound-inspector-panel {
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 12px;
+      box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.7);
+    }
+    
+    /* Input Error Shake & Outline Animation */
+    @keyframes inputShake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
+    }
+    .input-error-shake {
+      animation: inputShake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+      border-color: #f43f5e !important;
+      box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.45) !important;
+    }
   </style>
 </head>
 <body class="bg-background text-on-surface flex min-h-screen h-screen overflow-hidden">
@@ -157,30 +202,29 @@
           <button type="button" class="phase-tab active flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-bold text-on-surface bg-surface-container border-t border-l border-r border-outline-variant/60 cursor-pointer" data-tab="tab-phase-1" id="tab-btn-1">
             <span class="material-symbols-outlined text-sm tab-icon text-secondary">upload_file</span>
             <span>Phase 1: Ingest</span>
-            <span class="text-[9px] bg-secondary/15 text-secondary px-1.5 py-0.2 rounded font-mono uppercase">Step 1</span>
           </button>
 
-          <!-- Tab 2: Pathfinder & ML (Unlocked if Phase 1 has data) -->
-          {% set phase2_unlocked = (active_project and active_project.nodes > 0) %}
-          <button type="button" class="phase-tab {{ 'cursor-pointer hover:bg-surface-container-high' if phase2_unlocked else 'locked' }} flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium text-on-surface-variant border-t border-l border-r border-transparent" data-tab="tab-phase-2" data-locked="{{ 'false' if phase2_unlocked else 'true' }}" id="tab-btn-2">
+          <!-- Tab 2: Pathfinder & ML (Unlocked if Phase 1 has data or unlocked_phase in ['phase_2', 'all']) -->
+          {% set phase2_unlocked = (active_project and (active_project.unlocked_phase in ['phase_2', 'all'] or active_project.nodes > 0)) %}
+          <button type="button" class="phase-tab {{ 'cursor-pointer hover:bg-surface-container-high text-on-surface-variant' if phase2_unlocked else 'locked opacity-40 cursor-not-allowed text-on-surface-variant/40' }} flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium border-t border-l border-r border-transparent" data-tab="tab-phase-2" data-locked="{{ 'false' if phase2_unlocked else 'true' }}" id="tab-btn-2">
             <span class="material-symbols-outlined text-sm tab-icon text-tertiary">route</span>
             <span>Phase 2: Pathfinder</span>
-            <span class="material-symbols-outlined text-[13px] text-on-surface-variant/60 {{ 'hidden' if phase2_unlocked else '' }}" id="lock-icon-phase-2" title="Locked">lock</span>
-            <span class="text-[9px] bg-tertiary/15 text-tertiary px-1.5 py-0.2 rounded font-mono uppercase {{ '' if phase2_unlocked else 'hidden' }}" id="unlocked-badge-phase-2">Unlocked</span>
+            <span class="material-symbols-outlined text-xs text-on-surface-variant/50 ml-0.5 {{ 'hidden' if phase2_unlocked else '' }}" id="lock-icon-phase-2">lock</span>
           </button>
 
           <!-- Tab 3: PrivEsc (Unlocked with Phase 4 after Path selection) -->
-          <button type="button" class="phase-tab locked flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium text-on-surface-variant border-t border-l border-r border-transparent" data-tab="tab-phase-3" data-locked="true" id="tab-btn-3">
+          {% set phase3_4_unlocked = (active_project and active_project.unlocked_phase == 'all') %}
+          <button type="button" class="phase-tab {{ 'cursor-pointer hover:bg-surface-container-high text-on-surface-variant' if phase3_4_unlocked else 'locked opacity-40 cursor-not-allowed text-on-surface-variant/40' }} flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium border-t border-l border-r border-transparent" data-tab="tab-phase-3" data-locked="{{ 'false' if phase3_4_unlocked else 'true' }}" id="tab-btn-3">
             <span class="material-symbols-outlined text-sm tab-icon text-error">admin_panel_settings</span>
             <span>Phase 3: PrivEsc</span>
-            <span class="material-symbols-outlined text-[13px] text-on-surface-variant/60" id="lock-icon-phase-3" title="Locked">lock</span>
+            <span class="material-symbols-outlined text-xs text-on-surface-variant/50 ml-0.5 {{ 'hidden' if phase3_4_unlocked else '' }}" id="lock-icon-phase-3">lock</span>
           </button>
 
           <!-- Tab 4: Remediation (Unlocked with Phase 3 after Path selection) -->
-          <button type="button" class="phase-tab locked flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium text-on-surface-variant border-t border-l border-r border-transparent" data-tab="tab-phase-4" data-locked="true" id="tab-btn-4">
+          <button type="button" class="phase-tab {{ 'cursor-pointer hover:bg-surface-container-high text-on-surface-variant' if phase3_4_unlocked else 'locked opacity-40 cursor-not-allowed text-on-surface-variant/40' }} flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium border-t border-l border-r border-transparent" data-tab="tab-phase-4" data-locked="{{ 'false' if phase3_4_unlocked else 'true' }}" id="tab-btn-4">
             <span class="material-symbols-outlined text-sm tab-icon text-secondary-container">healing</span>
             <span>Phase 4: Remediation</span>
-            <span class="material-symbols-outlined text-[13px] text-on-surface-variant/60" id="lock-icon-phase-4" title="Locked">lock</span>
+            <span class="material-symbols-outlined text-xs text-on-surface-variant/50 ml-0.5 {{ 'hidden' if phase3_4_unlocked else '' }}" id="lock-icon-phase-4">lock</span>
           </button>
 
         </div>
@@ -328,7 +372,7 @@
               <div id="ingest-alert-banner" class="w-full p-3 rounded text-xs font-jetbrains leading-relaxed text-left flex items-start gap-2 bg-emerald-950/70 border border-primary/50 text-primary">
                 <span class="material-symbols-outlined text-base flex-shrink-0 text-primary">check_circle</span>
                 <div class="flex-1">
-                  <strong>Ingestion Complete!</strong> Successfully loaded <strong>{{ active_project.nodes }}</strong> nodes and <strong>{{ active_project.relationships }}</strong> relationships. Phase 2 Pathfinder is unlocked!
+                  <strong>Ingestion Complete!</strong> Loaded <strong>{{ active_project.nodes }}</strong> nodes and <strong>{{ active_project.relationships }}</strong> relationships.
                 </div>
               </div>
               {% else %}
@@ -341,75 +385,184 @@
         </div>
 
         <!-- Panel 2: Attack Pathfinder & ML (Unlocked if Phase 1 Done) -->
-        <div class="phase-tab-panel hidden flex-1 flex flex-col gap-4 min-h-0" id="tab-phase-2">
-          <div class="flex-1 bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col justify-center items-center text-center space-y-3">
-            <div class="w-14 h-14 rounded-2xl bg-tertiary/10 border border-tertiary/30 flex items-center justify-center text-tertiary">
-              <span class="material-symbols-outlined text-3xl">route</span>
-            </div>
-            <h3 class="text-base font-bold text-on-surface">Attack Path Navigation &amp; Machine Learning</h3>
-            <p class="text-xs text-on-surface-variant max-w-lg mx-auto leading-relaxed font-jetbrains">
-              Query source and target Active Directory principals to calculate tactical attack paths with Random Forest classifier probabilities.
-            </p>
-          </div>
-        </div>
+        <div class="phase-tab-panel hidden flex-1 flex flex-col gap-3 min-h-0" id="tab-phase-2">
+          
+          <!-- Pathfinder Form Configuration (Compact Direct Bar) -->
+          <div class="bg-surface-container-low border border-outline-variant rounded-xl p-2.5 shadow-sm flex-shrink-0">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end">
+              <div class="md:col-span-4">
+                <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Source Node (Initial Foothold)</label>
+                <div class="relative">
+                  <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">person</span>
+                  <input type="text" id="pf-source" class="w-full bg-surface-container border border-outline-variant rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none transition-all" autocomplete="off" placeholder="e.g. BOB_HR@VIPERTECH.LOCAL" />
+                </div>
+              </div>
+              
+              <div class="md:col-span-4">
+                <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Target Node (Domain Objective)</label>
+                <div class="relative">
+                  <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">target</span>
+                  <input type="text" id="pf-target" class="w-full bg-surface-container border border-outline-variant rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none transition-all" autocomplete="off" placeholder="e.g. SUSAN_ADMIN@VIPERTECH.LOCAL" />
+                </div>
+              </div>
 
-        <!-- Panel 3: Privilege Escalation -->
-        <div class="phase-tab-panel hidden flex-1 flex flex-col gap-4 min-h-0" id="tab-phase-3">
-          <div class="flex-1 bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col justify-center items-center text-center space-y-3">
-            <div class="w-14 h-14 rounded-2xl bg-error/10 border border-error/30 flex items-center justify-center text-error">
-              <span class="material-symbols-outlined text-3xl">admin_panel_settings</span>
+              <div class="md:col-span-4 flex gap-2">
+                <div class="flex-1">
+                  <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Engine Algorithm</label>
+                  <select id="pf-engine" class="w-full bg-surface-container border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none">
+                    <option value="tactical" {{ 'selected' if settings and settings.pathfinder_default_mode == 'tactical' else '' }}>Tactical (Lowest Cost)</option>
+                    <option value="fasttrack" {{ 'selected' if settings and settings.pathfinder_default_mode == 'fasttrack' else '' }}>FastTrack (Fewest Hops)</option>
+                    <option value="predictive" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive' else '' }}>Predictive (ML Random Forest)</option>
+                  </select>
+                </div>
+                <button type="button" id="btn-run-pathfinder" class="px-4 py-1.5 bg-tertiary text-on-tertiary hover:bg-tertiary/90 font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1 shadow cursor-pointer self-end h-[34px] flex-shrink-0">
+                  <span class="material-symbols-outlined text-xs">search</span>
+                  <span>Find Path</span>
+                </button>
+              </div>
             </div>
-            <h3 class="text-base font-bold text-on-surface">Privilege Escalation Planning &amp; Abuse Modules</h3>
-            <p class="text-xs text-on-surface-variant max-w-lg mx-auto leading-relaxed font-jetbrains">
-              Generate sequential ACL abuse tasks and execute validated privilege escalation chains.
-            </p>
           </div>
-        </div>
 
-        <!-- Panel 4: Surgical Remediation -->
-        <div class="phase-tab-panel hidden flex-1 flex flex-col gap-4 min-h-0" id="tab-phase-4">
-          <div class="flex-1 bg-surface-container-low border border-outline-variant rounded-xl p-6 flex flex-col justify-center items-center text-center space-y-3">
-            <div class="w-14 h-14 rounded-2xl bg-secondary-container/10 border border-secondary-container/30 flex items-center justify-center text-secondary-container">
-              <span class="material-symbols-outlined text-3xl">healing</span>
+          <!-- Visualization / Results Area -->
+          <div class="flex-1 bg-surface-container-low border border-outline-variant rounded-xl p-2.5 flex flex-col min-h-0 overflow-hidden relative" id="pf-results-container">
+            <!-- Empty State -->
+            <div id="pf-empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
+              <div class="w-14 h-14 rounded-2xl bg-surface-container border border-outline-variant/60 flex items-center justify-center text-on-surface-variant/50 mb-3">
+                <span class="material-symbols-outlined text-2xl">map</span>
+              </div>
+              <p class="text-xs text-on-surface-variant max-w-sm mx-auto leading-relaxed font-jetbrains">
+                Enter a source and target node above to generate a visual attack path sequence.
+              </p>
             </div>
-            <h3 class="text-base font-bold text-on-surface">Surgical Active Directory Remediation Playbooks</h3>
-            <p class="text-xs text-on-surface-variant max-w-lg mx-auto leading-relaxed font-jetbrains">
-              Export production-ready PowerShell scripts (`.ps1`) to remove unauthorized ACEs and close discovered choke points.
-            </p>
+            
+            <!-- Loading State -->
+            <div id="pf-loading-state" class="hidden absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-surface-container-low z-10">
+              <div class="w-10 h-10 rounded-full border-2 border-tertiary/30 border-t-tertiary animate-spin mb-3"></div>
+              <p class="text-xs font-jetbrains font-bold text-tertiary">Calculating paths...</p>
+            </div>
+
+            <!-- Results State: BloodHound Tactical Attack Graph Canvas -->
+            <div id="pf-data-state" class="hidden flex-col h-full min-h-0">
+              <!-- Top Controls & Metrics Bar -->
+              <div class="flex items-center justify-between mb-2 border-b border-outline-variant/30 pb-1.5 flex-shrink-0 gap-2">
+                <div class="flex items-center gap-2 flex-1 flex-wrap">
+                  <span class="px-2 py-0.5 rounded bg-tertiary/15 text-tertiary border border-tertiary/30 text-[10px] font-bold font-jetbrains uppercase" id="pf-res-mode-badge">Tactical</span>
+                  <span class="text-xs font-jetbrains text-on-surface font-medium" id="pf-res-metrics">0 Hops Calculated</span>
+                  
+                  <div id="pf-path-selector-container" class="hidden items-center gap-1.5 ml-2">
+                    <span class="text-[10px] font-jetbrains text-on-surface-variant uppercase">Candidate Path:</span>
+                    <select id="pf-path-selector" class="bg-surface-container border border-outline-variant rounded px-2 py-0.5 text-[11px] text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none cursor-pointer">
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Canvas Action Toolbar & Proceed Button -->
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <div class="flex items-center gap-1 bg-surface-container-lowest p-0.5 rounded-lg border border-outline-variant/40">
+                    <button type="button" id="btn-graph-fit" class="bloodhound-toolbar-btn" title="Center / Fit Graph">
+                      <span class="material-symbols-outlined text-xs">crop_free</span>
+                    </button>
+                    <button type="button" id="btn-graph-zoomin" class="bloodhound-toolbar-btn" title="Zoom In">
+                      <span class="material-symbols-outlined text-xs">zoom_in</span>
+                    </button>
+                    <button type="button" id="btn-graph-zoomout" class="bloodhound-toolbar-btn" title="Zoom Out">
+                      <span class="material-symbols-outlined text-xs">zoom_out</span>
+                    </button>
+                    <button type="button" id="btn-graph-layout" class="bloodhound-toolbar-btn" title="Toggle Layout (Hierarchical / Organic)">
+                      <span class="material-symbols-outlined text-xs">account_tree</span>
+                    </button>
+                  </div>
+
+                  <button type="button" id="btn-proceed-privesc" class="hidden px-3.5 py-1 bg-primary hover:bg-primary/90 text-on-primary font-jetbrains font-bold text-[10px] uppercase tracking-wider rounded transition-all items-center gap-1.5 shadow-lg shadow-primary/20 cursor-pointer">
+                    <span>Send Path &amp; Proceed to Phase 3</span>
+                    <span class="material-symbols-outlined text-xs">arrow_forward</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Interactive BloodHound Canvas Area -->
+              <div class="flex-1 relative w-full rounded-xl overflow-hidden bloodhound-canvas-container border border-outline-variant/40 flex min-h-0" id="pf-graph-wrapper">
+                
+                <!-- Main Vis Network Canvas -->
+                <div id="pf-network-canvas" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
+
+                <!-- Floating BloodHound Entity / ACL Inspector Drawer (Fixed 30% width with subtle gaps) -->
+                <div id="pf-inspector-drawer" class="hidden absolute top-3 right-3 bottom-3 w-[30%] min-w-[280px] max-w-[360px] max-h-[calc(100%-1.5rem)] bloodhound-inspector-panel p-3.5 z-20 flex flex-col rounded-xl border border-outline-variant/60 shadow-2xl bg-surface-container-lowest/95 backdrop-blur-md overflow-hidden" style="width: 30%; min-width: 280px; max-width: 360px;">
+                  <div class="flex items-center justify-between pb-2 mb-2 border-b border-outline-variant/40 flex-shrink-0">
+                    <span class="text-[11px] font-bold font-jetbrains text-primary uppercase tracking-wider flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                      BloodHound Inspector
+                    </span>
+                    <button type="button" onclick="document.getElementById('pf-inspector-drawer').classList.add('hidden')" class="p-1 text-on-surface-variant hover:text-on-surface rounded hover:bg-surface-container transition-colors cursor-pointer">
+                      <span class="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  </div>
+                  <div id="pf-inspector-content" class="text-xs flex flex-col flex-1 space-y-2.5 w-full break-words">
+                    <!-- Dynamic entity properties -->
+                  </div>
+                </div>
+
+                <!-- Bottom-Left Legend -->
+                <div class="absolute bottom-2.5 left-2.5 bg-surface-container-lowest/90 backdrop-blur-md border border-outline-variant/50 rounded-lg px-2.5 py-1 flex items-center gap-3 text-[9px] font-jetbrains text-on-surface-variant z-10 select-none shadow-lg">
+                  <div class="flex items-center gap-1">
+                    <span class="w-2.5 h-2.5 rounded-full bg-[#d0bcff] border border-[#a855f7] flex items-center justify-center text-[6px] text-black font-bold">👤</span>
+                    <span>User</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-2.5 h-2.5 rounded-full bg-[#4cd7f6] border border-[#06b6d4] flex items-center justify-center text-[6px] text-black font-bold">💻</span>
+                    <span>Computer</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-2.5 h-2.5 rounded-full bg-[#fbbf24] border border-[#f59e0b] flex items-center justify-center text-[6px] text-black font-bold">👥</span>
+                    <span>Group</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-2.5 h-2.5 rounded-full bg-[#4edea3] border border-white shadow-[0_0_6px_#4edea3] flex items-center justify-center text-[7px] text-black font-bold">✓</span>
+                    <span class="text-[#4edea3] font-bold">Foothold</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-2.5 h-2.5 rounded-full bg-[#f43f5e] border border-white shadow-[0_0_6px_#f43f5e] flex items-center justify-center text-[7px] text-white font-bold">🎯</span>
+                    <span class="text-[#f43f5e] font-bold">Target</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-2 h-0.5 bg-[#ffb4ab]"></span>
+                    <span class="text-error font-medium">Abuse</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
           </div>
+
         </div>
 
       </div>
-    </section>
+
+    </div>
 
   </main>
 
-  <!-- Overwrite Confirmation Modal Dialog -->
-  <div class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="overwrite-ingest-modal">
-    <div class="bg-[#1E293B] border border-amber-500/50 rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 relative transform scale-95 opacity-0 transition-all duration-200 ease-out" id="overwrite-ingest-modal-box">
-      <div class="flex items-center gap-3.5 border-b border-outline-variant/40 pb-3">
-        <div class="w-10 h-10 rounded-full bg-amber-950/80 text-amber-400 border border-amber-700/50 flex items-center justify-center flex-shrink-0">
+  <!-- Clear & Overwrite Existing Data Confirmation Modal -->
+  <div id="confirm-overwrite-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-surface-container border border-outline-variant rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4">
+      <div class="flex items-center gap-3 border-b border-outline-variant/60 pb-3">
+        <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
           <span class="material-symbols-outlined text-xl">warning</span>
         </div>
         <div>
-          <h3 class="text-sm font-bold text-on-surface">Overwrite Active Directory Data?</h3>
-          <p class="text-xs text-on-surface-variant/80">Existing graph partition detected</p>
+          <h3 class="text-sm font-bold text-on-surface">Existing Project Data Detected</h3>
+          <p class="text-[11px] text-on-surface-variant font-jetbrains">Confirm database overwrite action</p>
         </div>
       </div>
       
       <div class="text-xs text-on-surface-variant/90 leading-relaxed bg-surface-container-low p-3.5 rounded-lg border border-outline-variant/30 font-jetbrains space-y-2">
         <p>This project already contains ingested Active Directory graph data (<strong id="overwrite-modal-nodes-count" class="text-primary font-bold"></strong> nodes, <strong id="overwrite-modal-rels-count" class="text-primary font-bold"></strong> relationships).</p>
-        <p class="text-amber-300/90 text-[11px]">Ingesting this new collection will clear and overwrite previous Active Directory data for this project. Do you want to proceed?</p>
+        <p class="text-amber-400">Ingesting this new collection will clear and overwrite previous Active Directory data for this project.</p>
       </div>
 
       <div class="flex items-center justify-end gap-3 pt-2">
-        <button type="button" id="cancel-overwrite-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded transition-colors cursor-pointer">
-          Cancel
-        </button>
-        <button type="button" id="confirm-overwrite-modal-btn" class="px-4 py-2 text-xs font-bold bg-primary hover:bg-primary/90 text-on-primary rounded shadow-lg transition-all flex items-center gap-1.5 cursor-pointer">
-          <span class="material-symbols-outlined text-sm">restart_alt</span>
-          Proceed &amp; Overwrite
-        </button>
+        <button type="button" id="btn-cancel-overwrite" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface">Cancel</button>
+        <button type="button" id="btn-confirm-overwrite" class="px-4 py-2 text-xs font-bold bg-error text-on-error rounded-lg shadow-lg">Confirm & Overwrite</button>
       </div>
     </div>
   </div>
@@ -421,7 +574,23 @@
     data-source-zip="{{ active_project.source_zip if (active_project and active_project.source_zip) else '' }}"
     data-nodes="{{ active_project.nodes if (active_project and active_project.nodes) else 0 }}"
     data-relationships="{{ active_project.relationships if (active_project and active_project.relationships) else 0 }}"
+    data-unlocked-phase="{{ active_project.unlocked_phase if active_project else 'phase_1' }}"
+    data-last-active-phase="{{ active_project.last_active_phase if active_project else 'phase_1' }}"
+    data-selected-engine="{{ active_project.selected_engine if (active_project and active_project.selected_engine) else '' }}"
+    data-selected-source="{{ active_project.selected_source if (active_project and active_project.selected_source) else '' }}"
+    data-selected-target="{{ active_project.selected_target if (active_project and active_project.selected_target) else '' }}"
+    data-selected-path-index="{{ active_project.selected_path_index if active_project else 0 }}"
     class="hidden"></div>
+  {% if active_project and active_project.selected_path %}
+  <script id="saved-path-json" type="application/json">
+    {{ active_project.selected_path | tojson | safe }}
+  </script>
+  {% endif %}
+  {% if active_project and active_project.selected_candidate_paths %}
+  <script id="saved-candidate-paths-json" type="application/json">
+    {{ active_project.selected_candidate_paths | tojson | safe }}
+  </script>
+  {% endif %}
 
   <!-- Workspace Interactive Ingest & Tab Switcher Script -->
   <script>
@@ -437,6 +606,7 @@
       initTabs();
       initIngestUpload();
       initModals();
+      initPathfinder();
     }
 
     function initTabs() {
@@ -456,11 +626,11 @@
 
           tabs.forEach((t) => {
             if (t === tab) {
-              t.classList.add("active", "text-on-surface", "bg-surface-container");
-              t.classList.remove("text-on-surface-variant");
+              t.classList.add("active", "text-on-surface", "bg-surface-container", "border-outline-variant/60");
+              t.classList.remove("text-on-surface-variant", "border-transparent");
             } else {
-              t.classList.remove("active", "bg-surface-container");
-              t.classList.add("text-on-surface-variant");
+              t.classList.remove("active", "bg-surface-container", "text-on-surface", "border-outline-variant/60");
+              t.classList.add("text-on-surface-variant", "border-transparent");
             }
           });
 
@@ -475,22 +645,60 @@
               p.classList.add("hidden");
             }
           });
+
+          // Persist last active phase to projects.json
+          const phaseName = targetTabId.replace("tab-", "").replace("-", "_");
+          try {
+            fetch("/api/projects/phase/active", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ phase: phaseName })
+            });
+          } catch (e) {
+            console.error("Failed to save active phase:", e);
+          }
         });
       });
+
+      // Automatically activate last worked-on phase if unlocked
+      const initialPhase = wsContext.lastActivePhase || (isIngested ? "phase_2" : "phase_1");
+      const targetTabBtn = document.querySelector(`.phase-tab[data-tab="tab-${initialPhase.replace('_', '-')}"]`);
+      if (targetTabBtn && targetTabBtn.dataset.locked !== "true") {
+        targetTabBtn.click();
+      }
     }
 
     function unlockPhase2() {
       const tab2 = document.getElementById("tab-btn-2");
       const lockIcon = document.getElementById("lock-icon-phase-2");
-      const unlockBadge = document.getElementById("unlocked-badge-phase-2");
 
       if (tab2) {
         tab2.dataset.locked = "false";
-        tab2.classList.remove("locked");
-        tab2.classList.add("cursor-pointer", "hover:bg-surface-container-high");
+        tab2.classList.remove("locked", "opacity-40", "cursor-not-allowed", "text-on-surface-variant/40");
+        tab2.classList.add("cursor-pointer", "hover:bg-surface-container-high", "text-on-surface-variant");
       }
       if (lockIcon) lockIcon.classList.add("hidden");
-      if (unlockBadge) unlockBadge.classList.remove("hidden");
+    }
+
+    function unlockPhase3And4() {
+      const tab3 = document.getElementById("tab-btn-3");
+      const lockIcon3 = document.getElementById("lock-icon-phase-3");
+      const tab4 = document.getElementById("tab-btn-4");
+      const lockIcon4 = document.getElementById("lock-icon-phase-4");
+
+      if (tab3) {
+        tab3.dataset.locked = "false";
+        tab3.classList.remove("locked", "opacity-40", "cursor-not-allowed", "text-on-surface-variant/40");
+        tab3.classList.add("cursor-pointer", "hover:bg-surface-container-high", "text-on-surface-variant");
+      }
+      if (lockIcon3) lockIcon3.classList.add("hidden");
+
+      if (tab4) {
+        tab4.dataset.locked = "false";
+        tab4.classList.remove("locked", "opacity-40", "cursor-not-allowed", "text-on-surface-variant/40");
+        tab4.classList.add("cursor-pointer", "hover:bg-surface-container-high", "text-on-surface-variant");
+      }
+      if (lockIcon4) lockIcon4.classList.add("hidden");
     }
 
     function initModals() {
@@ -803,7 +1011,784 @@
         }
       }
     }
+        function initAutocomplete(inputId) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
 
+      // Create dropdown container
+      const dropdown = document.createElement("div");
+      dropdown.className = "absolute left-0 right-0 top-full mt-1 bg-surface-container border border-outline-variant rounded-lg shadow-xl z-50 hidden max-h-48 overflow-y-auto";
+      input.parentNode.appendChild(dropdown);
+
+      let debounceTimeout;
+
+      input.addEventListener("input", (e) => {
+        clearTimeout(debounceTimeout);
+        const val = e.target.value.trim();
+        
+        if (val.length < 1) {
+          dropdown.classList.add("hidden");
+          return;
+        }
+
+        debounceTimeout = setTimeout(async () => {
+          try {
+            const res = await fetch(`/api/nodes/search?q=${encodeURIComponent(val)}`);
+            const data = await res.json();
+            
+            if (data.status === "ok" && data.results.length > 0) {
+              dropdown.innerHTML = "";
+              data.results.forEach(name => {
+                const item = document.createElement("div");
+                item.className = "px-3 py-2 text-xs text-on-surface hover:bg-tertiary/10 hover:text-tertiary cursor-pointer font-jetbrains transition-colors border-b border-outline-variant/30 last:border-0";
+                item.textContent = name;
+                item.addEventListener("click", () => {
+                  input.value = name;
+                  dropdown.classList.add("hidden");
+                });
+                dropdown.appendChild(item);
+              });
+              dropdown.classList.remove("hidden");
+            } else {
+              dropdown.classList.add("hidden");
+            }
+          } catch (err) {
+            console.error("Autocomplete error:", err);
+          }
+        }, 300);
+      });
+
+      // Hide when clicking outside
+      document.addEventListener("click", (e) => {
+        if (e.target !== input && !dropdown.contains(e.target)) {
+          dropdown.classList.add("hidden");
+        }
+      });
+    }
+
+    let pfNetwork = null;
+    let currentPathData = null;
+    let isHierarchicalLayout = true;
+
+    const BLOODHOUND_SVGS = {
+      user: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%231e1b4b" stroke="%23a855f7" stroke-width="3.5"/><path d="M32 16a8 8 0 100 16 8 8 0 000-16zm-12 28c0-6 6-10 12-10s12 4 12 10v2H20v-2z" fill="%23d0bcff"/></svg>`,
+      computer: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%23083344" stroke="%2306b6d4" stroke-width="3.5"/><path d="M18 19h28a2 2 0 012 2v18a2 2 0 01-2 2H18a2 2 0 01-2-2V21a2 2 0 012-2zm10 24h8v4h-8v-4zm-4 4h16v2H24v-2z" fill="%234cd7f6"/><path d="M22 23h20v12H22z" fill="%230e7490"/></svg>`,
+      group: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%23451a03" stroke="%23f59e0b" stroke-width="3.5"/><path d="M24 20a6 6 0 100 12 6 6 0 000-12zm16 0a6 6 0 100 12 6 6 0 000-12zm-24 22c0-4.5 4.5-8 9-8s9 3.5 9 8v2H16v-2zm18 0c0-2.5 1.5-4.8 4-6.2 1.5-.8 3.2-1.3 5-1.3 4.5 0 8 3.2 8 7.5v2H34v-2z" fill="%23fbbf24"/></svg>`,
+      domain: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%23064e3b" stroke="%2310b981" stroke-width="3.5"/><path d="M32 16a16 16 0 100 32 16 16 0 000-32zm-2 29.8A14.04 14.04 0 0120 34h10v11.8zm0-13.8H18.2a14.06 14.06 0 010-4H30v4zm0-6H20a14.04 14.04 0 0110-11.8V22zm4-11.8c4.8 1.4 8.7 5.8 10 11.8H34V10.2zm0 13.8h11.8a14.06 14.06 0 010 4H34v-4zm0 6h10c-1.3 6-5.2 10.4-10 11.8V34z" fill="%234edea3"/></svg>`,
+      source: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%232e1065" stroke="%23c084fc" stroke-width="4"/><path d="M32 16a8 8 0 100 16 8 8 0 000-16zm-12 28c0-6 6-10 12-10s12 4 12 10v2H20v-2z" fill="%23e9ddff"/><circle cx="48" cy="16" r="8" fill="%234edea3" stroke="%2309100c" stroke-width="2.5"/><path d="M44.5 16l2.5 2.5 5-5" stroke="%2309100c" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`,
+      target: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="%234c0519" stroke="%23f43f5e" stroke-width="4"/><circle cx="32" cy="32" r="18" fill="none" stroke="%23fda4af" stroke-width="2.5" stroke-dasharray="4 2"/><circle cx="32" cy="32" r="8" fill="%23f43f5e" stroke="%23ffffff" stroke-width="1.5"/><circle cx="32" cy="32" r="3" fill="%23ffffff"/><line x1="32" y1="5" x2="32" y2="16" stroke="%23f43f5e" stroke-width="3.5" stroke-linecap="round"/><line x1="32" y1="48" x2="32" y2="59" stroke="%23f43f5e" stroke-width="3.5" stroke-linecap="round"/><line x1="5" y1="32" x2="16" y2="32" stroke="%23f43f5e" stroke-width="3.5" stroke-linecap="round"/><line x1="48" y1="32" x2="59" y2="32" stroke="%23f43f5e" stroke-width="3.5" stroke-linecap="round"/><circle cx="48" cy="16" r="7" fill="%23f43f5e" stroke="%2309100c" stroke-width="2"/><circle cx="48" cy="16" r="3" fill="%23ffffff"/></svg>`
+    };
+
+    const ABUSE_EDGE_DESCRIPTIONS = {
+      "MemberOf": { desc: "Direct or nested security group membership; principal inherits all permissions and token privileges assigned to the group.", severity: "Medium", color: "#06b6d4", text: "#67e8f9", icon: "group_add" },
+      "AdminTo": { desc: "Local administrator privileges on target computer; enables remote command execution via PsExec, WMI, or WinRM.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "bolt" },
+      "GenericAll": { desc: "Full administrative control over target object; permits resetting passwords, modifying group memberships, and changing all attributes.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "all_inclusive" },
+      "GenericWrite": { desc: "Write access to all non-restricted attributes; can update scriptPath, servicePrincipalNames, or login scripts for credential capture.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "edit" },
+      "WriteDacl": { desc: "Permission to modify the target object's Discretionary Access Control List (DACL); allows granting oneself GenericAll full control.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "lock_open" },
+      "WriteOwner": { desc: "Permission to take ownership of target object; once owned, the DACL can be altered to grant full administrative rights.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "shield_person" },
+      "Owns": { desc: "Principal is the explicit Active Directory owner and holds authoritative rights to modify all permissions on the target.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "verified_user" },
+      "ForceChangePassword": { desc: "Direct permission to forcibly reset the target account's password without requiring knowledge of the existing password.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "password" },
+      "AllExtendedRights": { desc: "Grants all Active Directory extended rights on the target, including User-Force-Change-Password and SPN registration.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "vpn_key" },
+      "DCSync": { desc: "Directory Replication Service rights; allows impersonating a Domain Controller to dump all domain password hashes via DRSUAPI.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "sync_problem" },
+      "GetChanges": { desc: "Directory replication permission required to synchronize AD objects; combined with GetChangesAll enables full DCSync hash dumping.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "cloud_sync" },
+      "GetChangesAll": { desc: "Directory replication permission to retrieve all domain secrets, including password hashes; enables DCSync.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "cloud_sync" },
+      "AddMember": { desc: "Permission to add arbitrary user or computer accounts into this target security group.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "person_add" },
+      "ReadLAPSPassword": { desc: "Permission to read ms-Mcs-AdmPwd, retrieving the cleartext local administrator password for the target computer.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "key" },
+      "AddKeyCredentialLink": { desc: "Permission to write to msDS-KeyCredentialLink (Shadow Credentials), allowing PKINIT certificate generation and full account takeover.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "badge" },
+      "WriteSPN": { desc: "Permission to set ServicePrincipalNames on the target account, enabling targeted Kerberoasting attacks.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "label" },
+      "AllowedToDelegate": { desc: "Kerberos Constrained Delegation enabled; principal can request Kerberos service tickets for any user to target service.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "security" },
+      "AllowedToAct": { desc: "Resource-Based Constrained Delegation (RBCD) enabled; allows writing msDS-AllowedToActOnBehalfOfOtherIdentity to impersonate users on target.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "supervisor_account" },
+      "SQLAdmin": { desc: "Administrative access over Microsoft SQL Server instance; permits operating system command execution via xp_cmdshell.", severity: "Critical", color: "#ef4444", text: "#ffb4ab", icon: "database" },
+      "CanRDP": { desc: "Direct authorization to establish interactive graphical Remote Desktop Protocol (RDP) sessions on the target host.", severity: "Medium", color: "#06b6d4", text: "#67e8f9", icon: "desktop_windows" },
+      "ExecuteDCOM": { desc: "Permission to instantiate and invoke remote Distributed COM (DCOM) objects on target host for arbitrary code execution.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "terminal" },
+      "CanPSRemote": { desc: "Permission to open remote interactive PowerShell Remoting (WinRM / WSMan) shell sessions on the target computer.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "code" },
+      "Contains": { desc: "Active Directory Organizational Unit (OU) or Container holds the target child object in domain directory hierarchy.", severity: "Info", color: "#a855f7", text: "#d8b4fe", icon: "folder" },
+      "GPLink": { desc: "Group Policy Object (GPO) linked to target OU or Domain; modifying the GPO affects all computer and user objects beneath it.", severity: "High", color: "#f59e0b", text: "#fcd34d", icon: "policy" }
+    };
+
+    function getNodeMeta(nodeName) {
+      const upper = (nodeName || "").toUpperCase();
+      if (upper.endsWith("$") || upper.includes("DC") || upper.includes("SERVER") || upper.includes("COMP") || upper.includes("WS") || upper.includes("HOST")) {
+        return { type: "Computer", icon: "computer", color: "#03b5d3", borderColor: "#4cd7f6", svg: BLOODHOUND_SVGS.computer };
+      }
+      if (upper.includes("ADMINS") || upper.includes("GROUP") || upper.includes("USERS") || upper.includes("OPERATORS") || upper.includes("DEPARTMENT") || upper.includes("HELPDESK")) {
+        return { type: "Group", icon: "group", color: "#d97706", borderColor: "#fbbf24", svg: BLOODHOUND_SVGS.group };
+      }
+      if (upper.includes(".LOCAL") && !upper.includes("@") && !upper.includes("$")) {
+        return { type: "Domain", icon: "domain", color: "#059669", borderColor: "#34d399", svg: BLOODHOUND_SVGS.domain };
+      }
+      return { type: "User", icon: "person", color: "#7c3aed", borderColor: "#d0bcff", svg: BLOODHOUND_SVGS.user };
+    }
+
+    function getRelMeta(relType) {
+      const cleanRel = (relType || "").trim();
+      if (ABUSE_EDGE_DESCRIPTIONS[cleanRel]) {
+        const meta = ABUSE_EDGE_DESCRIPTIONS[cleanRel];
+        return { edgeColor: meta.color, textColor: meta.text, icon: meta.icon, desc: meta.desc, severity: meta.severity };
+      }
+      const upper = cleanRel.toUpperCase();
+      for (const [key, val] of Object.entries(ABUSE_EDGE_DESCRIPTIONS)) {
+        if (key.toUpperCase() === upper) {
+          return { edgeColor: val.color, textColor: val.text, icon: val.icon, desc: val.desc, severity: val.severity };
+        }
+      }
+      if (upper.includes("ADMIN") || upper.includes("GENERICALL") || upper.includes("DCSYNC") || upper.includes("ALL")) {
+        return { edgeColor: "#ef4444", textColor: "#ffb4ab", icon: "bolt", desc: "Full administrative control and takeover rights over target principal.", severity: "Critical" };
+      }
+      if (upper.includes("WRITE") || upper.includes("OWNER") || upper.includes("DACL")) {
+        return { edgeColor: "#f59e0b", textColor: "#fcd34d", icon: "key", desc: "Object modification permission allowing DACL or ownership reconfiguration.", severity: "High" };
+      }
+      if (upper.includes("MEMBER")) {
+        return { edgeColor: "#06b6d4", textColor: "#67e8f9", icon: "group_add", desc: "Security group membership granting inherited domain privileges.", severity: "Medium" };
+      }
+      return { edgeColor: "#a855f7", textColor: "#d8b4fe", icon: "arrow_forward", desc: "Active Directory permission edge allowing access to the target.", severity: "Info" };
+    }
+
+    function copyToClipboard(text, btnEl) {
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btnEl.innerHTML;
+        btnEl.innerHTML = '<span class="material-symbols-outlined text-xs text-primary">check</span>';
+        setTimeout(() => { btnEl.innerHTML = orig; }, 1200);
+      });
+    }
+
+    function showNodeInspector(nodeData) {
+      const inspector = document.getElementById("pf-inspector-drawer");
+      const content = document.getElementById("pf-inspector-content");
+      if (!inspector || !content) return;
+
+      const isSource = nodeData.isSource;
+      const isTarget = nodeData.isTarget;
+
+      let roleBadge = isSource 
+        ? '<span class="px-2 py-0.5 rounded text-[9px] font-bold font-jetbrains uppercase bg-tertiary/20 text-tertiary border border-tertiary/40">Foothold</span>'
+        : isTarget 
+        ? '<span class="px-2 py-0.5 rounded text-[9px] font-bold font-jetbrains uppercase bg-red-950/80 text-red-300 border border-red-600/80">Target</span>'
+        : `<span class="px-2 py-0.5 rounded text-[9px] font-bold font-jetbrains uppercase bg-surface-container-high text-on-surface-variant border border-outline-variant/60">Hop #${nodeData.hopIndex}</span>`;
+
+      content.innerHTML = `
+        <div class="flex items-center justify-between pb-1.5 mb-1 border-b border-outline-variant/30">
+          <div class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-base ${isTarget ? 'text-error' : isSource ? 'text-tertiary' : 'text-secondary'}">${isTarget ? 'target' : isSource ? 'flag' : nodeData.icon}</span>
+            <span class="text-xs font-bold text-on-surface font-jetbrains uppercase tracking-wider">${nodeData.type}</span>
+          </div>
+          ${roleBadge}
+        </div>
+        
+        <div class="space-y-2">
+          <div>
+            <label class="text-[9px] uppercase font-jetbrains text-on-surface-variant/70 block mb-0.5">Principal Identifier</label>
+            <div class="font-jetbrains font-bold text-xs text-on-surface break-all bg-surface-container-low p-1.5 rounded-lg border border-outline-variant/30 select-all flex items-center justify-between gap-1.5">
+              <span class="truncate">${nodeData.name}</span>
+              <button type="button" onclick="copyToClipboard('${nodeData.name}', this)" class="p-0.5 rounded text-on-surface-variant hover:text-primary transition-colors cursor-pointer flex-shrink-0" title="Copy">
+                <span class="material-symbols-outlined text-xs">content_copy</span>
+              </button>
+            </div>
+          </div>
+
+          ${nodeData.dn && nodeData.dn !== nodeData.name ? `
+          <div>
+            <label class="text-[9px] uppercase font-jetbrains text-on-surface-variant/70 block mb-0.5">Distinguished Name</label>
+            <div class="font-jetbrains text-[10px] text-on-surface-variant/90 break-all bg-surface-container-low p-1.5 rounded-lg border border-outline-variant/20 select-all">
+              ${nodeData.dn}
+            </div>
+          </div>
+          ` : ''}
+
+          <div class="pt-0.5 text-[10px] font-jetbrains text-on-surface-variant leading-relaxed">
+            ${isSource ? 'Initial foothold principal with acquired access.' : isTarget ? 'Crown jewel domain target principal.' : 'Transitive directory pivot node in the attack path.'}
+          </div>
+        </div>
+      `;
+
+      inspector.classList.remove("hidden");
+    }
+
+    function showEdgeInspector(edgeData) {
+      const inspector = document.getElementById("pf-inspector-drawer");
+      const content = document.getElementById("pf-inspector-content");
+      if (!inspector || !content) return;
+
+      const relMeta = getRelMeta(edgeData.relationship);
+
+      content.innerHTML = `
+        <div class="flex items-center justify-between pb-1.5 mb-1 border-b border-outline-variant/30">
+          <div class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-base ${relMeta.severity === 'Critical' ? 'text-error' : relMeta.severity === 'High' ? 'text-amber-400' : 'text-cyan-400'}">${relMeta.icon}</span>
+            <span class="text-xs font-bold text-on-surface font-jetbrains uppercase tracking-wider">${edgeData.relationship}</span>
+          </div>
+          <span class="px-2 py-0.5 rounded text-[9px] font-bold font-jetbrains uppercase ${relMeta.severity === 'Critical' ? 'bg-red-950/80 text-red-300 border border-red-700/80' : relMeta.severity === 'High' ? 'bg-amber-950/80 text-amber-300 border border-amber-700/80' : 'bg-cyan-950/80 text-cyan-300 border border-cyan-700/80'}">${relMeta.severity}</span>
+        </div>
+
+        <div class="space-y-2">
+          <div>
+            <label class="text-[9px] uppercase font-jetbrains text-on-surface-variant/70 block mb-0.5">Abuse Vector Details</label>
+            <div class="bg-surface-container-low p-2 rounded-lg border border-outline-variant/30 text-[11px] font-jetbrains text-on-surface leading-relaxed">
+              ${relMeta.desc}
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-1.5 text-[9px] font-jetbrains pt-0.5">
+            <div class="bg-surface-container-low p-1.5 rounded-lg border border-outline-variant/30 overflow-hidden">
+              <span class="text-on-surface-variant/60 block uppercase text-[8px] mb-0.5">Source</span>
+              <span class="text-on-surface font-bold truncate block" title="${edgeData.source}">${edgeData.source}</span>
+            </div>
+            <div class="bg-surface-container-low p-1.5 rounded-lg border border-outline-variant/30 overflow-hidden">
+              <span class="text-on-surface-variant/60 block uppercase text-[8px] mb-0.5">Target</span>
+              <span class="text-on-surface font-bold truncate block" title="${edgeData.target}">${edgeData.target}</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      inspector.classList.remove("hidden");
+    }
+
+    function renderBloodhoundGraph(path, mode) {
+      currentPathData = path;
+      const metrics = document.getElementById("pf-res-metrics");
+      const container = document.getElementById("pf-network-canvas");
+      const inspector = document.getElementById("pf-inspector-drawer");
+      const btnProceed = document.getElementById("btn-proceed-privesc");
+      if (inspector) inspector.classList.add("hidden");
+
+      let extraMetrics = "";
+      if (mode === "tactical") extraMetrics = ` · Total Weight: ${path.metrics?.pathWeight || 0}`;
+      if (mode === "fasttrack") extraMetrics = ` · Total Hops: ${path.metrics?.hops || 0}`;
+      if (mode === "predictive") extraMetrics = ` · Confidence: ${path.success_probability || 0}%`;
+      
+      if (metrics) metrics.textContent = `${path.step_count} Hops Calculated${extraMetrics}`;
+
+      const steps = path.steps || [];
+      if (steps.length === 0 || !container) return;
+
+      const nodes = [];
+      const edges = [];
+      const nodeMap = new Map();
+
+      const orderedNodes = [];
+      for (let i = 0; i < steps.length; i++) {
+        if (i === 0) orderedNodes.push(steps[i].source);
+        orderedNodes.push(steps[i].target);
+      }
+
+      orderedNodes.forEach((node, idx) => {
+        const rawName = node?.name || node?.distinguishedname || `Node_${idx}`;
+        const isSource = (idx === 0);
+        const isTarget = (idx === orderedNodes.length - 1);
+        const meta = getNodeMeta(rawName);
+
+        if (!nodeMap.has(rawName)) {
+          nodeMap.set(rawName, idx);
+
+          const nodeSvg = isTarget ? BLOODHOUND_SVGS.target : isSource ? BLOODHOUND_SVGS.source : meta.svg;
+
+          nodes.push({
+            id: rawName,
+            label: rawName,
+            level: idx,
+            shape: 'image',
+            image: nodeSvg,
+            size: isTarget ? 48 : isSource ? 46 : 38,
+            shadow: {
+              enabled: true,
+              color: isTarget ? "rgba(244, 63, 94, 0.95)" : isSource ? "rgba(192, 132, 252, 0.85)" : "rgba(0, 0, 0, 0.7)",
+              size: (isTarget || isSource) ? 26 : 16,
+              x: 0,
+              y: 4
+            },
+            font: {
+              face: 'JetBrains Mono',
+              size: 12,
+              color: isTarget ? '#ff8597' : isSource ? '#d0bcff' : '#dde4dd',
+              strokeWidth: 3.5,
+              strokeColor: '#09100c',
+              vadjust: 8
+            },
+            nodeData: {
+              name: rawName,
+              type: isTarget ? 'Target ' + meta.type : isSource ? 'Foothold ' + meta.type : meta.type,
+              icon: isTarget ? 'target' : isSource ? 'flag' : meta.icon,
+              isSource: isSource,
+              isTarget: isTarget,
+              hopIndex: idx,
+              dn: node?.distinguishedname || ""
+            }
+          });
+        }
+      });
+
+      steps.forEach((step, idx) => {
+        const srcName = step.source?.name || step.source?.distinguishedname || "";
+        const tgtName = step.target?.name || step.target?.distinguishedname || "";
+        const relType = step.relationship || "ACCESS";
+        const meta = getRelMeta(relType);
+
+        edges.push({
+          id: `edge_${idx}`,
+          from: srcName,
+          to: tgtName,
+          label: relType,
+          arrows: {
+            to: {
+              enabled: true,
+              scaleFactor: 1.2,
+              type: 'arrow'
+            }
+          },
+          color: {
+            color: meta.edgeColor,
+            highlight: '#ffffff',
+            hover: meta.textColor
+          },
+          width: 3.0,
+          smooth: false,
+          font: {
+            face: 'JetBrains Mono',
+            size: 11,
+            color: meta.textColor,
+            strokeWidth: 3,
+            strokeColor: '#060c08',
+            align: 'middle',
+            vadjust: -10
+          },
+          edgeData: {
+            source: srcName,
+            target: tgtName,
+            relationship: relType,
+            index: idx
+          }
+        });
+      });
+
+      const visData = {
+        nodes: new vis.DataSet(nodes),
+        edges: new vis.DataSet(edges)
+      };
+
+      const options = {
+        layout: {
+          hierarchical: isHierarchicalLayout ? {
+            direction: 'LR',
+            sortMethod: 'directed',
+            levelSeparation: 260,
+            nodeSpacing: 140,
+            treeSpacing: 160,
+            blockShifting: true,
+            edgeMinimization: true,
+            parentCentralization: true
+          } : false
+        },
+        physics: {
+          enabled: !isHierarchicalLayout,
+          solver: 'forceAtlas2Based',
+          forceAtlas2Based: {
+            gravitationalConstant: -80,
+            centralGravity: 0.015,
+            springLength: 180,
+            springConstant: 0.08,
+            damping: 0.5
+          },
+          stabilization: {
+            iterations: 150,
+            updateInterval: 25
+          }
+        },
+        interaction: {
+          hover: true,
+          tooltipDelay: 150,
+          hideEdgesOnDrag: false,
+          navigationButtons: false,
+          zoomView: true,
+          dragView: true
+        }
+      };
+
+      if (pfNetwork) {
+        pfNetwork.destroy();
+      }
+
+      pfNetwork = new vis.Network(container, visData, options);
+
+      // Node selection inspector
+      pfNetwork.on("selectNode", (params) => {
+        if (params.nodes.length > 0) {
+          const nodeId = params.nodes[0];
+          const nodeItem = visData.nodes.get(nodeId);
+          if (nodeItem && nodeItem.nodeData) {
+            showNodeInspector(nodeItem.nodeData);
+          }
+        }
+      });
+
+      // Edge selection inspector
+      pfNetwork.on("selectEdge", (params) => {
+        if (params.edges.length > 0 && params.nodes.length === 0) {
+          const edgeId = params.edges[0];
+          const edgeItem = visData.edges.get(edgeId);
+          if (edgeItem && edgeItem.edgeData) {
+            showEdgeInspector(edgeItem.edgeData);
+          }
+        }
+      });
+
+      // Background deselect
+      pfNetwork.on("deselectNode", () => {
+        if (inspector) inspector.classList.add("hidden");
+      });
+      pfNetwork.on("deselectEdge", () => {
+        if (inspector) inspector.classList.add("hidden");
+      });
+
+      pfNetwork.once("afterDrawing", () => {
+        pfNetwork.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+      });
+
+      // Show Proceed button
+      if (btnProceed) {
+        btnProceed.classList.remove("hidden");
+        btnProceed.classList.add("flex");
+      }
+    }
+
+    function initPathfinder() {
+      const btnRun = document.getElementById("btn-run-pathfinder");
+      const btnProceed = document.getElementById("btn-proceed-privesc");
+      const selectorContainer = document.getElementById("pf-path-selector-container");
+      const pathSelector = document.getElementById("pf-path-selector");
+      
+      const btnFit = document.getElementById("btn-graph-fit");
+      const btnZoomIn = document.getElementById("btn-graph-zoomin");
+      const btnZoomOut = document.getElementById("btn-graph-zoomout");
+      const btnLayout = document.getElementById("btn-graph-layout");
+
+      const srcInput = document.getElementById("pf-source");
+      const tgtInput = document.getElementById("pf-target");
+
+      if (srcInput) srcInput.addEventListener("input", () => srcInput.classList.remove("input-error-shake"));
+      if (tgtInput) tgtInput.addEventListener("input", () => tgtInput.classList.remove("input-error-shake"));
+
+      let currentResults = [];
+      let currentMode = "";
+      
+      if (!btnRun) return;
+
+      // Toolbar Controls
+      if (btnFit) {
+        btnFit.addEventListener("click", () => {
+          if (pfNetwork) pfNetwork.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+        });
+      }
+      if (btnZoomIn) {
+        btnZoomIn.addEventListener("click", () => {
+          if (pfNetwork) {
+            const scale = pfNetwork.getScale();
+            pfNetwork.moveTo({ scale: scale * 1.3, animation: { duration: 250 } });
+          }
+        });
+      }
+      if (btnZoomOut) {
+        btnZoomOut.addEventListener("click", () => {
+          if (pfNetwork) {
+            const scale = pfNetwork.getScale();
+            pfNetwork.moveTo({ scale: scale * 0.7, animation: { duration: 250 } });
+          }
+        });
+      }
+      if (btnLayout) {
+        btnLayout.addEventListener("click", () => {
+          isHierarchicalLayout = !isHierarchicalLayout;
+          if (currentPathData) {
+            renderBloodhoundGraph(currentPathData, currentMode);
+          }
+        });
+      }
+
+      // Handle Proceed to Phase 3 click (Commits path to projects.json, unlocks Phase 3 & 4, switches to Phase 3)
+      if (btnProceed) {
+        btnProceed.addEventListener("click", async () => {
+          if (!currentPathData) return;
+          btnProceed.disabled = true;
+          btnProceed.classList.add("opacity-70");
+
+          const sourceName = srcInput ? srcInput.value.trim() : "";
+          const targetName = tgtInput ? tgtInput.value.trim() : "";
+          const engine = document.getElementById("pf-engine")?.value || currentMode || "tactical";
+          const selectedIdx = pathSelector ? parseInt(pathSelector.value, 10) || 0 : 0;
+
+          try {
+            await fetch("/api/projects/path/save", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                engine: engine,
+                path: currentPathData,
+                candidate_paths: currentResults,
+                selected_path_index: selectedIdx,
+                source_name: sourceName,
+                target_name: targetName,
+                unlock_phase: "all"
+              })
+            });
+
+            // Unlock Phase 3 & Phase 4 tabs
+            unlockPhase3And4();
+
+            // Switch to Phase 3 tab
+            const tab3 = document.getElementById("tab-btn-3");
+            if (tab3) {
+              tab3.click();
+            }
+          } catch (err) {
+            console.error("Error committing path:", err);
+          } finally {
+            btnProceed.disabled = false;
+            btnProceed.classList.remove("opacity-70");
+          }
+        });
+      }
+      
+      // Handle dropdown changes for predictive engine
+      if (pathSelector) {
+        pathSelector.addEventListener("change", async (e) => {
+          const idx = parseInt(e.target.value, 10);
+          if (!isNaN(idx) && currentResults[idx]) {
+            renderBloodhoundGraph(currentResults[idx], currentMode);
+            const sourceName = srcInput ? srcInput.value.trim() : "";
+            const targetName = tgtInput ? tgtInput.value.trim() : "";
+            try {
+              fetch("/api/projects/path/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  engine: currentMode,
+                  path: currentResults[idx],
+                  candidate_paths: currentResults,
+                  selected_path_index: idx,
+                  source_name: sourceName,
+                  target_name: targetName
+                })
+              });
+            } catch (err) {
+              console.error("Error saving candidate path:", err);
+            }
+          }
+        });
+      }
+
+      // Auto-restore saved project path and candidates on page load
+      const savedPathScript = document.getElementById("saved-path-json");
+      const savedCandidatesScript = document.getElementById("saved-candidate-paths-json");
+      let savedPath = null;
+      let savedCandidates = [];
+
+      if (savedPathScript) {
+        try { savedPath = JSON.parse(savedPathScript.textContent); } catch (e) {}
+      }
+      if (savedCandidatesScript) {
+        try { savedCandidates = JSON.parse(savedCandidatesScript.textContent) || []; } catch (e) {}
+      }
+
+      const savedEngine = wsContext.selectedEngine || "";
+      const savedSource = wsContext.selectedSource || "";
+      const savedTarget = wsContext.selectedTarget || "";
+      const savedIndex = parseInt(wsContext.selectedPathIndex || "0", 10) || 0;
+
+      if (savedSource && srcInput) srcInput.value = savedSource;
+      if (savedTarget && tgtInput) tgtInput.value = savedTarget;
+      if (savedEngine && document.getElementById("pf-engine")) {
+        document.getElementById("pf-engine").value = savedEngine;
+      }
+
+      if (savedCandidates && savedCandidates.length > 0) {
+        currentResults = savedCandidates;
+        currentMode = savedEngine || "predictive";
+
+        if (currentResults.length > 1 && pathSelector && selectorContainer) {
+          pathSelector.innerHTML = "";
+          currentResults.forEach((path, idx) => {
+            const opt = document.createElement("option");
+            opt.value = idx;
+            opt.textContent = `Rank ${idx + 1} - ${path.success_probability || 0}% Confidence (${path.step_count} hops)`;
+            if (idx === savedIndex) opt.selected = true;
+            pathSelector.appendChild(opt);
+          });
+          pathSelector.value = savedIndex;
+          selectorContainer.classList.remove("hidden");
+          selectorContainer.classList.add("flex");
+        }
+
+        const activePath = currentResults[savedIndex] || savedPath || currentResults[0];
+        const emptyState = document.getElementById("pf-empty-state");
+        const dataState = document.getElementById("pf-data-state");
+        const badge = document.getElementById("pf-res-mode-badge");
+
+        if (emptyState) emptyState.classList.add("hidden");
+        if (dataState) {
+          dataState.classList.remove("hidden");
+          dataState.classList.add("flex");
+        }
+        if (badge) badge.textContent = currentMode;
+
+        renderBloodhoundGraph(activePath, currentMode);
+      } else if (savedPath && savedPath.steps && savedPath.steps.length > 0) {
+        const emptyState = document.getElementById("pf-empty-state");
+        const dataState = document.getElementById("pf-data-state");
+        const badge = document.getElementById("pf-res-mode-badge");
+
+        if (emptyState) emptyState.classList.add("hidden");
+        if (dataState) {
+          dataState.classList.remove("hidden");
+          dataState.classList.add("flex");
+        }
+        if (badge) badge.textContent = savedEngine || "tactical";
+
+        currentResults = [savedPath];
+        currentMode = savedEngine || "tactical";
+
+        renderBloodhoundGraph(savedPath, currentMode);
+      }
+
+      btnRun.addEventListener("click", async () => {
+        const sourceName = srcInput ? srcInput.value.trim() : "";
+        const targetName = tgtInput ? tgtInput.value.trim() : "";
+        const mode = document.getElementById("pf-engine").value;
+        currentMode = mode;
+        
+        let hasError = false;
+        if (!sourceName) {
+          if (srcInput) {
+            srcInput.classList.add("input-error-shake");
+            srcInput.focus();
+            setTimeout(() => srcInput.classList.remove("input-error-shake"), 600);
+          }
+          hasError = true;
+        }
+        if (!targetName) {
+          if (tgtInput) {
+            tgtInput.classList.add("input-error-shake");
+            if (!hasError) tgtInput.focus();
+            setTimeout(() => tgtInput.classList.remove("input-error-shake"), 600);
+          }
+          hasError = true;
+        }
+
+        if (hasError) return;
+
+        const emptyState = document.getElementById("pf-empty-state");
+        const loadingState = document.getElementById("pf-loading-state");
+        const dataState = document.getElementById("pf-data-state");
+        const inspector = document.getElementById("pf-inspector-drawer");
+        
+        if (emptyState) emptyState.classList.add("hidden");
+        if (dataState) {
+          dataState.classList.add("hidden");
+          dataState.classList.remove("flex");
+        }
+        if (loadingState) loadingState.classList.remove("hidden");
+        if (inspector) inspector.classList.add("hidden");
+        
+        try {
+          const res = await fetch("/api/pathfind", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ source_name: sourceName, target_name: targetName, mode: mode })
+          });
+          const data = await res.json();
+          
+          if (!res.ok) {
+            throw new Error(data.detail || "Pathfinding failed.");
+          }
+          
+          if (loadingState) loadingState.classList.add("hidden");
+          
+          if (!data.results || data.results.length === 0) {
+            if (pfNetwork) {
+              pfNetwork.destroy();
+              pfNetwork = null;
+            }
+            if (emptyState) {
+              emptyState.innerHTML = `
+                <div class="w-14 h-14 rounded-2xl bg-surface-container border border-outline-variant/60 flex items-center justify-center text-on-surface-variant/40 mb-3">
+                  <span class="material-symbols-outlined text-2xl">route</span>
+                </div>
+                <h4 class="text-xs font-bold text-on-surface font-jetbrains mb-1">No Viable Attack Path Found</h4>
+                <p class="text-[11px] text-on-surface-variant/80 max-w-sm mx-auto leading-relaxed font-jetbrains">
+                  No privilege escalation path exists between <span class="text-tertiary font-bold">${sourceName}</span> and <span class="text-primary font-bold">${targetName}</span> under the selected algorithm.
+                </p>
+              `;
+              emptyState.classList.remove("hidden");
+            }
+            if (selectorContainer) selectorContainer.classList.add("hidden");
+            if (btnProceed) btnProceed.classList.add("hidden");
+            return;
+          }
+          
+          if (dataState) {
+            dataState.classList.remove("hidden");
+            dataState.classList.add("flex");
+          }
+
+          const badge = document.getElementById("pf-res-mode-badge");
+          if (badge) badge.textContent = mode;
+          
+          // Slice top 10 for predictive, otherwise just top 1
+          currentResults = mode === "predictive" ? data.results.slice(0, 10) : [data.results[0]];
+          
+          if (currentResults.length > 1 && pathSelector && selectorContainer) {
+            pathSelector.innerHTML = "";
+            currentResults.forEach((path, idx) => {
+              const opt = document.createElement("option");
+              opt.value = idx;
+              opt.textContent = `Rank ${idx + 1} - ${path.success_probability || 0}% Confidence (${path.step_count} hops)`;
+              pathSelector.appendChild(opt);
+            });
+            selectorContainer.classList.remove("hidden");
+            selectorContainer.classList.add("flex");
+          } else {
+            if (selectorContainer) {
+              selectorContainer.classList.add("hidden");
+              selectorContainer.classList.remove("flex");
+            }
+          }
+          
+          // Render BloodHound graph
+          renderBloodhoundGraph(currentResults[0], mode);
+
+          // Save path and selection to projects.json immediately when "Find Path" is executed!
+          try {
+            fetch("/api/projects/path/save", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                engine: mode,
+                path: currentResults[0],
+                candidate_paths: currentResults,
+                selected_path_index: 0,
+                source_name: sourceName,
+                target_name: targetName
+              })
+            });
+          } catch (e) {
+            console.error("Failed to auto-save path selection:", e);
+          }
+          
+        } catch (err) {
+          if (loadingState) loadingState.classList.add("hidden");
+          if (emptyState) emptyState.classList.remove("hidden");
+          alert("Error finding path: " + err.message);
+        }
+      });
+    }
+
+    function initWorkspace() {
+      initTabs();
+      initIngestUpload();
+      initModals();
+      initAutocomplete("pf-source");
+      initAutocomplete("pf-target");
+      initPathfinder();
+    }
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", initWorkspace);
     } else {

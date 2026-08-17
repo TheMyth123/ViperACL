@@ -8,7 +8,7 @@ from core.ingestor.parser import SharpHoundIngestor
 from core.logger import logger
 from core.projects import ProjectManager, validate_project_name, generate_safe_project_id
 from web.helpers import build_runtime_state, build_neo4j_snapshot, db_manager, resolve_project_path
-from web.models import SelectProjectRequest, CreateProjectRequest
+from web.models import SelectProjectRequest, CreateProjectRequest, UnlockPhaseRequest, SavePathRequest, SetActivePhaseRequest
 
 router = APIRouter(prefix="/api/projects")
 
@@ -165,3 +165,94 @@ def delete_project(project_id: str, req: Request):
         "active_project_id": runtime["active_project_id"],
         "snapshot": runtime["snapshot"],
     }
+
+
+@router.post("/unlock")
+def unlock_project_phase(request: UnlockPhaseRequest, req: Request):
+    """Updates the unlocked phase progression for the active or specified project."""
+    project_mgr = ProjectManager()
+    target_id = request.project_id or project_mgr.get_active_project_id()
+    if not target_id:
+        raise HTTPException(status_code=400, detail="No active project selected")
+
+    updated = project_mgr.update_project_phase(target_id, request.phase)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Project not found or invalid phase")
+
+    logger.info(
+        "PROJECT", "project.phase_unlocked",
+        f"Project {target_id} unlocked to phase: {request.phase}",
+        project_id=target_id,
+        source="web.app",
+        details={"phase": request.phase},
+    )
+
+    return {
+        "status": "ok",
+        "project_id": target_id,
+        "unlocked_phase": request.phase,
+        "project": updated,
+    }
+
+
+@router.post("/path/save")
+def save_project_path(request: SavePathRequest, req: Request):
+    """Saves the user-selected path, engine, source, target, and optionally unlocks subsequent phases."""
+    project_mgr = ProjectManager()
+    target_id = request.project_id or project_mgr.get_active_project_id()
+    if not target_id:
+        raise HTTPException(status_code=400, detail="No active project selected")
+
+    updated = project_mgr.update_project_path(
+        project_id=target_id,
+        engine=request.engine,
+        path_data=request.path,
+        source_name=request.source_name,
+        target_name=request.target_name,
+        unlock_phase=request.unlock_phase,
+        candidate_paths=request.candidate_paths,
+        selected_path_index=request.selected_path_index,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    logger.info(
+        "PATHFINDER", "pathfinder.path_committed",
+        f"Committed path for project {target_id} [{request.engine}]: {request.source_name} → {request.target_name}",
+        project_id=target_id,
+        source="web.app",
+        details={
+            "engine": request.engine,
+            "source": request.source_name,
+            "target": request.target_name,
+            "unlocked_phase": updated.get("unlocked_phase"),
+        },
+    )
+
+    return {
+        "status": "ok",
+        "project_id": target_id,
+        "project": updated,
+    }
+
+
+@router.post("/phase/active")
+def set_active_phase(request: SetActivePhaseRequest, req: Request):
+    """Updates the last worked-on active phase for the project."""
+    project_mgr = ProjectManager()
+    target_id = request.project_id or project_mgr.get_active_project_id()
+    if not target_id:
+        raise HTTPException(status_code=400, detail="No active project selected")
+
+    updated = project_mgr.update_last_active_phase(target_id, request.phase)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return {
+        "status": "ok",
+        "project_id": target_id,
+        "last_active_phase": request.phase,
+        "project": updated,
+    }
+
+

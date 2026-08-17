@@ -88,6 +88,25 @@ class ProjectManager:
                 return True
         return False
 
+    def _normalize_project_entry(self, entry: dict) -> dict:
+        """Ensures backward compatibility by populating default fields if missing."""
+        if not entry:
+            return entry
+        info = dict(entry)
+        if "unlocked_phase" not in info:
+            if info.get("nodes", 0) > 0:
+                info["unlocked_phase"] = "phase_2"
+            else:
+                info["unlocked_phase"] = "phase_1"
+        info.setdefault("last_active_phase", "phase_2" if info.get("nodes", 0) > 0 else "phase_1")
+        info.setdefault("selected_engine", None)
+        info.setdefault("selected_source", None)
+        info.setdefault("selected_target", None)
+        info.setdefault("selected_path", None)
+        info.setdefault("selected_candidate_paths", [])
+        info.setdefault("selected_path_index", 0)
+        return info
+
     def list_projects(self, include_deleted=False):
         """
         Returns a list of project metadata dictionaries.
@@ -101,7 +120,7 @@ class ProjectManager:
         for p_id, p_info in projects_dict.items():
             if not include_deleted and p_info.get("is_deleted"):
                 continue
-            info_copy = dict(p_info)
+            info_copy = self._normalize_project_entry(p_info)
             info_copy["is_active"] = (p_id == active_id)
             result.append(info_copy)
 
@@ -111,7 +130,8 @@ class ProjectManager:
     def get_project(self, project_id):
         """Returns metadata for a specific project."""
         data = self._load_data()
-        return data.get("projects", {}).get(project_id)
+        entry = data.get("projects", {}).get(project_id)
+        return self._normalize_project_entry(entry) if entry else None
 
     def get_active_project_id(self):
         """Returns the currently active project_id (or None if no active project)."""
@@ -132,7 +152,7 @@ class ProjectManager:
             return True
         return False
 
-    def register_project(self, project_id, name, source_zip=None, nodes=0, relationships=0):
+    def register_project(self, project_id, name, source_zip=None, nodes=0, relationships=0, unlocked_phase="phase_1"):
         """Registers or updates a project in the registry."""
         data = self._load_data()
         projects = data.get("projects", {})
@@ -144,6 +164,7 @@ class ProjectManager:
             "source_zip": source_zip,
             "nodes": nodes,
             "relationships": relationships,
+            "unlocked_phase": unlocked_phase,
             "created_at": now_str,
             "status": "Ready",
             "is_deleted": False,
@@ -164,8 +185,58 @@ class ProjectManager:
             projects[project_id]["relationships"] = relationships
             if source_zip is not None:
                 projects[project_id]["source_zip"] = source_zip
+            if nodes > 0 and projects[project_id].get("unlocked_phase", "phase_1") == "phase_1":
+                projects[project_id]["unlocked_phase"] = "phase_2"
             self._save_data(data)
-            return projects[project_id]
+            return self._normalize_project_entry(projects[project_id])
+        return None
+
+    def update_project_phase(self, project_id, phase: str):
+        """Updates the unlocked phase for a project ('phase_1', 'phase_2', or 'all')."""
+        if phase not in {"phase_1", "phase_2", "all"}:
+            return None
+        data = self._load_data()
+        projects = data.get("projects", {})
+        if project_id in projects and not projects[project_id].get("is_deleted"):
+            projects[project_id]["unlocked_phase"] = phase
+            self._save_data(data)
+            return self._normalize_project_entry(projects[project_id])
+        return None
+
+    def update_last_active_phase(self, project_id: str, phase: str):
+        """Updates the last worked-on phase for a project ('phase_1', 'phase_2', 'phase_3', or 'phase_4')."""
+        if phase not in {"phase_1", "phase_2", "phase_3", "phase_4"}:
+            return None
+        data = self._load_data()
+        projects = data.get("projects", {})
+        if project_id in projects and not projects[project_id].get("is_deleted"):
+            projects[project_id]["last_active_phase"] = phase
+            self._save_data(data)
+            return self._normalize_project_entry(projects[project_id])
+        return None
+
+    def update_project_path(self, project_id, engine, path_data, source_name=None, target_name=None, unlock_phase=None, candidate_paths=None, selected_path_index=0):
+        """Updates the active path selection and candidate options for a project, and optionally advances unlocked_phase and last_active_phase."""
+        data = self._load_data()
+        projects = data.get("projects", {})
+        if project_id in projects and not projects[project_id].get("is_deleted"):
+            projects[project_id]["selected_engine"] = engine
+            projects[project_id]["selected_path"] = path_data
+            if candidate_paths is not None:
+                projects[project_id]["selected_candidate_paths"] = candidate_paths
+            if selected_path_index is not None:
+                projects[project_id]["selected_path_index"] = selected_path_index
+            if source_name is not None:
+                projects[project_id]["selected_source"] = source_name
+            if target_name is not None:
+                projects[project_id]["selected_target"] = target_name
+            if unlock_phase in {"phase_1", "phase_2", "all"}:
+                projects[project_id]["unlocked_phase"] = unlock_phase
+                projects[project_id]["last_active_phase"] = "phase_3"
+            else:
+                projects[project_id]["last_active_phase"] = "phase_2"
+            self._save_data(data)
+            return self._normalize_project_entry(projects[project_id])
         return None
 
     def delete_project(self, project_id):

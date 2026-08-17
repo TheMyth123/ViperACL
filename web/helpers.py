@@ -17,16 +17,16 @@ PROJECT_ROOT = BASE_DIR.parent
 MODEL_PATH = PROJECT_ROOT / "models" / "viper_rf_model.pkl"
 
 
-def db_manager(settings):
-    """Create and connect a DatabaseManager, raising HTTP 503 on failure."""
+def db_manager(settings, required=True):
+    """Create and connect a DatabaseManager, raising HTTP 503 on failure if required."""
     manager = DatabaseManager(
-        uri=settings.neo4j_uri,
-        username=settings.neo4j_username,
-        password=settings.neo4j_password,
-        database=settings.neo4j_database,
+        uri=getattr(settings, "neo4j_uri", "bolt://127.0.0.1:7687"),
+        username=getattr(settings, "neo4j_username", "neo4j"),
+        password=getattr(settings, "neo4j_password", "viperacl"),
+        database=getattr(settings, "neo4j_database", "neo4j"),
     )
-    if not manager.connect():
-        raise HTTPException(status_code=503, detail="Unable to connect to Neo4j.")
+    if required and not manager.connect():
+        raise HTTPException(status_code=503, detail="Unable to connect to Neo4j database.")
     return manager
 
 
@@ -133,21 +133,30 @@ def make_privesc_context():
 
 
 def build_neo4j_snapshot(settings, project_id=None) -> dict:
-    """Query Neo4j for node/relationship counts."""
-    manager = db_manager(settings)
+    """Query Neo4j for node/relationship counts without raising unhandled exceptions."""
     try:
+        manager = DatabaseManager(
+            uri=getattr(settings, "neo4j_uri", "bolt://127.0.0.1:7687"),
+            username=getattr(settings, "neo4j_username", "neo4j"),
+            password=getattr(settings, "neo4j_password", "viperacl"),
+            database=getattr(settings, "neo4j_database", "neo4j"),
+        )
         if manager.connect():
-            return manager.get_project_snapshot(project_id)
-        return {
-            "connected": False,
-            "nodes": 0,
-            "relationships": 0,
-            "database": settings.neo4j_database,
-            "uri": settings.neo4j_uri,
-            "project_id": project_id,
-        }
-    finally:
-        manager.close()
+            try:
+                return manager.get_project_snapshot(project_id)
+            finally:
+                manager.close()
+    except Exception:
+        pass
+
+    return {
+        "connected": False,
+        "nodes": 0,
+        "relationships": 0,
+        "database": getattr(settings, "neo4j_database", "neo4j"),
+        "uri": getattr(settings, "neo4j_uri", "bolt://127.0.0.1:7687"),
+        "project_id": project_id,
+    }
 
 
 def build_runtime_state(settings) -> dict:

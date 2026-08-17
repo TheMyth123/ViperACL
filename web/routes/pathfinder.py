@@ -37,6 +37,8 @@ def pathfind(request: PathfindRequest, req: Request):
             request.target_name,
             mode=request.mode,
             ml_model=load_predictive_model() if request.mode == "predictive" else None,
+            max_hops=settings.pathfinder_max_hops,
+            ml_threshold=settings.pathfinder_ml_threshold,
         )
     except HTTPException:
         raise
@@ -88,3 +90,48 @@ def pathfind(request: PathfindRequest, req: Request):
         "results": extracted,
         "result_count": len(extracted),
     }
+
+
+@router.get("/nodes/search")
+def search_nodes(q: str, req: Request):
+    if not q or len(q.strip()) < 1:
+        return {"status": "ok", "results": []}
+        
+    settings = req.app.state.settings
+    manager = db_manager(settings)
+    
+    try:
+        if not manager.connect():
+            raise HTTPException(status_code=503, detail="Database not connected")
+            
+        # Prioritize exact match, prefix match, Domain root, then Users/Groups/Computers
+        query = """
+        MATCH (n)
+        WHERE n.name IS NOT NULL AND toUpper(n.name) CONTAINS toUpper($q)
+        WITH DISTINCT n.name AS name,
+          CASE 
+            WHEN toUpper(n.name) = toUpper($q) THEN 1
+            WHEN toUpper(n.name) STARTS WITH toUpper($q) THEN 2
+            WHEN 'Domain' IN labels(n) THEN 3
+            WHEN 'User' IN labels(n) THEN 4
+            WHEN 'Group' IN labels(n) THEN 5
+            WHEN 'Computer' IN labels(n) THEN 6
+            ELSE 7
+          END AS priority
+        RETURN name
+        ORDER BY priority ASC, size(name) ASC, name ASC
+        LIMIT 25
+        """
+        results = manager.run_query(query, {"q": q})
+        names = [r["name"] for r in results if r.get("name")]
+        
+        return {"status": "ok", "results": names}
+    except Exception as exc:
+        logger.error(
+            "PATHFINDER", "nodes.search.error",
+            f"Error searching nodes for {q}: {exc}",
+            source="web.app"
+        )
+        return {"status": "error", "results": []}
+    finally:
+        manager.close()

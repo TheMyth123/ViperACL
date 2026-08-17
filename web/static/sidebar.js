@@ -452,8 +452,42 @@ function initSidebarEvents() {
 
   const saveSettingsBtn = document.getElementById("save-settings-btn");
   if (saveSettingsBtn) {
-    saveSettingsBtn.addEventListener("click", (e) => {
-      closeSettingsModal(e);
+    saveSettingsBtn.addEventListener("click", async (e) => {
+      saveSettingsBtn.disabled = true;
+      const originalText = saveSettingsBtn.innerHTML;
+      saveSettingsBtn.innerHTML = `<span class="material-symbols-outlined text-sm pointer-events-none animate-spin">refresh</span> Saving...`;
+
+      const payload = {
+        neo4j_uri: document.getElementById("settings-db-uri")?.value?.trim(),
+        neo4j_username: document.getElementById("settings-db-user")?.value?.trim(),
+        neo4j_password: document.getElementById("settings-db-pass")?.value,
+        neo4j_database: document.getElementById("settings-db-name")?.value?.trim(),
+        pathfinder_default_mode: document.getElementById("settings-default-mode")?.value,
+        pathfinder_max_hops: document.getElementById("settings-max-hops")?.value,
+        pathfinder_ml_threshold: document.getElementById("settings-ml-threshold")?.value,
+      };
+
+      try {
+        const res = await fetch("/api/settings/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        
+        if (res.ok) {
+          if (typeof window.refreshHealth === 'function') {
+            window.refreshHealth();
+          }
+          closeSettingsModal(e);
+        } else {
+          alert("Failed to save settings");
+        }
+      } catch (err) {
+        alert("Error saving settings: " + err.message);
+      } finally {
+        saveSettingsBtn.disabled = false;
+        saveSettingsBtn.innerHTML = originalText;
+      }
     });
   }
 

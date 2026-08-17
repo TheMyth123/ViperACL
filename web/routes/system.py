@@ -10,6 +10,7 @@ from core.database import DatabaseManager
 from core.logger import logger
 from web.helpers import build_runtime_state
 from web.models import TestDatabaseRequest
+from web.config import save_settings, load_settings
 
 router = APIRouter(prefix="/api")
 
@@ -103,6 +104,31 @@ def test_neo4j_connection(req: TestDatabaseRequest):
         return {"status": "error", "connected": False, "message": str(exc), "details": ""}
     finally:
         test_mgr.close()
+
+
+# ---------------------------------------------------------------------------
+# Settings API
+# ---------------------------------------------------------------------------
+@router.post("/settings/save")
+def save_user_settings(request: Request, payload: dict):
+    logger.info(
+        "SYSTEM", "config.settings.save",
+        "Saving user settings to config.yaml",
+        source="web.app",
+        details=payload
+    )
+    try:
+        save_settings(payload)
+        request.app.state.settings = load_settings()
+        return {"status": "ok", "message": "Settings saved successfully."}
+    except Exception as exc:
+        logger.error(
+            "SYSTEM", "config.settings.error",
+            f"Failed to save settings: {exc}",
+            source="web.app",
+            details={"error": str(exc)}
+        )
+        return {"status": "error", "message": str(exc)}
 
 
 # ---------------------------------------------------------------------------
