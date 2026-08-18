@@ -7,8 +7,10 @@ from fastapi.responses import FileResponse
 
 from core.ingestor import SharpHoundIngestor, inspect_sharphound_zip
 from core.logger import logger
-from core.privesc.engine import PrivescEngine
+from core.pathfinder.rules import normalize_path_dcsync
+from core.privesc.path_utils import path_to_sequence
 from core.privesc.state_context import SessionContext
+from core.privesc.strict_executor import StrictPrivescExecutor, build_strict_action_plan
 from core.projects import ProjectManager
 from core.remediation.engine import RemediationEngine
 from web.helpers import (
@@ -238,16 +240,8 @@ def legacy_ingest(request: IngestRequest, req: Request):
 def privesc_plan(request: PrivescPlanRequest, req: Request):
     settings = req.app.state.settings
     path = request.path
-    if isinstance(path, dict):
-        if "sequence" in path:
-            path = path["sequence"]
-        elif "steps" in path:
-            sequence = []
-            for step in path["steps"]:
-                sequence.append(step.get("source", {}))
-                sequence.append(step.get("relationship"))
-                sequence.append(step.get("target", {}))
-            path = sequence
+    if path:
+        path = path_to_sequence(path)
 
     if not path:
         logger.warning(
@@ -263,7 +257,6 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
         source="web.app",
     )
 
-    # Retrieve active project's target credentials
     project_mgr = ProjectManager()
     active_id = project_mgr.get_active_project_id()
     project_info = project_mgr.get_project(active_id) if active_id else {}
@@ -272,15 +265,10 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
     foothold_user = (project_info.get("foothold_username") or "foothold") if project_info else "foothold"
     foothold_pass = (project_info.get("foothold_password") or "") if project_info else ""
 
-    session_ctx = SessionContext(
-        domain=target_domain,
-        dc_ip=dc_ip,
-        initial_user=foothold_user,
-        initial_password=foothold_pass,
-    )
-    engine = PrivescEngine(None, target_domain, dc_ip, session_ctx)
+    db = db_manager(settings)
     try:
-        engine.build_plan([{"p": path}])
+        path = normalize_path_dcsync(path, db)
+        plan = build_strict_action_plan(path, db)
     except Exception as exc:
         logger.error(
             "PRIVESC", "privesc.plan.failed",
@@ -289,14 +277,17 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
             details={"error": str(exc)},
         )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        db.close()
 
     tasks = []
-    for rel, module in engine.task_queue:
+    for item in plan:
         tasks.append({
-            "type": rel.type,
-            "module": module.__class__.__name__,
-            "source": serialize_node(getattr(rel, "start_node", None)),
-            "target": serialize_node(getattr(rel, "end_node", None)),
+            "type": item["rel_type"],
+            "module": item["action"],
+            "source": serialize_node(item["start_node"]),
+            "target": serialize_node(item["end_node"]),
+            "step": item["step"],
         })
 
     logger.info(
@@ -310,6 +301,116 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
         "status": "ok",
         "total_steps": len(tasks),
         "tasks": tasks,
+    }
+
+
+@router.post("/privesc/execute")
+def privesc_execute(request: PrivescPlanRequest, req: Request):
+    """Execute a privesc plan against the target DC using project foothold credentials.
+
+    Returns structured per-step results and collected logs.
+    """
+    path = request.path
+    if path:
+        path = path_to_sequence(path)
+
+    if not path:
+        raise HTTPException(status_code=400, detail="A path selection is required to execute an attack.")
+
+    project_mgr = ProjectManager()
+    active_id = project_mgr.get_active_project_id()
+    project_info = project_mgr.get_project(active_id) if active_id else {}
+
+    target_domain = (project_info.get("domain") or req.app.state.settings.neo4j_database or "DOMAIN.LOCAL") if project_info else req.app.state.settings.neo4j_database
+    dc_ip = (project_info.get("dc_ip") or "127.0.0.1") if project_info else "127.0.0.1"
+    foothold_user = (project_info.get("foothold_username") or "") if project_info else ""
+    foothold_pass = (project_info.get("foothold_password") or "") if project_info else ""
+
+    db = db_manager(req.app.state.settings)
+    try:
+        path = normalize_path_dcsync(path, db)
+    finally:
+        db.close()
+
+    session_ctx = SessionContext(domain=target_domain, dc_ip=dc_ip, initial_user=foothold_user or "", initial_password=foothold_pass or "")
+
+    import ldap3
+    import io
+    import sys
+    import logging
+
+    logs = []
+
+    class ListHandler(logging.Handler):
+        def emit(self, record):
+            try:
+                logs.append({"level": record.levelname, "message": self.format(record)})
+            except Exception:
+                pass
+
+    list_handler = ListHandler()
+    list_handler.setLevel(logging.DEBUG)
+    logging.getLogger().addHandler(list_handler)
+
+    stdout_buf = io.StringIO()
+    old_stdout = sys.stdout
+    sys.stdout = stdout_buf
+
+    results = []
+    success_overall = True
+
+    try:
+        server = ldap3.Server(dc_ip, use_ssl=True, get_info=None)
+
+        def try_bind_variants(server, user, password, domain):
+            """Try several common LDAP bind formats against the target DC."""
+            last_exc = None
+            candidates = []
+            raw = (user or "")
+            if raw:
+                candidates.append(raw)
+            if raw and "\\" not in raw and "@" not in raw:
+                netbios = (domain.split(".")[0] if domain and "." in domain else domain) or None
+                if netbios:
+                    candidates.append(f"{netbios}\\{raw}")
+                if domain:
+                    candidates.append(f"{raw}@{domain}")
+
+            for candidate in candidates:
+                try:
+                    return ldap3.Connection(server, user=candidate, password=password, auto_bind=True)
+                except Exception as exc:
+                    last_exc = exc
+
+            try:
+                return ldap3.Connection(server, user=raw, password=password, auto_bind=True)
+            except Exception as exc:
+                last_exc = exc
+
+            raise last_exc
+
+        try:
+            conn = try_bind_variants(server, foothold_user or "", foothold_pass or "", target_domain)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"LDAP bind failed for foothold user: {exc}") from exc
+
+        executor = StrictPrivescExecutor(conn=conn, domain=target_domain, dc_ip=dc_ip, context=session_ctx)
+        execution = executor.execute_path(path)
+        results = execution.get("steps", [])
+        success_overall = bool(execution.get("success", False))
+
+    finally:
+        sys.stdout = old_stdout
+        logging.getLogger().removeHandler(list_handler)
+        stdout_text = stdout_buf.getvalue().strip()
+        if stdout_text:
+            logs.append({"level": "INFO", "message": stdout_text})
+
+    return {
+        "status": "ok",
+        "success": success_overall,
+        "steps": results,
+        "logs": logs,
     }
 
 

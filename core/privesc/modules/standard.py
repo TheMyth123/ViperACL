@@ -25,6 +25,18 @@ class StandardModule:
                 logging.error("STANDARD: no current LDAP identity available for group membership.")
                 return False
 
+            # Try to provide a friendly display name for the user
+            display_user = current_user_dn
+            try:
+                if isinstance(current_user_dn, str) and "@" in current_user_dn:
+                    display_user = current_user_dn
+                elif isinstance(current_user_dn, str) and "\\" in current_user_dn:
+                    display_user = current_user_dn.split('\\')[-1]
+            except Exception:
+                display_user = str(current_user_dn)
+
+            print(f"[*] STANDARD: attempting AddMember -> add {display_user} to {target_dn}")
+
             success = self.actions.add_group_member(target_dn, current_user_dn)
             if not success:
                 return False

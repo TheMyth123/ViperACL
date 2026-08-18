@@ -638,14 +638,9 @@
                     <span id="p3-status-text">Plan Ready</span>
                   </div>
 
-                  <button type="button" id="p3-btn-simulate" class="px-3.5 py-1.5 bg-primary hover:bg-primary/90 text-on-primary font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow cursor-pointer">
-                    <span class="material-symbols-outlined text-sm">play_arrow</span>
-                    <span>Simulate</span>
-                  </button>
-
-                  <button type="button" id="p3-btn-simulate-error" class="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-400 font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer" title="Simulate step hang/stuck">
-                    <span class="material-symbols-outlined text-sm">error</span>
-                    <span>Test Stuck</span>
+                  <button type="button" id="p3-btn-attack" class="px-3.5 py-1.5 bg-primary hover:bg-primary/90 text-on-primary font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow cursor-pointer">
+                    <span class="material-symbols-outlined text-sm">flash_on</span>
+                    <span>Attack</span>
                   </button>
 
                   <button type="button" id="p3-btn-reset" class="p-1.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/60 text-on-surface text-xs font-jetbrains font-bold rounded-lg transition-all flex items-center justify-center cursor-pointer" title="Reset State">
@@ -2383,6 +2378,7 @@
     let p3SimInterval = null;
     let p3CurrentStep = 0;
     let p3ExecutionState = "ready"; // "ready" | "running" | "completed" | "stuck"
+      let p3ExecutionResults = [];
 
     function getP3CurrentPath() {
       if (currentPathData && currentPathData.steps && currentPathData.steps.length > 0) {
@@ -2799,31 +2795,55 @@
       });
     }
 
-    function runP3Simulation() {
-      if (p3Tasks.length === 0) return;
+    async function runP3Attack() {
+      const path = getP3CurrentPath();
+      if (!path) return;
       if (p3ExecutionState === "running") return;
 
-      clearInterval(p3SimInterval);
       resetP3SimulationState(false);
       updateP3Status("running", "Executing Chain...");
-      logP3Event("Starting automated privilege escalation simulation sequence...", "running");
+      logP3Event("Initiating attack run against selected chain...", "running");
 
-      p3CurrentStep = 0;
-      executeNextSimStep();
+      const payload = { path };
+      try {
+        const resp = await fetch('/api/privesc/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+          const txt = await resp.text();
+          logP3Event(`Attack execution failed: ${txt}`, 'error');
+          updateP3Status('stuck', 'Execution Failed');
+          return;
+        }
+
+        const data = await resp.json();
+        p3ExecutionResults = data.steps || [];
+        p3CurrentStep = 0;
+        executeNextSimStep();
+      } catch (err) {
+        logP3Event(`Attack request failed: ${err.message}`, 'error');
+        updateP3Status('stuck', 'Execution Error');
+      }
     }
 
     function executeNextSimStep() {
-      if (p3CurrentStep >= p3Tasks.length) {
+      // Prefer structured execution results returned from backend
+      const useResults = p3ExecutionResults && p3ExecutionResults.length > 0;
+      const total = useResults ? p3ExecutionResults.length : p3Tasks.length;
+      if (p3CurrentStep >= total) {
         updateP3Status("completed", "Execution Complete");
-        setP3Progress(p3Tasks.length, p3Tasks.length);
-        logP3Event("All privilege escalation tasks executed successfully! Objective principal compromised.", "success");
+        setP3Progress(total, total);
+        logP3Event("Execution finished — see logs for detailed step outcomes.", "success");
         return;
       }
 
       const idx = p3CurrentStep;
-      const task = p3Tasks[idx];
+      const task = useResults ? p3ExecutionResults[idx] : p3Tasks[idx];
       const relType = task.type || "ACCESS";
-      const tgtName = task.target?.name || task.target?.distinguishedname || `Target_${idx}`;
+      const tgtName = (task.target?.name || task.target?.distinguishedname || task.target || `Target_${idx}`);
 
       // Update Card to Active
       const card = document.getElementById(`p3-task-card-${idx}`);
@@ -2849,16 +2869,18 @@
         });
       }
 
-      logP3Event(`[STEP ${idx+1}/${p3Tasks.length}] Executing ${relType} against ${tgtName}...`, "running");
-      setP3Progress(idx, p3Tasks.length);
+      logP3Event(`[STEP ${idx+1}/${total}] Executing ${relType} against ${tgtName}...`, "running");
+      setP3Progress(idx, total);
 
-      // Simulate Step Execution Latency (1200ms)
-      p3SimInterval = setTimeout(() => {
-        const latency = Math.floor(Math.random() * 120 + 80);
-        const latencyEl = document.getElementById(`p3-step-latency-${idx}`);
-        if (latencyEl) latencyEl.textContent = `${latency} ms`;
+      // Mark step as running then wait briefly to render result
+      const latency = Math.floor(Math.random() * 120 + 80);
+      const latencyEl = document.getElementById(`p3-step-latency-${idx}`);
+      if (latencyEl) latencyEl.textContent = `${latency} ms`;
 
-        // Mark Card Success
+      // If backend provided structured results, honor success/failure and messages
+      const stepResult = (p3ExecutionResults && p3ExecutionResults.length > 0) ? p3ExecutionResults[idx] : { success: true, message: 'Simulated success' };
+
+      if (stepResult.success) {
         if (card) {
           card.classList.remove("active");
           card.classList.add("success");
@@ -2870,7 +2892,6 @@
           statusPill.style.borderColor = "rgba(16, 185, 129, 0.4)";
         }
 
-        // Update Edge in Vis.js Graph to Success Green
         if (p3VisEdges) {
           p3VisEdges.update({
             id: `p3_edge_${idx}`,
@@ -2879,84 +2900,43 @@
           });
         }
 
-        logP3Event(`[STEP ${idx+1} SUCCESS] ${relType} privilege modified on ${tgtName} (${latency}ms).`, "success");
+        logP3Event(stepResult.message || `[STEP ${idx+1} SUCCESS] ${relType} privilege modified on ${tgtName} (${latency}ms).`, "success");
 
         p3CurrentStep++;
-        setP3Progress(p3CurrentStep, p3Tasks.length);
-        executeNextSimStep();
-      }, 1200);
+        setP3Progress(p3CurrentStep, total);
+        // Small pause to make UI readable
+        setTimeout(executeNextSimStep, 500);
+      } else {
+        // Failure: mark failed and show alert/banner
+        if (card) { card.classList.remove("active"); card.classList.add("failed"); }
+        if (statusPill) {
+          statusPill.textContent = "Failed";
+          statusPill.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
+          statusPill.style.color = "#f43f5e";
+          statusPill.style.borderColor = "rgba(239, 68, 68, 0.4)";
+        }
+        if (p3VisEdges) p3VisEdges.update({ id: `p3_edge_${idx}`, color: { color: "#f43f5e" }, width: 5.0 });
+
+        updateP3Status("stuck", "Execution Stuck / Failure");
+        const alertBanner = document.getElementById("p3-alert-banner");
+        const alertTitle = document.getElementById("p3-alert-title");
+        const alertDesc = document.getElementById("p3-alert-desc");
+        if (alertBanner) {
+          if (alertTitle) alertTitle.textContent = `Execution Failed on Step ${idx+1} (${relType})`;
+          if (alertDesc) alertDesc.textContent = stepResult.message || `Step failed against ${tgtName}.`;
+          alertBanner.classList.remove("hidden");
+        }
+
+        logP3Event(stepResult.message || `[STEP ${idx+1} FAILED] ${relType} -> ${tgtName}`, "stuck");
+      }
     }
 
-    function simulateP3StuckOrHang() {
-      if (p3Tasks.length === 0) return;
-      clearInterval(p3SimInterval);
-      resetP3SimulationState(false);
-      updateP3Status("running", "Executing Chain...");
-      logP3Event("Simulating step execution with hanging/stuck network condition...", "warning");
-
-      p3CurrentStep = 0;
-
-      // Execute Step 1 normally
-      const idx0 = 0;
-      const card0 = document.getElementById(`p3-task-card-${idx0}`);
-      const status0 = document.getElementById(`p3-step-status-${idx0}`);
-      if (card0) card0.classList.add("active");
-      if (status0) status0.textContent = "Running...";
-      if (p3VisEdges) p3VisEdges.update({ id: `p3_edge_${idx0}`, color: { color: "#4cd7f6" }, width: 5.0 });
-
-      setTimeout(() => {
-        if (card0) { card0.classList.remove("active"); card0.classList.add("success"); }
-        if (status0) {
-          status0.textContent = "Success";
-          status0.style.backgroundColor = "rgba(16, 185, 129, 0.2)";
-          status0.style.color = "#4edea3";
-          status0.style.borderColor = "rgba(16, 185, 129, 0.4)";
-        }
-        if (p3VisEdges) p3VisEdges.update({ id: `p3_edge_${idx0}`, color: { color: "#10b981" }, width: 4.0 });
-        logP3Event(`[STEP 1 SUCCESS] Initial step succeeded.`, "success");
-
-        if (p3Tasks.length > 1) {
-          // Trigger Stuck/Hang on Step 2
-          const idx1 = 1;
-          const task1 = p3Tasks[idx1];
-          const tgtName1 = task1.target?.name || task1.target?.distinguishedname || `Target_${idx1}`;
-          const card1 = document.getElementById(`p3-task-card-${idx1}`);
-          const status1 = document.getElementById(`p3-step-status-${idx1}`);
-          if (card1) { card1.classList.add("active"); card1.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-          if (status1) status1.textContent = "Waiting response...";
-          if (p3VisEdges) p3VisEdges.update({ id: `p3_edge_${idx1}`, color: { color: "#fbbf24" }, width: 5.0 });
-          logP3Event(`[STEP 2] Dispatching LDAP modification request to ${tgtName1}...`, "warning");
-
-          setTimeout(() => {
-            // Hanging / Timeout Detected
-            updateP3Status("stuck", "Execution Stuck / Hang");
-            if (card1) { card1.classList.remove("active"); card1.classList.add("failed"); }
-            if (status1) {
-              status1.textContent = "Timeout / Stuck";
-              status1.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
-              status1.style.color = "#f43f5e";
-              status1.style.borderColor = "rgba(239, 68, 68, 0.4)";
-            }
-            if (p3VisEdges) p3VisEdges.update({ id: `p3_edge_${idx1}`, color: { color: "#f43f5e" }, width: 5.0 });
-
-            const alertBanner = document.getElementById("p3-alert-banner");
-            const alertTitle = document.getElementById("p3-alert-title");
-            const alertDesc = document.getElementById("p3-alert-desc");
-            if (alertBanner) {
-              if (alertTitle) alertTitle.textContent = `Execution Stuck on Step 2 (${task1.type || 'Abuse'})`;
-              if (alertDesc) alertDesc.textContent = `Target ${tgtName1} did not acknowledge directory request within timeout window. Possible cause: network partition, RPC endpoint filtered, or insufficient privileges.`;
-              alertBanner.classList.remove("hidden");
-            }
-
-            logP3Event(`[STUCK TIMEOUT] Step 2 execution failed: LDAP connection timed out without response. Pipeline halted.`, "stuck");
-          }, 1800);
-        }
-      }, 1000);
-    }
+    // The real attack execution is performed by the backend; this client renders returned step results.
 
     function resetP3SimulationState(clearLogs = true) {
       clearInterval(p3SimInterval);
       p3CurrentStep = 0;
+      p3ExecutionResults = [];
       updateP3Status("ready", "Plan Ready");
       setP3Progress(0, p3Tasks.length);
 
@@ -2989,8 +2969,7 @@
       const activeState = document.getElementById("p3-active-state");
       const btnGotoP2 = document.getElementById("p3-btn-goto-phase2");
       const btnChangePath = document.getElementById("p3-btn-change-path");
-      const btnSimulate = document.getElementById("p3-btn-simulate");
-      const btnSimulateError = document.getElementById("p3-btn-simulate-error");
+      const btnAttack = document.getElementById("p3-btn-attack");
       const btnReset = document.getElementById("p3-btn-reset");
       const btnClearLogs = document.getElementById("p3-btn-clear-logs");
       const btnDismissAlert = document.getElementById("p3-btn-dismiss-alert");
@@ -3054,8 +3033,7 @@
         });
       }
 
-      if (btnSimulate) btnSimulate.addEventListener("click", runP3Simulation);
-      if (btnSimulateError) btnSimulateError.addEventListener("click", simulateP3StuckOrHang);
+      if (btnAttack) btnAttack.addEventListener("click", runP3Attack);
       if (btnReset) btnReset.addEventListener("click", () => resetP3SimulationState(true));
 
       if (btnClearLogs) {
@@ -3076,7 +3054,7 @@
         btnRetryStep.addEventListener("click", () => {
           const alertBanner = document.getElementById("p3-alert-banner");
           if (alertBanner) alertBanner.classList.add("hidden");
-          runP3Simulation();
+          runP3Attack();
         });
       }
 

