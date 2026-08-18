@@ -60,8 +60,7 @@ if __name__ == "__main__":
             print(f"[!] Warning: Could not load ML model: {e}")
 
         test_cases = [
-            ("BOB_HR@VIPERTECH.LOCAL", "SUSAN_ADMIN@VIPERTECH.LOCAL", "Targeting User (Susan Admin)"),
-            ("TESTUSER5@VIPERTECH.LOCAL", "VIPERTECH.LOCAL", "Targeting Domain Root (DCSync Synthesis)"),
+            ("MIKE_INTERN@VIPERTECH.LOCAL", "VIPERTECH.LOCAL", "Targeting Domain Root"),
         ]
 
         for source, target, label in test_cases:
@@ -77,5 +76,5 @@ if __name__ == "__main__":
 
             # 3. Test Viper Predictive (ML)
             if rf_model:
-                predictive_results = pf.find_path(source, target, mode="predictive", ml_model=rf_model, ml_threshold=0.30)
+                predictive_results = pf.find_path(source, target, mode="predictive", ml_model=rf_model, ml_threshold=0.00)
                 print_path_results(predictive_results, "predictive")

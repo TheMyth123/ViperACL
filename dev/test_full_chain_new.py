@@ -15,10 +15,10 @@ from ldap3 import Server, Connection, ALL
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 # CONFIGURATION
-DC_IP = "172.16.5.5"
-DOMAIN = "INLANEFREIGHT.LOCAL"
-SOURCE_USER = "INLANEFREIGHT\\WLEY"
-SOURCE_PASS = "transporter@4"
+DC_IP = "192.168.101.10"
+DOMAIN = "VIPERTECH.LOCAL"
+SOURCE_USER = "VIPERTECH\\MIKE_INTERN"
+SOURCE_PASS = "ViperLab2027!"
 
 # 1. Find the Path (Neo4j)
 db = DatabaseManager()
@@ -29,19 +29,19 @@ model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file
 rf_model = joblib.load(model_path)
 
 ranked_paths = pf.find_path(
-    "WLEY@INLANEFREIGHT.LOCAL",
-    "ADUNN@INLANEFREIGHT.LOCAL",
+    "MIKE_INTERN@VIPERTECH.LOCAL",
+    "TESTUSER6@VIPERTECH.LOCAL",
     mode="predictive",
     ml_model=rf_model,
 )
 
-if not ranked_paths or len(ranked_paths) < 2:
-    raise RuntimeError("Predictive mode did not return a rank2 path.")
+if not ranked_paths or len(ranked_paths) < 1:
+    raise RuntimeError("Predictive mode did not return a path")
 
-rank2_path = ranked_paths[1]["path"]
-rank2_score = ranked_paths[1]["success_probability"]
+rank2_path = ranked_paths[0]["path"]
+rank2_score = ranked_paths[0]["success_probability"]
 
-logging.info("[*] Selected predictive rank 2 path")
+logging.info("[*] Selected predictive path")
 logging.info(f"[*] Success Probability: {rank2_score}%")
 
 for i in range(0, len(rank2_path) - 2, 2):
