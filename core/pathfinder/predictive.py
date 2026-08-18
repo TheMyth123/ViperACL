@@ -1,5 +1,11 @@
 # core/pathfinder/predictive.py
 import pandas as pd
+from .rules import (
+    enrich_path_node_labels,
+    get_path_signature,
+    is_valid_end_condition,
+    normalize_path_dcsync,
+)
 from .tactical import COST_MAP 
 
 # Dynamically sort relationships alphabetically to ensure consistent column order
@@ -15,8 +21,9 @@ def extract_features(path):
     # Initialize a counter dictionary for every relationship type to 0
     rel_counts = {rel: 0 for rel in REL_TYPES}
     
-    for i in range(1, len(path), 2):
-        rel_type = path[i]
+    for i in range(1, len(path) - 1, 2):
+        rel = path[i]
+        rel_type = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
         cost = COST_MAP.get(rel_type, 10)
         
         total_cost += cost
@@ -38,7 +45,7 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
     """
     Viper Predictive Engine: Evaluates multiple paths using Random Forest probabilities.
     Ensures strictly one-way acyclic attack chains from source to target, respecting
-    max_hops limit and ml_threshold confidence filter.
+    max_hops limit, DCSync combination, and strict 19 end conditions.
     """
     try:
         rel_rows = db.run_query("MATCH ()-[r]->() RETURN DISTINCT type(r) AS rel")
@@ -61,50 +68,63 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
 
     # 1. First retrieve all shortest paths efficiently
     q_shortest = f"""
-    MATCH p = allShortestPaths((source {{name: $source_name}})-[:{rel_pattern}*..{hops_limit}]->(target {{name: $target_name}}))
-    RETURN p, length(p) AS hops
+    MATCH (source {{name: $source_name}}), (target {{name: $target_name}})
+    MATCH p = allShortestPaths((source)-[:{rel_pattern}*..{hops_limit}]->(target))
+    RETURN p, length(p) AS hops, [n IN nodes(p) | labels(n)] AS node_labels, labels(target) AS target_labels
     """
-    shortest_records = db.run_query(q_shortest, parameters=params) or []
-    candidate_paths = [r["p"] for r in shortest_records if "p" in r]
+    candidate_records = db.run_query(q_shortest, parameters=params) or []
     
-    min_hops = shortest_records[0].get("hops") if shortest_records else None
+    min_hops = candidate_records[0].get("hops") if candidate_records else None
 
     # 2. Gather subsequent hop-length paths to explore varied tactical vectors (up to min_hops + 3)
     if min_hops and min_hops < hops_limit:
         max_search_hop = min(min_hops + 3, hops_limit)
         for h in range(min_hops + 1, max_search_hop + 1):
-            if len(candidate_paths) >= 40:
+            if len(candidate_records) >= 50:
                 break
             qh = f"""
             MATCH (source {{name: $source_name}}), (target {{name: $target_name}})
             MATCH p = (source)-[:{rel_pattern}*{h}]->(target)
             WHERE none(n IN nodes(p)[0..-2] WHERE toUpper(n.name) = toUpper($target_name))
             AND none(n IN nodes(p)[1..] WHERE toUpper(n.name) = toUpper($source_name))
-            RETURN p
+            RETURN p, length(p) AS hops, [n IN nodes(p) | labels(n)] AS node_labels, labels(target) AS target_labels
             LIMIT 20
             """
             extra_records = db.run_query(qh, parameters=params) or []
-            candidate_paths.extend([r["p"] for r in extra_records if "p" in r])
+            candidate_records.extend(extra_records)
 
-    if not candidate_paths:
+    if not candidate_records:
         return None
 
+    dcsync_cache = {}
     scored_paths = []
     seen_signatures = set()
     
-    for path in candidate_paths:
+    for record in candidate_records:
+        raw_path = record.get("p")
+        if not raw_path:
+            continue
+
         # Ensure strictly simple path (no repeated nodes)
-        nodes = [path[i].get("name") if isinstance(path[i], dict) else getattr(path[i], "get", lambda k: str(path[i]))("name") for i in range(0, len(path), 2)]
+        nodes = [
+            raw_path[i].get("name") if isinstance(raw_path[i], dict) else getattr(raw_path[i], "get", lambda k: str(raw_path[i]))("name")
+            for i in range(0, len(raw_path), 2)
+        ]
         if len(nodes) != len(set(nodes)):
             continue
-            
-        rels = [path[i] if isinstance(path[i], str) else getattr(path[i], "type", str(path[i])) for i in range(1, len(path), 2)]
-        sig = tuple(zip(nodes[:-1], rels, nodes[1:]))
+
+        path = enrich_path_node_labels(raw_path, record.get("node_labels"))
+        normalized = normalize_path_dcsync(path, db, cache=dcsync_cache)
+
+        if not is_valid_end_condition(normalized, db):
+            continue
+
+        sig = get_path_signature(normalized)
         if sig in seen_signatures:
             continue
         seen_signatures.add(sig)
 
-        features = extract_features(path)
+        features = extract_features(normalized)
         df_features = pd.DataFrame([features], columns=FEATURE_COLUMNS)
         
         success_prob = model.predict_proba(df_features)[0][1] 
@@ -115,11 +135,11 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
             continue
         
         scored_paths.append({
-            "path": path,
+            "path": normalized,
             "features": features,
             "success_probability": prob_pct
         })
         
     scored_paths.sort(key=lambda x: x["success_probability"], reverse=True)
     
-    return scored_paths[:10]
+    return scored_paths[:10] if scored_paths else None

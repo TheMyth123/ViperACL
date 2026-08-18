@@ -1,6 +1,9 @@
-"""Test web page routes and project selection/creation lifecycle."""
-
+import os
+import sys
 import uuid
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
 from fastapi.testclient import TestClient
 
 from core.projects import ProjectManager
@@ -64,5 +67,5 @@ def test_web_routes_and_navigation():
 
 
 if __name__ == "__main__":
-    import pytest
-    pytest.main(["-v", __file__])
+    test_web_routes_and_navigation()
+    print("[+] All web route and navigation tests passed successfully!")

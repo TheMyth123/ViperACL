@@ -1,4 +1,10 @@
 # core/pathfinder/tactical.py
+from .rules import (
+    enrich_path_node_labels,
+    get_path_signature,
+    is_valid_end_condition,
+    normalize_path_dcsync,
+)
 
 COST_MAP = {
     # Passive / Already possessed
@@ -22,11 +28,22 @@ COST_MAP = {
     'ForceChangePassword': 5 
 }
 
+
+def calculate_path_weight(path) -> int:
+    """Calculates total tactical weight of a path."""
+    total = 0
+    for i in range(1, len(path) - 1, 2):
+        rel = path[i]
+        rel_type = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
+        total += COST_MAP.get(rel_type, 10)
+    return total
+
+
 def run_tactical(db, source_name, target_name, max_hops=15):
     """
-    Viper Tactical Engine: Finds the lowest-cost path using Cypher REDUCE.
+    Viper Tactical Engine: Finds the lowest-cost path using tactical weights,
+    enforcing DCSync combination and strict 19 end conditions.
     """
-    # Get relationship types present in the DB and intersect with our cost map
     try:
         rel_rows = db.run_query("MATCH ()-[r]->() RETURN DISTINCT type(r) AS rel")
         present_rels = {row.get('rel') for row in rel_rows if row.get('rel')}
@@ -34,8 +51,6 @@ def run_tactical(db, source_name, target_name, max_hops=15):
         present_rels = set()
 
     allowed_rels = [r for r in COST_MAP.keys() if r in present_rels]
-
-    # If none of our expected relationship types are present, bail out early.
     if not allowed_rels:
         return []
 
@@ -45,10 +60,9 @@ def run_tactical(db, source_name, target_name, max_hops=15):
     params = {
         "source_name": source_name.upper(),
         "target_name": target_name.upper(),
-        "weight_map": COST_MAP
     }
 
-    # Step 1: determine minimum hop length to tightly bound the search space
+    # Step 1: determine minimum hop length to bound search
     q_short = f"""
     MATCH p = shortestPath((source {{name: $source_name}})-[:{rel_pattern}*1..{hops_limit}]->(target {{name: $target_name}}))
     RETURN length(p) AS min_hops
@@ -58,16 +72,52 @@ def run_tactical(db, source_name, target_name, max_hops=15):
         return []
 
     min_hops = short_rows[0]["min_hops"]
-    search_depth = min(min_hops + 2, hops_limit)
+    search_depth = min(min_hops + 3, hops_limit)
 
-    # Step 2: find the lowest-cost path within the optimized depth bound
+    # Step 2: query candidate paths within bounded depth
     query = f"""
     MATCH (source {{name: $source_name}}), (target {{name: $target_name}})
     MATCH p = (source)-[:{rel_pattern}*1..{search_depth}]->(target)
-    WITH p, reduce(total = 0, r IN relationships(p) | total + $weight_map[type(r)]) AS pathWeight
-    RETURN p, pathWeight
-    ORDER BY pathWeight ASC, length(p) ASC
-    LIMIT 1
+    RETURN p, [n IN nodes(p) | labels(n)] AS node_labels, labels(target) AS target_labels
+    LIMIT 60
     """
 
-    return db.run_query(query, parameters=params)
+    candidate_records = db.run_query(query, parameters=params) or []
+    if not candidate_records:
+        return []
+
+    dcsync_cache = {}
+    valid_paths = []
+    seen_signatures = set()
+
+    for record in candidate_records:
+        raw_path = record.get("p")
+        if not raw_path:
+            continue
+
+        path = enrich_path_node_labels(raw_path, record.get("node_labels"))
+        normalized = normalize_path_dcsync(path, db, cache=dcsync_cache)
+
+        if not is_valid_end_condition(normalized, db):
+            continue
+
+        sig = get_path_signature(normalized)
+        if sig in seen_signatures:
+            continue
+        seen_signatures.add(sig)
+
+        hops = (len(normalized) - 1) // 2
+        weight = calculate_path_weight(normalized)
+
+        valid_paths.append({
+            "p": normalized,
+            "pathWeight": weight,
+            "hops": hops,
+        })
+
+    if not valid_paths:
+        return []
+
+    # Lowest cost path first, then fewest hops
+    valid_paths.sort(key=lambda x: (x["pathWeight"], x["hops"]))
+    return [valid_paths[0]]
