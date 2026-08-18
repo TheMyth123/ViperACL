@@ -1,49 +1,44 @@
 """
 Comprehensive validation test suite for:
-1. DCSync synthesis and path merging (GetChanges + GetChangesAll -> DCSync).
-2. The 19 strict path end conditions.
+1. Universal Accepted Edges (all 19 accepted relationship -> target types across all hops).
+2. Rejection of invalid edges in start, intermediate, or end positions.
+3. DCSync synthesis and path merging (GetChanges + GetChangesAll -> DCSync).
 """
 
 import os
 import sys
 import unittest
-from types import SimpleNamespace
 
 # Root folder search path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
 from core.pathfinder.rules import (
-    ALLOWED_END_CONDITIONS,
+    ACCEPTED_EDGES,
     get_node_type,
-    is_valid_end_condition,
+    is_valid_edge,
+    is_valid_path,
     normalize_path_dcsync,
     get_path_signature,
 )
-from core.database import DatabaseManager
-from core.pathfinder.pathfinder import PathfinderCoordinator
 
 
-class TestPathfinderRules(unittest.TestCase):
-    def test_allowed_19_conditions_count(self):
-        """Verify exactly 19 unique conditions are defined."""
-        self.assertEqual(len(ALLOWED_END_CONDITIONS), 19)
+class TestPathfinderAcceptedEdges(unittest.TestCase):
+    def test_accepted_19_edges_count(self):
+        """Verify exactly 19 unique accepted edges are defined."""
+        self.assertEqual(len(ACCEPTED_EDGES), 19)
 
-    def test_all_19_conditions_valid(self):
-        """Verify each of the 19 conditions is recognized as valid."""
-        for rel, target_type in ALLOWED_END_CONDITIONS:
-            dummy_path = [
-                {"name": "SOURCE_USER", "labels": ["Base", "User"]},
-                rel,
-                {"name": f"TARGET_{target_type.upper()}", "labels": ["Base", target_type]},
-            ]
+    def test_all_19_edges_valid(self):
+        """Verify each of the 19 accepted edges is recognized as valid individually."""
+        for rel, target_type in ACCEPTED_EDGES:
+            target_node = {"name": f"TARGET_{target_type.upper()}", "labels": ["Base", target_type]}
             self.assertTrue(
-                is_valid_end_condition(dummy_path),
-                f"Condition ({rel} -> {target_type}) should be recognized as VALID."
+                is_valid_edge(rel, target_node),
+                f"Edge ({rel} -> {target_type}) should be recognized as an ACCEPTED edge."
             )
 
-    def test_invalid_conditions_rejected(self):
-        """Verify invalid conditions are strictly rejected."""
+    def test_invalid_edges_rejected(self):
+        """Verify invalid edges are strictly rejected."""
         invalid_pairs = [
             ("GenericWrite", "User"),
             ("GenericWrite", "Domain"),
@@ -69,15 +64,37 @@ class TestPathfinderRules(unittest.TestCase):
         ]
 
         for rel, target_type in invalid_pairs:
-            dummy_path = [
-                {"name": "SOURCE_USER", "labels": ["Base", "User"]},
-                rel,
-                {"name": f"TARGET_{target_type.upper()}", "labels": ["Base", target_type]},
-            ]
+            target_node = {"name": f"TARGET_{target_type.upper()}", "labels": ["Base", target_type]}
             self.assertFalse(
-                is_valid_end_condition(dummy_path),
-                f"Condition ({rel} -> {target_type}) must be strictly REJECTED."
+                is_valid_edge(rel, target_node),
+                f"Edge ({rel} -> {target_type}) must be strictly REJECTED."
             )
+
+    def test_multi_hop_path_all_valid(self):
+        """Verify a multi-hop path where all edges are accepted is valid."""
+        valid_chain = [
+            {"name": "USER_1", "labels": ["Base", "User"]},
+            "MemberOf",
+            {"name": "GROUP_A", "labels": ["Base", "Group"]},
+            "AddMember",
+            {"name": "GROUP_B", "labels": ["Base", "Group"]},
+            "GenericAll",
+            {"name": "USER_2", "labels": ["Base", "User"]},
+            "ForceChangePassword",
+            {"name": "USER_3", "labels": ["Base", "User"]},
+        ]
+        self.assertTrue(is_valid_path(valid_chain))
+
+    def test_multi_hop_path_intermediate_invalid_rejected(self):
+        """Verify a path with an invalid intermediate edge (e.g. GenericWrite -> User) is rejected."""
+        invalid_intermediate_chain = [
+            {"name": "USER_1", "labels": ["Base", "User"]},
+            "GenericWrite",  # INVALID to User!
+            {"name": "USER_2", "labels": ["Base", "User"]},
+            "WriteDacl",
+            {"name": "USER_3", "labels": ["Base", "User"]},
+        ]
+        self.assertFalse(is_valid_path(invalid_intermediate_chain))
 
     def test_get_node_type(self):
         """Verify correct AD class extraction from various node structures."""
@@ -93,12 +110,10 @@ class TestPathfinderRules(unittest.TestCase):
         """Verify DCSync synthesis and deduplication logic."""
         class MockDB:
             def run_query(self, query, params=None):
-                # Simulate TESTUSER6 having both GetChanges and GetChangesAll to VIPERTECH.LOCAL
                 src = params.get("src_name", "") or params.get("src_id", "")
                 tgt = params.get("tgt_name", "") or params.get("tgt_id", "")
                 if "TESTUSER6" in src and "VIPERTECH" in tgt:
                     return [{"has_gc": True, "has_gca": True}]
-                # Simulate NO_DCSYNC_USER having only GetChanges
                 if "NO_DCSYNC" in src:
                     return [{"has_gc": True, "has_gca": False}]
                 return [{"has_gc": False, "has_gca": False}]
@@ -108,7 +123,7 @@ class TestPathfinderRules(unittest.TestCase):
         # Path 1: GetChanges
         path1 = [
             {"name": "TEST", "labels": ["Base", "User"]},
-            "AddMember",
+            "WriteDacl",
             {"name": "TESTUSER6@VIPERTECH.LOCAL", "labels": ["Base", "User"]},
             "GetChanges",
             {"name": "VIPERTECH.LOCAL", "labels": ["Base", "Domain"]},
@@ -117,7 +132,7 @@ class TestPathfinderRules(unittest.TestCase):
         # Path 2: GetChangesAll
         path2 = [
             {"name": "TEST", "labels": ["Base", "User"]},
-            "AddMember",
+            "WriteDacl",
             {"name": "TESTUSER6@VIPERTECH.LOCAL", "labels": ["Base", "User"]},
             "GetChangesAll",
             {"name": "VIPERTECH.LOCAL", "labels": ["Base", "Domain"]},
@@ -133,19 +148,19 @@ class TestPathfinderRules(unittest.TestCase):
         sig1 = get_path_signature(norm1)
         sig2 = get_path_signature(norm2)
         self.assertEqual(sig1, sig2)
-        self.assertTrue(is_valid_end_condition(norm1))
+        self.assertTrue(is_valid_path(norm1))
 
         # Path 3: User with only GetChanges (cannot DCSync)
         path3 = [
             {"name": "TEST", "labels": ["Base", "User"]},
-            "AddMember",
+            "WriteDacl",
             {"name": "NO_DCSYNC_USER@VIPERTECH.LOCAL", "labels": ["Base", "User"]},
             "GetChanges",
             {"name": "VIPERTECH.LOCAL", "labels": ["Base", "Domain"]},
         ]
         norm3 = normalize_path_dcsync(path3, mock_db)
         self.assertEqual(norm3[3], "GetChanges")  # Remains GetChanges
-        self.assertFalse(is_valid_end_condition(norm3))  # Rejected by 19 rules!
+        self.assertFalse(is_valid_path(norm3))  # Rejected because GetChanges is not in ACCEPTED_EDGES
 
 
 if __name__ == "__main__":

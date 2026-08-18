@@ -2,7 +2,7 @@
 from .rules import (
     enrich_path_node_labels,
     get_path_signature,
-    is_valid_end_condition,
+    is_valid_path,
     normalize_path_dcsync,
 )
 from .tactical import COST_MAP
@@ -11,7 +11,7 @@ from .tactical import COST_MAP
 def run_fasttrack(db, source_name, target_name, max_hops=15):
     """
     Viper FastTrack Engine: Finds the path with the absolute fewest hops, 
-    enforcing DCSync combination and strict 19 end conditions.
+    enforcing DCSync combination and strict accepted edges across all steps.
     """
     hops_limit = max(1, min(int(max_hops), 50))
     
@@ -52,7 +52,7 @@ def run_fasttrack(db, source_name, target_name, max_hops=15):
         path = enrich_path_node_labels(raw_path, rec.get("node_labels"))
         normalized = normalize_path_dcsync(path, db, cache=dcsync_cache)
 
-        if not is_valid_end_condition(normalized, db):
+        if not is_valid_path(normalized, db):
             continue
 
         sig = get_path_signature(normalized)
@@ -63,7 +63,7 @@ def run_fasttrack(db, source_name, target_name, max_hops=15):
         hops = (len(normalized) - 1) // 2
         return [{"p": normalized, "hops": hops}]
 
-    # Step 2: If no allShortestPaths matched valid end conditions, check incremental depths
+    # Step 2: If no allShortestPaths matched valid accepted edges, check incremental depths
     min_hops = records[0].get("hops") if records else 1
     if min_hops < hops_limit:
         max_search = min(min_hops + 3, hops_limit)
@@ -83,7 +83,7 @@ def run_fasttrack(db, source_name, target_name, max_hops=15):
                 path = enrich_path_node_labels(raw_path, rec.get("node_labels"))
                 normalized = normalize_path_dcsync(path, db, cache=dcsync_cache)
 
-                if not is_valid_end_condition(normalized, db):
+                if not is_valid_path(normalized, db):
                     continue
 
                 sig = get_path_signature(normalized)

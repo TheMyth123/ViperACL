@@ -2,7 +2,7 @@
 from .rules import (
     enrich_path_node_labels,
     get_path_signature,
-    is_valid_end_condition,
+    is_valid_path,
     normalize_path_dcsync,
 )
 
@@ -98,7 +98,7 @@ def run_tactical(db, source_name, target_name, max_hops=15):
         path = enrich_path_node_labels(raw_path, record.get("node_labels"))
         normalized = normalize_path_dcsync(path, db, cache=dcsync_cache)
 
-        if not is_valid_end_condition(normalized, db):
+        if not is_valid_path(normalized, db):
             continue
 
         sig = get_path_signature(normalized)

@@ -58,6 +58,7 @@ def main():
     parser.add_argument("--host", default=settings.host)
     parser.add_argument("--port", type=int, default=settings.port)
     parser.add_argument("--no-bootstrap-db", action="store_true", help="Skip starting the local Neo4j container.")
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development.")
     args = parser.parse_args()
 
     if not args.no_bootstrap_db:
@@ -67,11 +68,15 @@ def main():
             sys.exit(1)
 
     port = args.port or find_free_port(args.host)
-    app = create_app()
 
     print(f"[*] ViperACL web app starting on http://{args.host}:{port}")
     print(f"[*] Neo4j target: {settings.neo4j_uri} ({settings.neo4j_database})")
-    uvicorn.run(app, host=args.host, port=port, log_level="info")
+
+    if args.reload:
+        uvicorn.run("web.app:create_app", host=args.host, port=port, log_level="info", factory=True, reload=True)
+    else:
+        app = create_app()
+        uvicorn.run(app, host=args.host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

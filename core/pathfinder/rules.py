@@ -5,15 +5,16 @@ Enforces:
 1. DCSync Synthesis & Deduplication:
    When both GetChanges and GetChangesAll point from a principal to the same Domain,
    they are normalized into a single 'DCSync' relationship.
-2. Strict 19 Allowed End Conditions:
-   Paths must strictly terminate with one of the 19 designated (Relationship, TargetType) pairs.
+2. Strict Accepted Edges:
+   Every hop in a path (start, intermediate, or end) must strictly match one of the
+   19 accepted (Relationship, TargetType) definitions.
 """
 
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 
-# The 19 strictly recognized path termination conditions: (Relationship, Target AD Class)
-ALLOWED_END_CONDITIONS: Set[Tuple[str, str]] = {
+# The 19 strictly accepted edges across all steps: (Relationship, Target AD Class)
+ACCEPTED_EDGES: Set[Tuple[str, str]] = {
     ("MemberOf", "Group"),
     ("DCSync", "Domain"),
     ("AddMember", "Group"),
@@ -83,7 +84,7 @@ def check_has_dcsync_pair(
     db: Any, source_node: Any, target_node: Any, cache: Optional[Dict[Tuple[str, str], bool]] = None
 ) -> bool:
     """
-    Checks whether source_node has both GetChanges and GetChangesAll (or explicit DCSync)
+    Checks whether source_node has both GetChanges and GetChangesAll
     pointing to target_node in the database.
     """
     if db is None:
@@ -161,27 +162,37 @@ def normalize_path_dcsync(
     return normalized
 
 
-def is_valid_end_condition(path: List[Any], db: Optional[Any] = None) -> bool:
+def is_valid_edge(rel: Any, target_node: Any, db: Optional[Any] = None) -> bool:
     """
-    Checks if a path terminates with one of the 19 strictly allowed (Relationship, TargetType) conditions.
+    Checks if a single edge satisfies one of the 19 accepted (Relationship, TargetType) pairs.
     """
-    if not isinstance(path, list) or len(path) < 3:
-        return False
-
-    last_rel = path[-2]
-    target_node = path[-1]
-
-    rel_str = last_rel if isinstance(last_rel, str) else getattr(last_rel, "type", str(last_rel))
+    rel_str = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
     target_type = get_node_type(target_node, db)
 
     if not target_type:
         return False
 
-    for allowed_rel, allowed_type in ALLOWED_END_CONDITIONS:
+    for allowed_rel, allowed_type in ACCEPTED_EDGES:
         if rel_str.lower() == allowed_rel.lower() and target_type.lower() == allowed_type.lower():
             return True
 
     return False
+
+
+def is_valid_path(path: List[Any], db: Optional[Any] = None) -> bool:
+    """
+    Validates that EVERY edge in the path (from start to end) is an accepted edge.
+    """
+    if not isinstance(path, list) or len(path) < 3:
+        return False
+
+    for i in range(1, len(path) - 1, 2):
+        rel = path[i]
+        target_node = path[i + 1]
+        if not is_valid_edge(rel, target_node, db):
+            return False
+
+    return True
 
 
 def get_path_signature(path: List[Any]) -> Tuple[Any, ...]:

@@ -3,7 +3,7 @@ import pandas as pd
 from .rules import (
     enrich_path_node_labels,
     get_path_signature,
-    is_valid_end_condition,
+    is_valid_path,
     normalize_path_dcsync,
 )
 from .tactical import COST_MAP 
@@ -45,7 +45,7 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
     """
     Viper Predictive Engine: Evaluates multiple paths using Random Forest probabilities.
     Ensures strictly one-way acyclic attack chains from source to target, respecting
-    max_hops limit, DCSync combination, and strict 19 end conditions.
+    max_hops limit, DCSync combination, and strict accepted edges across all steps.
     """
     try:
         rel_rows = db.run_query("MATCH ()-[r]->() RETURN DISTINCT type(r) AS rel")
@@ -116,7 +116,7 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
         path = enrich_path_node_labels(raw_path, record.get("node_labels"))
         normalized = normalize_path_dcsync(path, db, cache=dcsync_cache)
 
-        if not is_valid_end_condition(normalized, db):
+        if not is_valid_path(normalized, db):
             continue
 
         sig = get_path_signature(normalized)
