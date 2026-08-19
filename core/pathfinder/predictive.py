@@ -6,13 +6,13 @@ from .rules import (
     is_valid_path,
     normalize_path_dcsync,
 )
-from .tactical import COST_MAP 
+from .tactical import COST_MAP, get_edge_cost
 
 # Dynamically sort relationships alphabetically to ensure consistent column order
-REL_TYPES = sorted(list(COST_MAP.keys()))
+REL_TYPES = sorted(list({k[0] for k in COST_MAP.keys()} | {"GetChanges", "GetChangesAll"}))
 FEATURE_COLUMNS = ['Hops', 'TotalCost', 'MaxCost'] + [f'Count_{rel}' for rel in REL_TYPES]
 
-def extract_features(path):
+def extract_features(path, db=None):
     """Translates a Cypher path into ML features, including counts of all relationship types."""
     hops = (len(path) - 1) // 2
     total_cost = 0
@@ -24,7 +24,8 @@ def extract_features(path):
     for i in range(1, len(path) - 1, 2):
         rel = path[i]
         rel_type = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
-        cost = COST_MAP.get(rel_type, 10)
+        target_node = path[i + 1]
+        cost = get_edge_cost(rel_type, target_node, db)
         
         total_cost += cost
         if cost > max_cost:
@@ -53,7 +54,11 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
     except Exception:
         present_rels = set()
 
-    allowed_rels = [r for r in COST_MAP.keys() if r in present_rels]
+    cost_map_rels = {k[0] for k in COST_MAP.keys()}
+    if "DCSync" in cost_map_rels:
+        cost_map_rels.update({"GetChanges", "GetChangesAll"})
+
+    allowed_rels = [r for r in cost_map_rels if r in present_rels]
     if not allowed_rels:
         return None
 
@@ -124,7 +129,7 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
             continue
         seen_signatures.add(sig)
 
-        features = extract_features(normalized)
+        features = extract_features(normalized, db=db)
         df_features = pd.DataFrame([features], columns=FEATURE_COLUMNS)
         
         success_prob = model.predict_proba(df_features)[0][1] 

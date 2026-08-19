@@ -21,7 +21,11 @@ def run_fasttrack(db, source_name, target_name, max_hops=15):
     except Exception:
         present_rels = set()
 
-    allowed_rels = [r for r in COST_MAP.keys() if r in present_rels]
+    cost_map_rels = {k[0] for k in COST_MAP.keys()}
+    if "DCSync" in cost_map_rels:
+        cost_map_rels.update({"GetChanges", "GetChangesAll"})
+
+    allowed_rels = [r for r in cost_map_rels if r in present_rels]
     if not allowed_rels:
         return []
 

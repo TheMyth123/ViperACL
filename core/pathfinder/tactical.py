@@ -1,41 +1,83 @@
 # core/pathfinder/tactical.py
 from .rules import (
     enrich_path_node_labels,
+    get_node_type,
     get_path_signature,
     is_valid_path,
     normalize_path_dcsync,
 )
 
 COST_MAP = {
-    # Passive / Already possessed
-    'MemberOf': 0,
-    'DCSync': 0,          
-    'GetChanges': 0,      
-    'GetChangesAll': 0,   
-    
-    # Active Modifications (Standard)
-    'AddMember': 1,
-    'GenericWrite': 1,
-    'GenericAll': 1,
-    'AllExtendedRights': 2,
-    
-    # Structural Changes (More complex)
-    'WriteDacl': 2,
-    'Owns': 2,
-    'WriteOwner': 3,      
-    
-    # High Visibility / Destructive
-    'ForceChangePassword': 5 
+    # Passive / no active modification
+    ('MemberOf', 'GROUP'): 0,
+
+    # Direct domain credential access
+    ('DCSync', 'DOMAIN'): 0,
+
+    # Direct group membership modification
+    ('AddMember', 'GROUP'): 1,
+    ('GenericWrite', 'GROUP'): 1,
+
+    # GenericAll has different execution impact by target
+    ('GenericAll', 'USER'): 3,
+    ('GenericAll', 'GROUP'): 1,
+    ('GenericAll', 'DOMAIN'): 0,
+
+    # Extended rights
+    ('AllExtendedRights', 'USER'): 3,
+    ('AllExtendedRights', 'DOMAIN'): 0,
+
+    # DACL modification introduces an additional privilege-granting step
+    ('WriteDacl', 'USER'): 4,
+    ('WriteDacl', 'GROUP'): 2,
+    ('WriteDacl', 'DOMAIN'): 1,
+
+    # Ownership requires ownership/control transition before abuse
+    ('Owns', 'USER'): 4,
+    ('Owns', 'GROUP'): 2,
+    ('Owns', 'DOMAIN'): 1,
+
+    # WriteOwner requires an ownership transition before the actual abuse
+    ('WriteOwner', 'USER'): 5,
+    ('WriteOwner', 'GROUP'): 3,
+    ('WriteOwner', 'DOMAIN'): 2,
+
+    # Direct password reset
+    ('ForceChangePassword', 'USER'): 5,
 }
 
 
-def calculate_path_weight(path) -> int:
-    """Calculates total tactical weight of a path."""
+def get_edge_cost(rel, target_node_or_type, db=None) -> int:
+    """Returns tactical cost for a (relationship, target) pair."""
+    rel_type = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
+    if isinstance(target_node_or_type, str):
+        target_type = target_node_or_type.upper()
+    else:
+        target_type = get_node_type(target_node_or_type, db).upper()
+
+    cost = COST_MAP.get((rel_type, target_type))
+    if cost is not None:
+        return cost
+
+    rel_lower = rel_type.lower()
+    tgt_lower = target_type.lower()
+    for (k_rel, k_tgt), val in COST_MAP.items():
+        if k_rel.lower() == rel_lower and k_tgt.lower() == tgt_lower:
+            return val
+
+    return 10
+
+
+def calculate_path_weight(path, db=None) -> int:
+    """Calculates total tactical weight of a path considering relationship and target node type."""
     total = 0
+    if not isinstance(path, list) or len(path) < 3:
+        return total
+
     for i in range(1, len(path) - 1, 2):
         rel = path[i]
-        rel_type = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
-        total += COST_MAP.get(rel_type, 10)
+        target_node = path[i + 1]
+        total += get_edge_cost(rel, target_node, db)
     return total
 
 
@@ -50,7 +92,11 @@ def run_tactical(db, source_name, target_name, max_hops=15):
     except Exception:
         present_rels = set()
 
-    allowed_rels = [r for r in COST_MAP.keys() if r in present_rels]
+    cost_map_rels = {k[0] for k in COST_MAP.keys()}
+    if "DCSync" in cost_map_rels:
+        cost_map_rels.update({"GetChanges", "GetChangesAll"})
+
+    allowed_rels = [r for r in cost_map_rels if r in present_rels]
     if not allowed_rels:
         return []
 
@@ -107,7 +153,7 @@ def run_tactical(db, source_name, target_name, max_hops=15):
         seen_signatures.add(sig)
 
         hops = (len(normalized) - 1) // 2
-        weight = calculate_path_weight(normalized)
+        weight = calculate_path_weight(normalized, db=db)
 
         valid_paths.append({
             "p": normalized,
