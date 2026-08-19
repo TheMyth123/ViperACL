@@ -204,6 +204,7 @@ class ProjectManager:
         info.setdefault("foothold_username", "")
         info.setdefault("foothold_password", "")
         info.setdefault("domain", "")
+        info.setdefault("remediation_scripts", [])
         return info
 
     def list_projects(self, include_deleted=False):
@@ -403,3 +404,31 @@ class ProjectManager:
             self._save_data(data)
             return True
         return False
+
+    def add_remediation_script(self, project_id: str, script_record: dict) -> dict | None:
+        """Appends a remediation script record to a project and saves atomically."""
+        data = self._load_data()
+        projects = data.get("projects", {})
+        if project_id in projects and not projects[project_id].get("is_deleted"):
+            scripts = projects[project_id].setdefault("remediation_scripts", [])
+            # Insert newest script at index 0
+            scripts.insert(0, script_record)
+            self._save_data(data)
+            return self._normalize_project_entry(projects[project_id])
+        return None
+
+    def get_remediation_scripts(self, project_id: str) -> list[dict]:
+        """Returns the list of remediation scripts generated for a project."""
+        proj = self.get_project(project_id)
+        if proj:
+            return proj.get("remediation_scripts", [])
+        return []
+
+    def get_remediation_script_by_id(self, project_id: str, script_id: str) -> dict | None:
+        """Finds a specific remediation script record by script_id."""
+        scripts = self.get_remediation_scripts(project_id)
+        for s in scripts:
+            if s.get("id") == script_id or s.get("filename") == script_id:
+                return s
+        return None
+

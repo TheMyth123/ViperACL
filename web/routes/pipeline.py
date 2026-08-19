@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -16,7 +17,13 @@ from core.remediation.engine import RemediationEngine
 from web.helpers import (
     PROJECT_ROOT, db_manager, make_privesc_context, resolve_project_path, serialize_node,
 )
-from web.models import ExecuteIngestRequest, IngestRequest, PrivescPlanRequest, RemediationRequest
+from web.models import (
+    ExecuteIngestRequest,
+    GenerateRemediationRequest,
+    IngestRequest,
+    PrivescPlanRequest,
+    RemediationRequest,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -414,39 +421,220 @@ def privesc_execute(request: PrivescPlanRequest, req: Request):
     }
 
 
-@router.post("/remediation")
-def remediation(request: RemediationRequest):
-    logger.info(
-        "REMEDIATION", "remediation.started",
-        f"Generating remediation script for {len(request.targets)} target(s)",
-        source="web.app",
-        details={"target_count": len(request.targets)},
-    )
+@router.post("/remediation/generate")
+def generate_remediation_script(request: GenerateRemediationRequest, req: Request):
+    """Generates a surgical Active Directory PowerShell remediation script.
 
-    engine = RemediationEngine(output_dir=str(PROJECT_ROOT / "scripts"))
-    success = engine.generate_script(request.targets)
-    if not success:
-        logger.error(
-            "REMEDIATION", "remediation.failed",
-            "No remediation script was generated — engine returned failure",
-            source="web.app",
-            details={"target_count": len(request.targets)},
+    Saves the script to the project storage directory, persists metadata in projects.json,
+    and logs structured forensic evidence.
+    """
+    project_mgr = ProjectManager()
+    project_id = request.project_id or project_mgr.get_active_project_id()
+    if not project_id:
+        raise HTTPException(
+            status_code=400,
+            detail="No active project selected. Please select or create a project first.",
         )
-        raise HTTPException(status_code=400, detail="No remediation script was generated.")
+
+    project = project_mgr.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Active project not found.")
+
+    if not request.targets:
+        raise HTTPException(
+            status_code=400,
+            detail="No remediation targets were selected. Please select at least one relationship to remediate.",
+        )
+
+    # Set up project-specific scripts directory: data/projects/{project_id}/scripts/
+    scripts_dir = PROJECT_ROOT / "data" / "projects" / project_id / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+
+    project_name = project.get("name", "Active Assessment")
+    domain_name = project.get("domain") or getattr(req.app.state.settings, "neo4j_database", "DOMAIN.LOCAL")
 
     logger.info(
-        "REMEDIATION", "remediation.completed",
-        f"Remediation script generated — {len(request.targets)} target(s) mitigated → {engine.last_output_path}",
+        "REMEDIATION", "remediation.script_generation_started",
+        f"Generating remediation script for {len(request.targets)} target(s) in project {project_id}",
+        project_id=project_id,
         source="web.app",
         details={
             "target_count": len(request.targets),
-            "output_path": engine.last_output_path,
+            "total_path_steps": len(request.all_edges) if request.all_edges else len(request.targets),
+            "project_name": project_name,
+            "domain": domain_name,
+        },
+    )
+
+    engine = RemediationEngine(output_dir=str(scripts_dir))
+    gen_result = engine.generate_script(
+        remediation_targets=request.targets,
+        project_name=project_name,
+        domain=domain_name,
+        project_root=PROJECT_ROOT,
+    )
+
+    if not gen_result.get("success"):
+        err_msg = gen_result.get("error", "Remediation engine failed to generate script.")
+        logger.error(
+            "REMEDIATION", "remediation.script_generation_failed",
+            f"Remediation script generation failed: {err_msg}",
+            project_id=project_id,
+            source="web.app",
+            details={"error": err_msg},
+        )
+        raise HTTPException(status_code=400, detail=err_msg)
+
+    # Determine included vs excluded edges based on request.all_edges
+    included_indices = {
+        t.get("index") for t in request.targets if t.get("index") is not None
+    }
+    
+    included_edges = []
+    excluded_edges = []
+    
+    if request.all_edges:
+        for idx, edge in enumerate(request.all_edges):
+            edge_idx = edge.get("index", idx)
+            # Check if this edge is in targets
+            is_included = (edge_idx in included_indices) or any(
+                t.get("source") == edge.get("source") and
+                t.get("type") == (edge.get("type") or edge.get("relationship")) and
+                t.get("target") == edge.get("target")
+                for t in request.targets
+            )
+            edge_copy = dict(edge)
+            edge_copy["index"] = edge_idx
+            edge_copy["included"] = is_included
+            if is_included:
+                included_edges.append(edge_copy)
+            else:
+                excluded_edges.append(edge_copy)
+    else:
+        included_edges = request.targets
+        excluded_edges = []
+
+    now_id_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    script_id = f"rem_{project_id}_{now_id_timestamp}"
+
+    script_record = {
+        "id": script_id,
+        "filename": gen_result["filename"],
+        "created_at": gen_result["created_at"],
+        "relative_path": gen_result["relative_path"],
+        "file_size": gen_result["file_size"],
+        "target_count": gen_result["target_count"],
+        "total_path_steps": len(request.all_edges) if request.all_edges else gen_result["target_count"],
+        "included_edges": included_edges,
+        "excluded_edges": excluded_edges,
+        "all_edges": request.all_edges or [],
+        "path_summary": request.path_summary or {},
+        "script_content": gen_result["script_content"],
+    }
+
+    # Persist in projects.json
+    project_mgr.add_remediation_script(project_id, script_record)
+
+    logger.info(
+        "REMEDIATION", "remediation.script_generated",
+        f"Remediation script '{gen_result['filename']}' generated and archived ({gen_result['target_count']} action(s), {gen_result['file_size']} bytes)",
+        project_id=project_id,
+        source="web.app",
+        details={
+            "script_id": script_id,
+            "filename": gen_result["filename"],
+            "target_count": gen_result["target_count"],
+            "file_size": gen_result["file_size"],
+            "output_path": gen_result["output_path"],
         },
     )
 
     return {
         "status": "ok",
-        "generated": True,
-        "output_path": engine.last_output_path,
-        "target_count": len(request.targets),
+        "script": script_record,
+        "scripts": project_mgr.get_remediation_scripts(project_id),
     }
+
+
+@router.get("/remediation/scripts")
+def list_remediation_scripts(project_id: str | None = None):
+    """Lists all archived remediation scripts for the active (or specified) project."""
+    project_mgr = ProjectManager()
+    target_project_id = project_id or project_mgr.get_active_project_id()
+    if not target_project_id:
+        return {"status": "ok", "scripts": []}
+
+    scripts = project_mgr.get_remediation_scripts(target_project_id)
+    return {"status": "ok", "project_id": target_project_id, "scripts": scripts}
+
+
+@router.get("/remediation/scripts/{script_id}")
+def get_remediation_script(script_id: str, project_id: str | None = None):
+    """Retrieves a specific archived remediation script by its ID."""
+    project_mgr = ProjectManager()
+    target_project_id = project_id or project_mgr.get_active_project_id()
+    if not target_project_id:
+        raise HTTPException(status_code=400, detail="No active project selected.")
+
+    script = project_mgr.get_remediation_script_by_id(target_project_id, script_id)
+    if not script:
+        raise HTTPException(status_code=404, detail="Remediation script record not found.")
+
+    # Read script file content from disk if not present in memory
+    if not script.get("script_content") and script.get("relative_path"):
+        file_path = resolve_project_path(script["relative_path"])
+        if file_path.exists():
+            try:
+                script["script_content"] = file_path.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
+    return {"status": "ok", "script": script}
+
+
+@router.get("/remediation/scripts/{script_id}/download")
+def download_remediation_script(script_id: str, project_id: str | None = None):
+    """Serves the generated PowerShell script (.ps1) as a direct file download."""
+    project_mgr = ProjectManager()
+    target_project_id = project_id or project_mgr.get_active_project_id()
+    if not target_project_id:
+        raise HTTPException(status_code=400, detail="No active project selected.")
+
+    script = project_mgr.get_remediation_script_by_id(target_project_id, script_id)
+    if not script:
+        raise HTTPException(status_code=404, detail="Remediation script record not found.")
+
+    filename = script.get("filename") or f"{script_id}.ps1"
+    rel_path = script.get("relative_path")
+    if not rel_path:
+        raise HTTPException(status_code=404, detail="Script path is missing from registry.")
+
+    file_path = resolve_project_path(rel_path)
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Remediation script file not found on disk.")
+
+    logger.info(
+        "REMEDIATION", "remediation.script_downloaded",
+        f"Remediation script '{filename}' downloaded",
+        project_id=target_project_id,
+        source="web.app",
+        details={"script_id": script_id, "filename": filename, "file_size": file_path.stat().st_size},
+    )
+
+    return FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/remediation")
+def legacy_remediation(request: RemediationRequest, req: Request):
+    """Backward-compatible remediation endpoint."""
+    gen_req = GenerateRemediationRequest(
+        targets=request.targets,
+        all_edges=request.targets,
+    )
+    return generate_remediation_script(gen_req, req)
+

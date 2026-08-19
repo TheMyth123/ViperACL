@@ -808,22 +808,202 @@
         </div>
 
         <!-- Panel 4: Surgical Remediation Generator -->
-        <div class="phase-tab-panel hidden flex-1 flex flex-col gap-4 min-h-0" id="tab-phase-4">
-          <div class="bg-surface-container-low border border-outline-variant rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-4 flex-1">
-            <div class="w-16 h-16 rounded-2xl bg-secondary-container/15 border border-secondary-container/30 text-secondary-container flex items-center justify-center shadow-lg">
-              <span class="material-symbols-outlined text-3xl">healing</span>
+        <div class="phase-tab-panel hidden flex-1 flex flex-col gap-3 min-h-0" id="tab-phase-4">
+          
+          <!-- Empty State (Shown when no path is selected yet) -->
+          <div id="p4-empty-state" class="hidden bg-surface-container-low border border-outline-variant rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-4 flex-1">
+            <div class="w-16 h-16 rounded-2xl bg-secondary/15 border border-secondary/30 text-secondary flex items-center justify-center shadow-lg">
+              <span class="material-symbols-outlined text-3xl">route</span>
             </div>
             <div class="max-w-md space-y-1.5">
-              <h3 class="text-base font-bold text-on-surface">Phase 4: Remediation Generator</h3>
+              <h3 class="text-base font-bold text-on-surface">No Attack Path Selected</h3>
               <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed">
-                Generate surgical Active Directory PowerShell scripts to remediate identified ACL attack paths and close critical domain choke points.
+                Remediation scripts require an attack path from Phase 2 (Pathfinder). Select and lock a path to generate surgical Active Directory mitigation scripts.
               </p>
             </div>
-            <button type="button" id="p4-btn-generate" class="px-5 py-2.5 bg-secondary-container hover:bg-secondary-container/90 text-on-secondary-container font-jetbrains font-bold text-xs rounded-lg transition-all shadow-lg flex items-center gap-2 cursor-pointer">
-              <span class="material-symbols-outlined text-base">code</span>
-              <span>Generate Remediation Script</span>
+            <button type="button" id="p4-btn-goto-pathfinder" class="px-4 py-2 bg-primary hover:bg-primary/90 text-on-primary font-jetbrains font-bold text-xs rounded-lg transition-all shadow flex items-center gap-1.5 cursor-pointer">
+              <span class="material-symbols-outlined text-sm">explore</span>
+              <span>Go to Pathfinder (Phase 2)</span>
             </button>
           </div>
+
+          <!-- Main Remediation Interface (Shown when path exists) -->
+          <div id="p4-main-container" class="flex-1 flex flex-col gap-3 min-h-0">
+            
+            <!-- Top Path Context Header Bar -->
+            <div class="bg-surface-container-low border border-outline-variant rounded-xl px-4 py-2.5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 flex-shrink-0">
+              
+              <!-- Left: Locked Route Context -->
+              <div class="flex items-center gap-2.5 font-jetbrains text-xs min-w-0 flex-1">
+                <span class="px-2.5 py-1 bg-secondary/10 border border-secondary/30 text-secondary text-[10px] font-bold rounded flex items-center gap-1 flex-shrink-0">
+                  <span class="material-symbols-outlined text-xs">healing</span> Active Path
+                </span>
+                <div class="flex items-center gap-1.5 truncate text-xs">
+                  <strong id="p4-summary-source" class="text-[#4edea3] font-bold truncate">--</strong>
+                  <span class="text-on-surface-variant">➔</span>
+                  <strong id="p4-summary-target" class="text-[#f43f5e] font-bold truncate">--</strong>
+                  <span class="text-on-surface-variant/40">|</span>
+                  <span id="p4-summary-engine" class="text-on-surface-variant font-mono text-[10px] uppercase">TACTICAL</span>
+                  <span class="text-on-surface-variant/40">|</span>
+                  <span id="p4-summary-hops" class="text-on-surface-variant text-[10px]">-- Hops</span>
+                </div>
+              </div>
+
+              <!-- Right: Mode & Status Badges -->
+              <div class="flex items-center gap-2 font-jetbrains flex-shrink-0">
+                <div id="p4-mode-badge" class="px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 bg-surface-container-high border-outline-variant/60 text-on-surface-variant">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" id="p4-mode-dot"></span>
+                  <span id="p4-mode-text">Active Plan Builder</span>
+                </div>
+
+                <button type="button" id="p4-btn-new-plan" class="hidden px-3 py-1.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/60 text-on-surface text-xs font-jetbrains font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer" title="Return to Active Plan">
+                  <span class="material-symbols-outlined text-sm">edit_calendar</span>
+                  <span>Active Plan</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 2-Column Split: Mitigation Checklist / Inspector (Left) + Script Vault & Downloads (Right) -->
+            <div class="flex-1 flex flex-col lg:flex-row gap-3 min-h-0">
+
+              <!-- Left Column: Active Checklist OR Historical Script Inspector -->
+              <div class="flex-[1.35] flex flex-col bg-surface-container-low border border-outline-variant rounded-xl p-3.5 shadow-lg min-h-0 relative">
+                
+                <!-- View A: Active Mitigation Checklist (Editable) -->
+                <div id="p4-active-view" class="flex-1 flex flex-col min-h-0">
+                  
+                  <!-- Checklist Header & Bulk Select Controls -->
+                  <div class="flex items-center justify-between pb-2 mb-2 border-b border-outline-variant/40 flex-shrink-0">
+                    <div class="flex items-center gap-2">
+                      <span class="material-symbols-outlined text-secondary text-base">checklist_rtl</span>
+                      <span class="text-xs font-bold text-on-surface font-jetbrains">Mitigation Action Selector</span>
+                      <span id="p4-selection-count-badge" class="text-[10px] font-jetbrains text-secondary bg-secondary/10 border border-secondary/20 px-2 py-0.5 rounded-full font-bold">0 / 0 Selected</span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                      <button type="button" id="p4-btn-select-all" class="px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/50 text-on-surface text-[11px] font-jetbrains rounded transition-colors cursor-pointer">
+                        Select All
+                      </button>
+                      <button type="button" id="p4-btn-deselect-all" class="px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/50 text-on-surface-variant hover:text-on-surface text-[11px] font-jetbrains rounded transition-colors cursor-pointer">
+                        Deselect All
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Path Hop Cards List (Scrollable) -->
+                  <div id="p4-edges-list" class="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0 font-jetbrains">
+                    <!-- Dynamic Edge Selection Cards inserted here -->
+                  </div>
+
+                  <!-- Footer Action Bar -->
+                  <div class="pt-3 mt-2 border-t border-outline-variant/40 flex items-center justify-between gap-3 flex-shrink-0">
+                    <div class="text-[11px] font-jetbrains text-on-surface-variant flex items-center gap-1.5">
+                      <span class="material-symbols-outlined text-sm text-secondary">info</span>
+                      <span id="p4-footer-summary">Select relationships above to generate customized PowerShell code.</span>
+                    </div>
+
+                    <button type="button" id="p4-btn-generate-script" class="px-4 py-2 bg-secondary hover:bg-secondary/90 text-on-secondary font-jetbrains font-bold text-xs rounded-lg transition-all shadow flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                      <span class="material-symbols-outlined text-sm" id="p4-generate-icon">code</span>
+                      <span id="p4-generate-label">Generate PowerShell Script</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- View B: Historical Script Archive Inspector (Read-Only) -->
+                <div id="p4-inspect-view" class="hidden flex-1 flex flex-col min-h-0">
+                  
+                  <!-- Archive Header -->
+                  <div class="flex items-center justify-between pb-2 mb-2 border-b border-outline-variant/40 flex-shrink-0">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="material-symbols-outlined text-cyan-400 text-base">history_edu</span>
+                      <div class="truncate">
+                        <span class="text-xs font-bold text-on-surface font-jetbrains block truncate" id="p4-inspect-filename">remediation_plan_archive.ps1</span>
+                        <span class="text-[10px] text-on-surface-variant font-jetbrains" id="p4-inspect-created">Generated --</span>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                      <span class="px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-400 text-[10px] font-mono font-bold uppercase">
+                        Archive View
+                      </span>
+                      <button type="button" id="p4-btn-back-to-active" class="px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/60 text-on-surface text-[11px] font-jetbrains rounded flex items-center gap-1 cursor-pointer">
+                        <span class="material-symbols-outlined text-xs">arrow_back</span>
+                        <span>Active Plan</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Tab Switcher: Scope Comparison (Included vs Excluded) vs Script Code -->
+                  <div class="flex items-center gap-2 border-b border-outline-variant/30 pb-2 mb-2 flex-shrink-0">
+                    <button type="button" id="p4-tab-scope" class="px-3 py-1 bg-surface-container-highest text-on-surface text-xs font-jetbrains font-bold rounded cursor-pointer transition-colors flex items-center gap-1.5">
+                      <span class="material-symbols-outlined text-xs">tune</span>
+                      <span>Mitigation Scope</span>
+                    </button>
+                    <button type="button" id="p4-tab-code" class="px-3 py-1 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-xs font-jetbrains font-medium rounded cursor-pointer transition-colors flex items-center gap-1.5">
+                      <span class="material-symbols-outlined text-xs">terminal</span>
+                      <span>PowerShell Script</span>
+                    </button>
+
+                    <div class="ml-auto flex items-center gap-2">
+                      <button type="button" id="p4-btn-copy-code" class="px-2.5 py-1 text-[11px] font-jetbrains text-on-surface-variant hover:text-on-surface bg-surface-container-high hover:bg-surface-container-highest rounded border border-outline-variant/50 flex items-center gap-1 cursor-pointer" title="Copy script to clipboard">
+                        <span class="material-symbols-outlined text-xs" id="p4-copy-icon">content_copy</span>
+                        <span id="p4-copy-label">Copy</span>
+                      </button>
+                      <button type="button" id="p4-btn-download-inspected" class="px-2.5 py-1 text-[11px] font-jetbrains bg-primary/20 hover:bg-primary/30 border border-primary/40 text-primary font-bold rounded flex items-center gap-1 cursor-pointer" title="Download .ps1 file">
+                        <span class="material-symbols-outlined text-xs">download</span>
+                        <span>Download</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Sub-View 1: Scope Comparison (Included vs Excluded Cards) -->
+                  <div id="p4-inspect-scope-panel" class="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0 font-jetbrains">
+                    <!-- Dynamic Included / Excluded Cards -->
+                  </div>
+
+                  <!-- Sub-View 2: Code Viewer -->
+                  <div id="p4-inspect-code-panel" class="hidden flex-1 overflow-hidden flex flex-col min-h-0 bg-surface-container-lowest border border-outline-variant/60 rounded-xl font-mono">
+                    <div class="flex items-center justify-between px-3 py-1.5 bg-surface-container border-b border-outline-variant/40 text-[10px] text-on-surface-variant flex-shrink-0">
+                      <div class="flex items-center gap-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-500/60 inline-block"></span>
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500/60 inline-block"></span>
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/60 inline-block"></span>
+                        <span class="ml-2 font-bold text-on-surface">PowerShell ActiveDirectory Module</span>
+                      </div>
+                      <span class="text-[9px] font-mono text-on-surface-variant/70 uppercase">UTF-8 / Standalone</span>
+                    </div>
+                    <pre id="p4-inspect-code-pre" class="flex-1 overflow-y-auto p-3.5 text-[11px] leading-relaxed text-slate-300 select-text whitespace-pre-wrap break-all"></pre>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Right Column: Script Vault & Downloads -->
+              <div class="flex-[0.9] flex flex-col bg-surface-container-low border border-outline-variant rounded-xl p-3.5 shadow-lg min-h-0">
+                
+                <!-- Vault Header -->
+                <div class="flex items-center justify-between pb-2 mb-2 border-b border-outline-variant/40 flex-shrink-0">
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-base">folder_zip</span>
+                    <span class="text-xs font-bold text-on-surface font-jetbrains">Remediation Script Vault</span>
+                  </div>
+                  <span id="p4-vault-count-badge" class="text-[10px] font-jetbrains text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-bold">0 Scripts</span>
+                </div>
+
+                <p class="text-[10px] text-on-surface-variant font-jetbrains mb-2 leading-relaxed flex-shrink-0">
+                  Historical remediation scripts generated for this project. Saved and persistent across browser sessions.
+                </p>
+
+                <!-- Vault List (Scrollable) -->
+                <div id="p4-vault-list" class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0 font-jetbrains">
+                  <!-- Dynamic Script Item Cards -->
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
         </div>
 
       </div>
@@ -978,6 +1158,11 @@
   {% if active_project and active_project.selected_candidate_paths %}
   <script id="saved-candidate-paths-json" type="application/json">
     {{ active_project.selected_candidate_paths | tojson | safe }}
+  </script>
+  {% endif %}
+  {% if active_project and active_project.remediation_scripts %}
+  <script id="saved-remediation-scripts-json" type="application/json">
+    {{ active_project.remediation_scripts | tojson | safe }}
   </script>
   {% endif %}
 
@@ -3095,6 +3280,712 @@
       }
     }
 
+    function initRemediation() {
+      let p4CurrentEdges = [];
+      let p4SavedScripts = [];
+      let p4InspectedScript = null;
+      let p4SelectedIndices = new Set();
+
+      const p4EmptyState = document.getElementById("p4-empty-state");
+      const p4MainContainer = document.getElementById("p4-main-container");
+      const p4EdgesList = document.getElementById("p4-edges-list");
+      const p4VaultList = document.getElementById("p4-vault-list");
+      const p4SelectionBadge = document.getElementById("p4-selection-count-badge");
+      const p4VaultBadge = document.getElementById("p4-vault-count-badge");
+      const p4BtnGenerate = document.getElementById("p4-btn-generate-script");
+      const p4BtnSelectAll = document.getElementById("p4-btn-select-all");
+      const p4BtnDeselectAll = document.getElementById("p4-btn-deselect-all");
+      const p4BtnNewPlan = document.getElementById("p4-btn-new-plan");
+      const p4BtnBackToActive = document.getElementById("p4-btn-back-to-active");
+      const p4BtnGotoPathfinder = document.getElementById("p4-btn-goto-pathfinder");
+
+      const p4ActiveView = document.getElementById("p4-active-view");
+      const p4InspectView = document.getElementById("p4-inspect-view");
+      const p4InspectScopePanel = document.getElementById("p4-inspect-scope-panel");
+      const p4InspectCodePanel = document.getElementById("p4-inspect-code-panel");
+      const p4InspectCodePre = document.getElementById("p4-inspect-code-pre");
+      const p4TabScope = document.getElementById("p4-tab-scope");
+      const p4TabCode = document.getElementById("p4-tab-code");
+      const p4BtnCopyCode = document.getElementById("p4-btn-copy-code");
+      const p4BtnDownloadInspected = document.getElementById("p4-btn-download-inspected");
+
+      // Load initial saved scripts from DOM script tag
+      const savedScriptsElem = document.getElementById("saved-remediation-scripts-json");
+      if (savedScriptsElem) {
+        try {
+          p4SavedScripts = JSON.parse(savedScriptsElem.textContent) || [];
+        } catch (e) {
+          p4SavedScripts = [];
+        }
+      }
+
+      function getP4Path() {
+        if (currentPathData && currentPathData.steps && currentPathData.steps.length > 0) {
+          return currentPathData;
+        }
+        const savedScript = document.getElementById("saved-path-json");
+        if (savedScript) {
+          try {
+            const parsed = JSON.parse(savedScript.textContent);
+            if (parsed && parsed.steps && parsed.steps.length > 0) return parsed;
+          } catch (e) {}
+        }
+        return null;
+      }
+
+      function updatePhase4View() {
+        const path = getP4Path();
+        if (!path || !path.steps || path.steps.length === 0) {
+          if (p4EmptyState) p4EmptyState.classList.remove("hidden");
+          if (p4MainContainer) p4MainContainer.classList.add("hidden");
+          return;
+        }
+
+        if (p4EmptyState) p4EmptyState.classList.add("hidden");
+        if (p4MainContainer) p4MainContainer.classList.remove("hidden");
+
+        // Parse path into edges
+        p4CurrentEdges = [];
+        p4SelectedIndices.clear();
+
+        const steps = path.steps || [];
+        steps.forEach((step, idx) => {
+          const rawSrc = step.source?.name || step.source?.distinguishedname || `Principal_${idx}`;
+          const rawTgt = step.target?.name || step.target?.distinguishedname || `Target_${idx}`;
+          const relType = step.relationship || "ACCESS";
+          
+          // Determine target type
+          let tgtType = "User";
+          const tgtLabels = step.target?.labels || [];
+          const labelsUpper = (Array.isArray(tgtLabels) ? tgtLabels : []).map(l => String(l).toUpperCase());
+          if (labelsUpper.includes("GROUP")) tgtType = "Group";
+          else if (labelsUpper.includes("DOMAIN") || relType === "DCSync") tgtType = "Domain";
+          else if (labelsUpper.includes("USER")) tgtType = "User";
+          else if (labelsUpper.includes("COMPUTER")) tgtType = "Computer";
+          else {
+            // Check based on relationship conventions
+            if (["MemberOf", "AddMember", "GenericWrite"].includes(relType)) tgtType = "Group";
+            else if (["DCSync"].includes(relType)) tgtType = "Domain";
+            else if (["ForceChangePassword"].includes(relType)) tgtType = "User";
+          }
+
+          p4CurrentEdges.push({
+            index: idx,
+            source: rawSrc,
+            target: rawTgt,
+            type: relType,
+            relationship: relType,
+            target_type: tgtType,
+            source_obj: step.source,
+            target_obj: step.target
+          });
+
+          p4SelectedIndices.add(idx); // default: all checked
+        });
+
+        // Update Top Path Summary
+        const firstStep = steps[0];
+        const lastStep = steps[steps.length - 1];
+        const srcDisplay = firstStep?.source?.name || wsContext.selectedSource || "--";
+        const tgtDisplay = lastStep?.target?.name || wsContext.selectedTarget || "--";
+        const engineDisplay = wsContext.selectedEngine || "TACTICAL";
+
+        const srcEl = document.getElementById("p4-summary-source");
+        const tgtEl = document.getElementById("p4-summary-target");
+        const engEl = document.getElementById("p4-summary-engine");
+        const hopsEl = document.getElementById("p4-summary-hops");
+
+        if (srcEl) srcEl.textContent = srcDisplay;
+        if (tgtEl) tgtEl.textContent = tgtDisplay;
+        if (engEl) engEl.textContent = engineDisplay.toUpperCase();
+        if (hopsEl) hopsEl.textContent = `${steps.length} Hop${steps.length === 1 ? '' : 's'}`;
+
+        renderActiveChecklist();
+        renderVaultList();
+      }
+
+      function getRelBadgeStyle(relType) {
+        const meta = getRelMeta(relType);
+        return {
+          bg: meta.bgColor,
+          text: meta.textColor,
+          border: meta.borderColor,
+          desc: getRemediationActionDesc(relType)
+        };
+      }
+
+      function getRemediationActionDesc(relType, tgtType = "") {
+        switch (relType) {
+          case "MemberOf":
+            return "Removes user/principal membership from the target Active Directory group.";
+          case "DCSync":
+            return "Revokes directory replication synchronization GUID permissions on Domain Root.";
+          case "AddMember":
+            return "Revokes WriteProperty (self-membership / member attribute) rights on target group.";
+          case "GenericWrite":
+            return "Revokes generic write and property modification permissions on group object.";
+          case "GenericAll":
+            return `Revokes full control (GenericAll) ACE granting complete authority over ${tgtType || 'object'}.`;
+          case "AllExtendedRights":
+            return `Revokes all extended rights and privilege operations on ${tgtType || 'object'}.`;
+          case "WriteDacl":
+            return `Revokes WriteDacl permission, preventing unauthorized ACL and permission modification on ${tgtType || 'object'}.`;
+          case "WriteOwner":
+            return `Revokes WriteOwner permission, preventing unauthorized object ownership takeover of ${tgtType || 'object'}.`;
+          case "Owns":
+            return `Resets object owner of ${tgtType || 'object'} back to standard Domain Admins authority.`;
+          case "ForceChangePassword":
+            return "Revokes User-Force-Change-Password extended right, preventing arbitrary password resets.";
+          default:
+            return `Neutralizes Active Directory ${relType} privilege relationship on ${tgtType || 'target'}.`;
+        }
+      }
+
+      function renderActiveChecklist() {
+        if (!p4EdgesList) return;
+        p4EdgesList.innerHTML = "";
+
+        if (p4CurrentEdges.length === 0) {
+          p4EdgesList.innerHTML = `
+            <div class="text-center py-8 text-on-surface-variant/60 text-xs">
+              No edges found in the selected path.
+            </div>`;
+          return;
+        }
+
+        p4CurrentEdges.forEach((edge, idx) => {
+          const isChecked = p4SelectedIndices.has(edge.index);
+          const badge = getRelBadgeStyle(edge.type);
+          const cleanSrc = (edge.source || "").split('@')[0];
+          const cleanTgt = (edge.target || "").split('@')[0];
+          const desc = getRemediationActionDesc(edge.type, edge.target_type);
+
+          const card = document.createElement("div");
+          card.className = `p-3 rounded-xl border transition-all flex items-start gap-3 select-none ${
+            isChecked
+              ? "bg-surface-container border-secondary/40 shadow-sm"
+              : "bg-surface-container-lowest/70 border-outline-variant/30 opacity-60"
+          }`;
+
+          card.innerHTML = `
+            <div class="pt-0.5 flex-shrink-0">
+              <label class="relative flex items-center justify-center w-5 h-5 cursor-pointer">
+                <input type="checkbox" data-index="${edge.index}" ${isChecked ? 'checked' : ''} class="p4-edge-checkbox w-4 h-4 rounded border-outline-variant text-secondary bg-surface-container-low focus:ring-secondary focus:ring-offset-0 cursor-pointer" />
+              </label>
+            </div>
+
+            <div class="flex-1 min-w-0 space-y-1.5 cursor-pointer" data-target-index="${edge.index}">
+              
+              <!-- Card Top: Step number & Relationship flow -->
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-surface-container-high text-on-surface-variant border border-outline-variant/50">
+                    HOP #${idx + 1}
+                  </span>
+
+                  <!-- Source Pill -->
+                  <span class="text-xs font-bold text-on-surface truncate bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant/40" title="${edge.source}">
+                    ${cleanSrc}
+                  </span>
+
+                  <span class="text-on-surface-variant text-xs">➔</span>
+
+                  <!-- Rel Badge -->
+                  <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${badge.bg} ${badge.text} ${badge.border}">
+                    ${edge.type}
+                  </span>
+
+                  <span class="text-on-surface-variant text-xs">➔</span>
+
+                  <!-- Target Pill -->
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs font-bold text-on-surface truncate bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant/40" title="${edge.target}">
+                      ${cleanTgt}
+                    </span>
+                    <span class="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded bg-surface-container-high text-secondary border border-secondary/30">
+                      ${edge.target_type}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Status Badge -->
+                <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                  isChecked
+                    ? "bg-secondary/15 text-secondary border border-secondary/30"
+                    : "bg-surface-container-high text-on-surface-variant/60 border border-outline-variant/40"
+                }">
+                  ${isChecked ? "MITIGATION INCLUDED" : "OMITTED"}
+                </span>
+              </div>
+
+              <!-- Card Bottom: Technical Action Explanation -->
+              <p class="text-[11px] text-on-surface-variant leading-snug">
+                ${desc}
+              </p>
+            </div>
+          `;
+
+          // Handle clicking on card row to toggle checkbox
+          card.addEventListener("click", (e) => {
+            if (e.target.tagName === "INPUT") return;
+            const cb = card.querySelector(".p4-edge-checkbox");
+            if (cb) {
+              cb.checked = !cb.checked;
+              cb.dispatchEvent(new Event("change"));
+            }
+          });
+
+          // Checkbox change handler
+          const cb = card.querySelector(".p4-edge-checkbox");
+          if (cb) {
+            cb.addEventListener("change", (e) => {
+              const edgeIdx = parseInt(e.target.dataset.index, 10);
+              if (e.target.checked) {
+                p4SelectedIndices.add(edgeIdx);
+              } else {
+                p4SelectedIndices.delete(edgeIdx);
+              }
+              renderActiveChecklist();
+            });
+          }
+
+          p4EdgesList.appendChild(card);
+        });
+
+        // Update counters and Generate Button state
+        const selectedCount = p4SelectedIndices.size;
+        const totalCount = p4CurrentEdges.length;
+
+        if (p4SelectionBadge) {
+          p4SelectionBadge.textContent = `${selectedCount} / ${totalCount} Selected`;
+        }
+
+        const footerSummary = document.getElementById("p4-footer-summary");
+        if (footerSummary) {
+          if (selectedCount === 0) {
+            footerSummary.textContent = "No actions selected. Check at least 1 relationship to generate a script.";
+          } else if (selectedCount === totalCount) {
+            footerSummary.textContent = `All ${totalCount} attack path hops selected for comprehensive remediation.`;
+          } else {
+            footerSummary.textContent = `${selectedCount} surgical mitigation(s) selected out of ${totalCount} path hops.`;
+          }
+        }
+
+        if (p4BtnGenerate) {
+          p4BtnGenerate.disabled = (selectedCount === 0);
+          const label = document.getElementById("p4-generate-label");
+          if (label) {
+            label.textContent = selectedCount > 0
+              ? `Generate Script (${selectedCount} Action${selectedCount === 1 ? '' : 's'})`
+              : "Select Actions to Generate";
+          }
+        }
+      }
+
+      function renderVaultList() {
+        if (!p4VaultList) return;
+        p4VaultList.innerHTML = "";
+
+        if (p4VaultBadge) {
+          p4VaultBadge.textContent = `${p4SavedScripts.length} Script${p4SavedScripts.length === 1 ? '' : 's'}`;
+        }
+
+        if (p4SavedScripts.length === 0) {
+          p4VaultList.innerHTML = `
+            <div class="h-full flex flex-col items-center justify-center p-6 text-center space-y-2 text-on-surface-variant/50">
+              <span class="material-symbols-outlined text-3xl">description</span>
+              <p class="text-xs font-bold text-on-surface-variant/80">Vault is Empty</p>
+              <p class="text-[11px] max-w-[200px] leading-relaxed">
+                Generated PowerShell remediation plans will automatically be archived and downloadable here.
+              </p>
+            </div>`;
+          return;
+        }
+
+        p4SavedScripts.forEach((script) => {
+          const isInspected = p4InspectedScript && p4InspectedScript.id === script.id;
+          const card = document.createElement("div");
+          const sizeKb = script.file_size ? (script.file_size / 1024).toFixed(1) + " KB" : "--";
+          const targetCount = script.target_count || (script.included_edges ? script.included_edges.length : 0);
+
+          card.className = `p-2.5 rounded-xl border transition-all flex flex-col gap-2 ${
+            isInspected
+              ? "bg-surface-container-high border-cyan-500/70 shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+              : "bg-surface-container-low border-outline-variant/50 hover:bg-surface-container hover:border-outline-variant"
+          }`;
+
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="material-symbols-outlined text-base ${isInspected ? 'text-cyan-400' : 'text-primary'}">terminal</span>
+                <span class="text-xs font-bold text-on-surface font-jetbrains truncate" title="${script.filename}">
+                  ${script.filename}
+                </span>
+              </div>
+
+              <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-secondary/10 border border-secondary/20 text-secondary flex-shrink-0">
+                ${targetCount} Fix${targetCount === 1 ? '' : 'es'}
+              </span>
+            </div>
+
+            <div class="flex items-center justify-between text-[10px] text-on-surface-variant/80 font-jetbrains">
+              <span>${script.created_at || 'Recently'}</span>
+              <span>${sizeKb}</span>
+            </div>
+
+            <div class="flex items-center gap-2 pt-1 border-t border-outline-variant/30">
+              <button type="button" class="p4-vault-btn-inspect flex-1 py-1 px-2 rounded bg-surface-container-highest hover:bg-surface-container-highest/80 text-on-surface text-[11px] font-jetbrains font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-xs">${isInspected ? 'visibility' : 'history_edu'}</span>
+                <span>${isInspected ? 'Inspecting' : 'Inspect'}</span>
+              </button>
+
+              <button type="button" class="p4-vault-btn-download py-1 px-2.5 rounded bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-[11px] font-jetbrains font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer" title="Download .ps1 script file">
+                <span class="material-symbols-outlined text-xs">download</span>
+                <span>Download</span>
+              </button>
+            </div>
+          `;
+
+          // Inspect Click Handler
+          const inspectBtn = card.querySelector(".p4-vault-btn-inspect");
+          if (inspectBtn) {
+            inspectBtn.addEventListener("click", () => {
+              inspectScript(script);
+            });
+          }
+
+          // Direct Download Handler
+          const downloadBtn = card.querySelector(".p4-vault-btn-download");
+          if (downloadBtn) {
+            downloadBtn.addEventListener("click", () => {
+              triggerScriptDownload(script.id, script.filename);
+            });
+          }
+
+          p4VaultList.appendChild(card);
+        });
+      }
+
+      function inspectScript(script) {
+        p4InspectedScript = script;
+
+        // Toggle Views: Show View B (Inspect), Hide View A (Active)
+        if (p4ActiveView) p4ActiveView.classList.add("hidden");
+        if (p4InspectView) p4InspectView.classList.remove("hidden");
+        if (p4BtnNewPlan) p4BtnNewPlan.classList.remove("hidden");
+
+        // Update Top Mode Badge
+        const modeText = document.getElementById("p4-mode-text");
+        const modeDot = document.getElementById("p4-mode-dot");
+        const modeBadge = document.getElementById("p4-mode-badge");
+        if (modeText) modeText.textContent = "Archived Script Inspection";
+        if (modeDot) modeDot.className = "w-1.5 h-1.5 rounded-full bg-cyan-400";
+        if (modeBadge) modeBadge.className = "px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 bg-cyan-950/40 border-cyan-500/50 text-cyan-400";
+
+        // Update Inspector Metadata
+        const filenameEl = document.getElementById("p4-inspect-filename");
+        const createdEl = document.getElementById("p4-inspect-created");
+        if (filenameEl) filenameEl.textContent = script.filename || "remediation_script.ps1";
+        if (createdEl) createdEl.textContent = `Generated: ${script.created_at || 'Unknown'} · File Size: ${script.file_size ? (script.file_size / 1024).toFixed(1) + ' KB' : '--'}`;
+
+        // Render Scope (Included vs Excluded)
+        renderInspectScope(script);
+
+        // Populate Code Preview
+        if (p4InspectCodePre) {
+          p4InspectCodePre.textContent = script.script_content || "# Script content not cached in session. Please download the file.";
+        }
+
+        // Switch to Scope Tab by default
+        switchInspectTab("scope");
+
+        // Re-render vault to highlight active item
+        renderVaultList();
+      }
+
+      function renderInspectScope(script) {
+        if (!p4InspectScopePanel) return;
+        p4InspectScopePanel.innerHTML = "";
+
+        const allEdges = script.all_edges && script.all_edges.length > 0 ? script.all_edges : (script.included_edges || []);
+        const includedSet = new Set((script.included_edges || []).map(e => e.index !== undefined ? e.index : e.source + "_" + (e.type || e.relationship) + "_" + e.target));
+
+        if (allEdges.length === 0) {
+          p4InspectScopePanel.innerHTML = `<div class="p-4 text-center text-on-surface-variant text-xs">No edge metadata recorded for this archive.</div>`;
+          return;
+        }
+
+        // Summary Counts Card
+        const incCount = script.included_edges ? script.included_edges.length : 0;
+        const excCount = script.excluded_edges ? script.excluded_edges.length : (allEdges.length - incCount);
+
+        const summaryCard = document.createElement("div");
+        summaryCard.className = "grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-surface-container border border-outline-variant/40 text-xs font-jetbrains";
+        summaryCard.innerHTML = `
+          <div class="flex items-center gap-2 p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-400">
+            <span class="material-symbols-outlined text-base">check_circle</span>
+            <div>
+              <strong class="block text-sm font-bold">${incCount}</strong>
+              <span class="text-[10px] text-emerald-300/80 uppercase">Included Mitigations</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/50 text-slate-400">
+            <span class="material-symbols-outlined text-base">cancel</span>
+            <div>
+              <strong class="block text-sm font-bold">${excCount}</strong>
+              <span class="text-[10px] text-slate-400/80 uppercase">Excluded / Omitted</span>
+            </div>
+          </div>
+        `;
+        p4InspectScopePanel.appendChild(summaryCard);
+
+        allEdges.forEach((edge, idx) => {
+          const edgeKey = edge.index !== undefined ? edge.index : edge.source + "_" + (edge.type || edge.relationship) + "_" + edge.target;
+          const isIncluded = edge.included === true || includedSet.has(edgeKey);
+          const relType = edge.type || edge.relationship || "ACCESS";
+          const tgtType = edge.target_type || "Object";
+          const cleanSrc = (edge.source || "").split('@')[0];
+          const cleanTgt = (edge.target || "").split('@')[0];
+          const desc = getRemediationActionDesc(relType, tgtType);
+
+          const card = document.createElement("div");
+          card.className = `p-3 rounded-xl border flex items-start gap-3 ${
+            isIncluded
+              ? "bg-emerald-950/20 border-emerald-500/40 shadow-sm"
+              : "bg-surface-container-lowest/50 border-outline-variant/30 opacity-50"
+          }`;
+
+          card.innerHTML = `
+            <div class="pt-0.5 flex-shrink-0">
+              <span class="material-symbols-outlined text-base ${isIncluded ? 'text-emerald-400' : 'text-slate-500'}">
+                ${isIncluded ? 'check_circle' : 'remove_circle_outline'}
+              </span>
+            </div>
+
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-surface-container-high text-on-surface-variant border border-outline-variant/50">
+                    HOP #${idx + 1}
+                  </span>
+
+                  <span class="text-xs font-bold text-on-surface truncate bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant/40">
+                    ${cleanSrc}
+                  </span>
+
+                  <span class="text-on-surface-variant text-xs">➔</span>
+
+                  <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${isIncluded ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-surface-container-high text-slate-400 border-outline-variant/40'}">
+                    ${relType}
+                  </span>
+
+                  <span class="text-on-surface-variant text-xs">➔</span>
+
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs font-bold text-on-surface truncate bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant/40">
+                      ${cleanTgt}
+                    </span>
+                    <span class="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded bg-surface-container-high text-on-surface-variant border border-outline-variant/40">
+                      ${tgtType}
+                    </span>
+                  </div>
+                </div>
+
+                <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                  isIncluded
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    : "bg-slate-800 text-slate-400 border border-slate-700"
+                }">
+                  ${isIncluded ? "ACTION APPLIED" : "EXCLUDED IN SCRIPT"}
+                </span>
+              </div>
+
+              <p class="text-[11px] ${isIncluded ? 'text-on-surface-variant' : 'text-slate-500 line-through'} leading-snug">
+                ${desc}
+              </p>
+            </div>
+          `;
+
+          p4InspectScopePanel.appendChild(card);
+        });
+      }
+
+      function switchInspectTab(tab) {
+        if (tab === "scope") {
+          if (p4TabScope) {
+            p4TabScope.className = "px-3 py-1 bg-surface-container-highest text-on-surface text-xs font-jetbrains font-bold rounded cursor-pointer transition-colors flex items-center gap-1.5";
+          }
+          if (p4TabCode) {
+            p4TabCode.className = "px-3 py-1 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-xs font-jetbrains font-medium rounded cursor-pointer transition-colors flex items-center gap-1.5";
+          }
+          if (p4InspectScopePanel) p4InspectScopePanel.classList.remove("hidden");
+          if (p4InspectCodePanel) p4InspectCodePanel.classList.add("hidden");
+        } else {
+          if (p4TabScope) {
+            p4TabScope.className = "px-3 py-1 bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-xs font-jetbrains font-medium rounded cursor-pointer transition-colors flex items-center gap-1.5";
+          }
+          if (p4TabCode) {
+            p4TabCode.className = "px-3 py-1 bg-surface-container-highest text-on-surface text-xs font-jetbrains font-bold rounded cursor-pointer transition-colors flex items-center gap-1.5";
+          }
+          if (p4InspectScopePanel) p4InspectScopePanel.classList.add("hidden");
+          if (p4InspectCodePanel) p4InspectCodePanel.classList.remove("hidden");
+        }
+      }
+
+      function returnToActivePlan() {
+        p4InspectedScript = null;
+        if (p4ActiveView) p4ActiveView.classList.remove("hidden");
+        if (p4InspectView) p4InspectView.classList.add("hidden");
+        if (p4BtnNewPlan) p4BtnNewPlan.classList.add("hidden");
+
+        const modeText = document.getElementById("p4-mode-text");
+        const modeDot = document.getElementById("p4-mode-dot");
+        const modeBadge = document.getElementById("p4-mode-badge");
+        if (modeText) modeText.textContent = "Active Plan Builder";
+        if (modeDot) modeDot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400";
+        if (modeBadge) modeBadge.className = "px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 bg-surface-container-high border-outline-variant/60 text-on-surface-variant";
+
+        renderVaultList();
+      }
+
+      async function triggerScriptDownload(scriptId, filename) {
+        try {
+          const downloadUrl = `/api/remediation/scripts/${encodeURIComponent(scriptId)}/download`;
+          const a = document.createElement("a");
+          a.href = downloadUrl;
+          a.download = filename || "remediation_plan.ps1";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch (err) {
+          console.error("Error triggering script download:", err);
+        }
+      }
+
+      async function generateRemediationScript() {
+        const selectedTargets = p4CurrentEdges.filter(e => p4SelectedIndices.has(e.index));
+        if (selectedTargets.length === 0) return;
+
+        if (p4BtnGenerate) {
+          p4BtnGenerate.disabled = true;
+          const label = document.getElementById("p4-generate-label");
+          const icon = document.getElementById("p4-generate-icon");
+          if (label) label.textContent = "Generating Script...";
+          if (icon) icon.className = "material-symbols-outlined text-sm animate-spin";
+        }
+
+        try {
+          const res = await fetch("/api/remediation/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              targets: selectedTargets,
+              all_edges: p4CurrentEdges,
+              path_summary: {
+                source: wsContext.selectedSource || "",
+                target: wsContext.selectedTarget || "",
+                engine: wsContext.selectedEngine || "tactical"
+              }
+            })
+          });
+
+          if (!res.ok) {
+            const errData = await res.json();
+            alert(`Script Generation Failed: ${errData.detail || 'Unknown error'}`);
+            return;
+          }
+
+          const data = await res.json();
+          if (data.status === "ok" && data.script) {
+            // Update saved scripts list
+            p4SavedScripts = data.scripts || [data.script, ...p4SavedScripts];
+            
+            // Automatically switch left side to inspect the new script
+            inspectScript(data.script);
+          }
+        } catch (err) {
+          console.error("Failed to generate remediation script:", err);
+          alert(`Network or Server Error: ${err.message}`);
+        } finally {
+          if (p4BtnGenerate) {
+            p4BtnGenerate.disabled = false;
+            const label = document.getElementById("p4-generate-label");
+            const icon = document.getElementById("p4-generate-icon");
+            if (label) label.textContent = "Generate PowerShell Script";
+            if (icon) icon.className = "material-symbols-outlined text-sm";
+          }
+        }
+      }
+
+      // Event Listeners
+      if (p4BtnGenerate) p4BtnGenerate.addEventListener("click", generateRemediationScript);
+
+      if (p4BtnSelectAll) {
+        p4BtnSelectAll.addEventListener("click", () => {
+          p4CurrentEdges.forEach(e => p4SelectedIndices.add(e.index));
+          renderActiveChecklist();
+        });
+      }
+
+      if (p4BtnDeselectAll) {
+        p4BtnDeselectAll.addEventListener("click", () => {
+          p4SelectedIndices.clear();
+          renderActiveChecklist();
+        });
+      }
+
+      if (p4BtnNewPlan) p4BtnNewPlan.addEventListener("click", returnToActivePlan);
+      if (p4BtnBackToActive) p4BtnBackToActive.addEventListener("click", returnToActivePlan);
+
+      if (p4BtnGotoPathfinder) {
+        p4BtnGotoPathfinder.addEventListener("click", () => {
+          const tab2 = document.getElementById("tab-btn-2");
+          if (tab2) tab2.click();
+        });
+      }
+
+      if (p4TabScope) p4TabScope.addEventListener("click", () => switchInspectTab("scope"));
+      if (p4TabCode) p4TabCode.addEventListener("click", () => switchInspectTab("code"));
+
+      if (p4BtnCopyCode) {
+        p4BtnCopyCode.addEventListener("click", () => {
+          if (!p4InspectedScript || !p4InspectedScript.script_content) return;
+          navigator.clipboard.writeText(p4InspectedScript.script_content).then(() => {
+            const copyLabel = document.getElementById("p4-copy-label");
+            const copyIcon = document.getElementById("p4-copy-icon");
+            if (copyLabel) copyLabel.textContent = "Copied!";
+            if (copyIcon) copyIcon.textContent = "check";
+            setTimeout(() => {
+              if (copyLabel) copyLabel.textContent = "Copy";
+              if (copyIcon) copyIcon.textContent = "content_copy";
+            }, 1800);
+          });
+        });
+      }
+
+      if (p4BtnDownloadInspected) {
+        p4BtnDownloadInspected.addEventListener("click", () => {
+          if (p4InspectedScript) {
+            triggerScriptDownload(p4InspectedScript.id, p4InspectedScript.filename);
+          }
+        });
+      }
+
+      // Initial check if Phase 4 is active on load
+      const activeTab = document.querySelector(".phase-tab.active");
+      if (activeTab && activeTab.dataset.tab === "tab-phase-4") {
+        setTimeout(updatePhase4View, 200);
+      }
+
+      // Tab switch hook for Phase 4
+      const tab4Btn = document.getElementById("tab-btn-4");
+      if (tab4Btn) {
+        tab4Btn.addEventListener("click", () => {
+          setTimeout(updatePhase4View, 100);
+        });
+      }
+    }
+
     function initWorkspace() {
       initTabs();
       initIngestUpload();
@@ -3103,6 +3994,7 @@
       initAutocomplete("pf-target");
       initPathfinder();
       initPrivesc();
+      initRemediation();
     }
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", initWorkspace);

@@ -124,6 +124,13 @@ class RemediationRequest(BaseModel):
     targets: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class GenerateRemediationRequest(BaseModel):
+    targets: list[dict[str, Any]] = Field(..., description="List of selected remediation edge targets")
+    all_edges: list[dict[str, Any]] = Field(default_factory=list, description="Full sequence of edges along the attack path")
+    path_summary: dict[str, Any] | None = Field(default_factory=dict, description="Contextual path metadata")
+    project_id: str | None = None
+
+
 class TestDatabaseRequest(BaseModel):
     uri: str = Field("bolt://127.0.0.1:7687", min_length=1)
     username: str = Field("neo4j", min_length=1)
