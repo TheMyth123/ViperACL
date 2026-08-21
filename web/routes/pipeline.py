@@ -3,6 +3,8 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
+import socket
+
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
@@ -26,6 +28,17 @@ from web.models import (
 )
 
 router = APIRouter(prefix="/api")
+
+
+def ping_dc(dc_ip: str, port: int = 445, timeout: float = 3.0) -> bool:
+    """Return True when the target DC is reachable on a standard AD service port."""
+    if not dc_ip:
+        return False
+    try:
+        with socket.create_connection((str(dc_ip), int(port)), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 @router.get("/tools/sharphound/download")
@@ -340,6 +353,7 @@ def privesc_execute(request: PrivescPlanRequest, req: Request):
         db.close()
 
     session_ctx = SessionContext(domain=target_domain, dc_ip=dc_ip, initial_user=foothold_user or "", initial_password=foothold_pass or "")
+    session_ctx.project_id = active_id
 
     import ldap3
     import io
@@ -367,6 +381,26 @@ def privesc_execute(request: PrivescPlanRequest, req: Request):
     success_overall = True
 
     try:
+        if not ping_dc(dc_ip):
+            logger.error(
+                "PRIVESC",
+                "privesc.dc_ping.failed",
+                f"DC reachability check failed for {dc_ip} before attack execution",
+                project_id=active_id,
+                source="web.app",
+                details={"dc_ip": dc_ip},
+            )
+            raise HTTPException(status_code=503, detail="DC connectivity check failed — attack aborted before execution.")
+
+        logger.info(
+            "PRIVESC",
+            "privesc.dc_ping.success",
+            f"DC reachability check succeeded for {dc_ip} before attack execution",
+            project_id=active_id,
+            source="web.app",
+            details={"dc_ip": dc_ip},
+        )
+
         server = ldap3.Server(dc_ip, use_ssl=True, get_info=None)
 
         def try_bind_variants(server, user, password, domain):
@@ -399,12 +433,60 @@ def privesc_execute(request: PrivescPlanRequest, req: Request):
         try:
             conn = try_bind_variants(server, foothold_user or "", foothold_pass or "", target_domain)
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"LDAP bind failed for foothold user: {exc}") from exc
+            logger.error(
+                "AUTH",
+                "auth.foothold_bind.failed",
+                "Failed to bind with foothold user. Check the foothold user credentials and domain.",
+                project_id=active_id,
+                source="web.app",
+                details={
+                    "dc_ip": dc_ip,
+                    "domain": target_domain,
+                    "foothold_user": foothold_user or "",
+                    "error": "bind_failed",
+                },
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to bind with foothold user. Check the foothold user credentials and domain.",
+            ) from exc
 
-        executor = StrictPrivescExecutor(conn=conn, domain=target_domain, dc_ip=dc_ip, context=session_ctx)
+        executor = StrictPrivescExecutor(
+            conn=conn,
+            domain=target_domain,
+            dc_ip=dc_ip,
+            context=session_ctx,
+            default_reset_password=getattr(req.app.state.settings, "privesc_default_change_password", "P@ssw0rd!"),
+        )
         execution = executor.execute_path(path)
         results = execution.get("steps", [])
         success_overall = bool(execution.get("success", False))
+
+        if success_overall and active_id and results:
+            final_step = results[-1]
+            final_target = final_step.get("target") or ""
+            final_relationship = final_step.get("type") or ""
+            final_target_type = str(final_step.get("target_type") or "").lower()
+            final_proof = final_step.get("proof_value") or ""
+            success_record = {
+                "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                "kind": final_target_type or (final_relationship or "").lower(),
+                "target": final_target,
+                "relationship": final_relationship,
+                "proof_value": final_proof,
+                "step_count": len(results),
+                "source": request.path.get("steps", [{}])[0].get("source", {}).get("name") if isinstance(request.path, dict) and request.path.get("steps") else "",
+            }
+            updated_project = project_mgr.append_privesc_success_record(active_id, success_record)
+            if updated_project:
+                logger.info(
+                    "PRIVESC",
+                    "privesc.success_record.saved",
+                    f"Saved successful privesc result record for project {active_id}",
+                    project_id=active_id,
+                    source="web.app",
+                    details={"target": final_target, "kind": success_record["kind"]},
+                )
 
     finally:
         sys.stdout = old_stdout
@@ -418,6 +500,7 @@ def privesc_execute(request: PrivescPlanRequest, req: Request):
         "success": success_overall,
         "steps": results,
         "logs": logs,
+        "success_record": success_record if success_overall and active_id and results else None,
     }
 
 

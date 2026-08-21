@@ -121,6 +121,14 @@ def save_user_settings(request: Request, payload: dict):
         save_settings(payload)
         request.app.state.settings = load_settings()
         return {"status": "ok", "message": "Settings saved successfully."}
+    except ValueError as exc:
+        logger.error(
+            "SYSTEM", "config.settings.validation_failed",
+            f"Settings validation failed: {exc}",
+            source="web.app",
+            details={"error": str(exc)}
+        )
+        return {"status": "error", "message": str(exc)}
     except Exception as exc:
         logger.error(
             "SYSTEM", "config.settings.error",

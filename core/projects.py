@@ -204,6 +204,7 @@ class ProjectManager:
         info.setdefault("foothold_username", "")
         info.setdefault("foothold_password", "")
         info.setdefault("domain", "")
+        info.setdefault("privesc_success_records", [])
         info.setdefault("remediation_scripts", [])
         return info
 
@@ -284,6 +285,7 @@ class ProjectManager:
             "created_at": now_str,
             "status": "Ready",
             "is_deleted": False,
+            "privesc_success_records": [],
         }
 
         projects[project_id] = project_entry
@@ -310,7 +312,7 @@ class ProjectManager:
                 projects[project_id]["foothold_username"] = foothold_username
             if foothold_password is not None:
                 projects[project_id]["foothold_password"] = foothold_password
-            if domain is not None:
+            if domain not in (None, ""):
                 projects[project_id]["domain"] = domain
             self._save_data(data)
             return self._normalize_project_entry(projects[project_id])
@@ -327,6 +329,18 @@ class ProjectManager:
                 projects[project_id]["source_zip"] = source_zip
             if nodes > 0 and projects[project_id].get("unlocked_phase", "phase_1") == "phase_1":
                 projects[project_id]["unlocked_phase"] = "phase_2"
+            self._save_data(data)
+            return self._normalize_project_entry(projects[project_id])
+        return None
+
+    def append_privesc_success_record(self, project_id: str, record: dict) -> dict | None:
+        """Appends a completed privesc result record to the project registry."""
+        data = self._load_data()
+        projects = data.get("projects", {})
+        if project_id in projects and not projects[project_id].get("is_deleted"):
+            records = list(projects[project_id].get("privesc_success_records", []))
+            records.insert(0, record)
+            projects[project_id]["privesc_success_records"] = records[:25]
             self._save_data(data)
             return self._normalize_project_entry(projects[project_id])
         return None

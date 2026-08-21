@@ -89,7 +89,7 @@ def purge_projects() -> int:
 def purge_logs() -> int:
     """Clears all log files in logs/ directory."""
     print("\n[*] 3. Clearing Application & Audit Logs...")
-    logs_dir = PROJECT_ROOT / "logs"
+    logs_dir = PROJECT_ROOT / "data" / "logs" 
     cleared_files = 0
     if logs_dir.exists():
         for log_file in logs_dir.glob("*"):

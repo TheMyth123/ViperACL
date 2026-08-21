@@ -60,7 +60,7 @@ if __name__ == "__main__":
             print(f"[!] Warning: Could not load ML model: {e}")
 
         test_cases = [
-            ("MIKE_INTERN@VIPERTECH.LOCAL", "VIPERTECH.LOCAL", "Targeting Domain Root"),
+            ("BOB_HR@VIPERTECH.LOCAL", "DOMAIN ADMINS@VIPERTECH.LOCAL", "Targeting Domain Root"),
         ]
 
         for source, target, label in test_cases:

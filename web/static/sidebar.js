@@ -101,6 +101,10 @@ function openSettingsModal(e) {
   if (e && typeof e.stopPropagation === "function") e.stopPropagation();
   const modal = document.getElementById("settings-modal");
   const box = document.getElementById("settings-modal-box");
+  const privescPassInput = document.getElementById("settings-privesc-default-password");
+  const privescPassIcon = document.getElementById("toggle-privesc-pass-icon");
+  if (privescPassInput) privescPassInput.type = "password";
+  if (privescPassIcon) privescPassIcon.textContent = "visibility";
   if (modal) {
     modal.classList.remove("hidden");
     requestAnimationFrame(() => {
@@ -112,6 +116,58 @@ function openSettingsModal(e) {
     });
   }
   return false;
+}
+
+function getPrivescPasswordPolicyError(password) {
+  const value = String(password || "");
+  if (value.length < 12 || value.length > 64) {
+    return "Policy wrong: use 12-64 characters.";
+  }
+  if (/\s/.test(value)) {
+    return "Policy wrong: spaces are not allowed.";
+  }
+  if (!/[A-Z]/.test(value)) {
+    return "Policy wrong: include at least one uppercase letter.";
+  }
+  if (!/[a-z]/.test(value)) {
+    return "Policy wrong: include at least one lowercase letter.";
+  }
+  if (!/\d/.test(value)) {
+    return "Policy wrong: include at least one number.";
+  }
+  if (!/[^A-Za-z0-9]/.test(value)) {
+    return "Policy wrong: include at least one special character.";
+  }
+  if (["p@ssw0rd!", "password123!", "changeme123!"].includes(value.toLowerCase())) {
+    return "Policy wrong: password is too common.";
+  }
+  return "";
+}
+
+function setPrivescPasswordError(message) {
+  const input = document.getElementById("settings-privesc-default-password");
+  const error = document.getElementById("settings-privesc-password-error");
+  if (input) {
+    input.classList.add("border-red-500", "focus:border-red-500", "focus:ring-red-500");
+    input.classList.remove("border-outline-variant", "focus:border-primary", "focus:ring-primary");
+  }
+  if (error) {
+    error.textContent = message;
+    error.classList.remove("hidden");
+  }
+}
+
+function clearPrivescPasswordError() {
+  const input = document.getElementById("settings-privesc-default-password");
+  const error = document.getElementById("settings-privesc-password-error");
+  if (input) {
+    input.classList.remove("border-red-500", "focus:border-red-500", "focus:ring-red-500");
+    input.classList.add("border-outline-variant", "focus:border-primary", "focus:ring-primary");
+  }
+  if (error) {
+    error.textContent = "";
+    error.classList.add("hidden");
+  }
 }
 
 function closeSettingsModal(e) {
@@ -526,6 +582,17 @@ function initSidebarEvents() {
   const saveSettingsBtn = document.getElementById("save-settings-btn");
   if (saveSettingsBtn) {
     saveSettingsBtn.addEventListener("click", async (e) => {
+      const privescPasswordInput = document.getElementById("settings-privesc-default-password");
+      const privescError = getPrivescPasswordPolicyError(privescPasswordInput?.value);
+      if (privescError) {
+        const privescTabBtn = document.querySelector('[data-tab="tab-privesc"]');
+        if (privescTabBtn) privescTabBtn.click();
+        if (privescPasswordInput) privescPasswordInput.focus();
+        setPrivescPasswordError(privescError);
+        return;
+      }
+      clearPrivescPasswordError();
+
       saveSettingsBtn.disabled = true;
       const originalText = saveSettingsBtn.innerHTML;
       saveSettingsBtn.innerHTML = `<span class="material-symbols-outlined text-sm pointer-events-none animate-spin">refresh</span> Saving...`;
@@ -538,6 +605,7 @@ function initSidebarEvents() {
         pathfinder_default_mode: document.getElementById("settings-default-mode")?.value,
         pathfinder_max_hops: document.getElementById("settings-max-hops")?.value,
         pathfinder_ml_threshold: document.getElementById("settings-ml-threshold")?.value,
+        privesc_default_change_password: document.getElementById("settings-privesc-default-password")?.value,
       };
 
       try {
@@ -553,7 +621,17 @@ function initSidebarEvents() {
           }
           closeSettingsModal(e);
         } else {
-          alert("Failed to save settings");
+          const data = await res.json().catch(() => ({}));
+          const message = data.message || "Failed to save settings";
+          const normalizedMessage = message.toLowerCase();
+          if (normalizedMessage.includes("policy wrong") || normalizedMessage.includes("password")) {
+            const privescTabBtn = document.querySelector('[data-tab="tab-privesc"]');
+            if (privescTabBtn) privescTabBtn.click();
+            if (privescPasswordInput) privescPasswordInput.focus();
+            setPrivescPasswordError(message);
+          } else {
+            alert(message);
+          }
         }
       } catch (err) {
         alert("Error saving settings: " + err.message);
@@ -568,6 +646,23 @@ function initSidebarEvents() {
   const btnTestDb = document.getElementById("btn-test-db");
   if (btnTestDb) {
     btnTestDb.addEventListener("click", () => testGlobalDatabaseConnection());
+  }
+
+  const togglePrivescPassBtn = document.getElementById("toggle-privesc-pass-btn");
+  if (togglePrivescPassBtn) {
+    togglePrivescPassBtn.addEventListener("click", () => {
+      const input = document.getElementById("settings-privesc-default-password");
+      const icon = document.getElementById("toggle-privesc-pass-icon");
+      if (!input || !icon) return;
+      const isHidden = input.type === "password";
+      input.type = isHidden ? "text" : "password";
+      icon.textContent = isHidden ? "visibility_off" : "visibility";
+    });
+  }
+
+  const privescPasswordInput = document.getElementById("settings-privesc-default-password");
+  if (privescPasswordInput) {
+    privescPasswordInput.addEventListener("input", clearPrivescPasswordError);
   }
 
   // Settings Tab Switcher

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import os
 import json
+import re
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,7 @@ class AppSettings:
     pathfinder_default_mode: str
     pathfinder_max_hops: int
     pathfinder_ml_threshold: float
+    privesc_default_change_password: str
 
 
 def get_data_dir() -> Path:
@@ -27,6 +29,24 @@ def get_data_dir() -> Path:
 
 def get_settings_file() -> Path:
     return get_data_dir() / "settings.json"
+
+
+def validate_privesc_default_password(password: str) -> None:
+    value = str(password or "")
+    if len(value) < 12 or len(value) > 64:
+        raise ValueError("Policy wrong: use 12-64 characters.")
+    if any(character.isspace() for character in value):
+        raise ValueError("Policy wrong: spaces are not allowed.")
+    if not re.search(r"[A-Z]", value):
+        raise ValueError("Policy wrong: include at least one uppercase letter.")
+    if not re.search(r"[a-z]", value):
+        raise ValueError("Policy wrong: include at least one lowercase letter.")
+    if not re.search(r"\d", value):
+        raise ValueError("Policy wrong: include at least one number.")
+    if not re.search(r"[^A-Za-z0-9]", value):
+        raise ValueError("Policy wrong: include at least one special character.")
+    if value.lower() in {"p@ssw0rd!", "password123!", "changeme123!"}:
+        raise ValueError("Policy wrong: password is too common.")
 
 
 def load_settings() -> AppSettings:
@@ -49,6 +69,9 @@ def load_settings() -> AppSettings:
             "default_mode": "tactical",
             "max_hops": 15,
             "ml_threshold": 0.50
+        },
+        "privesc": {
+            "default_change_password": "P@ssw0rd!"
         }
     }
 
@@ -77,6 +100,7 @@ def load_settings() -> AppSettings:
     web_cfg = config.get("web", {})
     neo4j_cfg = config.get("neo4j", {})
     pathfinder_cfg = config.get("pathfinder", {})
+    privesc_cfg = config.get("privesc", {})
 
     return AppSettings(
         title=os.getenv("VIPERACL_TITLE") or web_cfg.get("title") or "ViperACL",
@@ -90,6 +114,7 @@ def load_settings() -> AppSettings:
         pathfinder_default_mode=pathfinder_cfg.get("default_mode", "tactical"),
         pathfinder_max_hops=int(pathfinder_cfg.get("max_hops", 15)),
         pathfinder_ml_threshold=float(pathfinder_cfg.get("ml_threshold", 0.50)),
+        privesc_default_change_password=os.getenv("VIPERACL_PRIVESC_DEFAULT_CHANGE_PASSWORD") or privesc_cfg.get("default_change_password") or "P@ssw0rd!",
     )
 
 
@@ -109,6 +134,8 @@ def save_settings(updates: dict):
         config["neo4j"] = {"uri": "bolt://127.0.0.1:7687", "username": "neo4j", "password": "viperacl", "database": "neo4j"}
     if "pathfinder" not in config:
         config["pathfinder"] = {"default_mode": "tactical", "max_hops": 15, "ml_threshold": 0.50}
+    if "privesc" not in config:
+        config["privesc"] = {"default_change_password": "P@ssw0rd!"}
 
     if "neo4j_uri" in updates and updates["neo4j_uri"]:
         config["neo4j"]["uri"] = updates["neo4j_uri"]
@@ -125,6 +152,9 @@ def save_settings(updates: dict):
         config["pathfinder"]["max_hops"] = int(updates["pathfinder_max_hops"])
     if "pathfinder_ml_threshold" in updates and updates["pathfinder_ml_threshold"] is not None:
         config["pathfinder"]["ml_threshold"] = float(updates["pathfinder_ml_threshold"])
+    if "privesc_default_change_password" in updates and updates["privesc_default_change_password"]:
+        validate_privesc_default_password(updates["privesc_default_change_password"])
+        config["privesc"]["default_change_password"] = updates["privesc_default_change_password"]
 
     temp_file = settings_file.with_suffix(".tmp")
     temp_file.write_text(json.dumps(config, indent=2), encoding="utf-8")

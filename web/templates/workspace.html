@@ -628,6 +628,10 @@
                     <strong id="p3-summary-target" class="text-[#f43f5e] font-bold truncate">--</strong>
                     <span class="text-on-surface-variant/40">|</span>
                     <span id="p3-summary-engine" class="text-on-surface-variant font-mono text-[10px]">TACTICAL</span>
+                    <button type="button" id="p3-btn-success-vault" class="ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all cursor-pointer bg-surface-container-high border-outline-variant/70 text-on-surface-variant hover:border-primary/50 hover:text-on-surface" title="Open saved success records">
+                      <span class="material-symbols-outlined text-[11px]">inventory_2</span>
+                      <span id="p3-success-vault-label">No records yet</span>
+                    </button>
                   </div>
                 </div>
 
@@ -660,32 +664,6 @@
                   <div id="p3-progress-bar" class="h-full bg-gradient-to-r from-primary via-tertiary to-error transition-all duration-300 rounded-full" style="width: 0%;"></div>
                 </div>
                 <span id="p3-progress-pct" class="text-[10px] font-bold text-primary font-jetbrains min-w-[28px] text-right">0%</span>
-              </div>
-            </div>
-
-            <!-- Hanging / Stuck Diagnostic Alert Banner (Dynamically shown on error/hang) -->
-            <div id="p3-alert-banner" class="hidden bg-amber-950/70 border-2 border-amber-500/80 rounded-xl p-3.5 text-xs font-jetbrains shadow-xl flex items-start justify-between gap-3 flex-shrink-0">
-              <div class="flex items-start gap-2.5">
-                <div class="w-6 h-6 rounded-md bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span class="material-symbols-outlined text-base">warning</span>
-                </div>
-                <div class="space-y-1">
-                  <div class="font-bold text-amber-300 flex items-center gap-2">
-                    <span id="p3-alert-title">Execution Stuck / Timeout Detected</span>
-                    <span class="px-1.5 py-0.2 bg-amber-500/20 border border-amber-500/40 text-[9px] rounded uppercase font-mono">RPC_TIMEOUT / HANG</span>
-                  </div>
-                  <p id="p3-alert-desc" class="text-amber-200/90 text-[11px] leading-relaxed">
-                    Step failed to receive response from directory service. Target endpoint may require elevated privileges or is non-responsive.
-                  </p>
-                </div>
-              </div>
-              <div class="flex items-center gap-2 flex-shrink-0">
-                <button type="button" id="p3-btn-retry-step" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded transition-all cursor-pointer">
-                  Retry Step
-                </button>
-                <button type="button" id="p3-btn-dismiss-alert" class="p-1 text-amber-400 hover:text-amber-200">
-                  <span class="material-symbols-outlined text-sm">close</span>
-                </button>
               </div>
             </div>
 
@@ -805,6 +783,25 @@
 
           </div>
 
+        </div>
+
+        <!-- Phase 3 Success Vault Modal -->
+        <div id="p3-success-vault-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-200">
+          <div id="p3-success-vault-modal-box" class="w-full max-w-3xl max-h-[80vh] bg-surface-container-low border border-outline-variant rounded-2xl shadow-2xl overflow-hidden flex flex-col transform scale-95 opacity-0 transition-all duration-200 ease-out">
+            <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-outline-variant/40 bg-surface-container-high/60">
+              <div>
+                <div class="flex items-center gap-2 text-xs font-bold text-on-surface-variant uppercase tracking-wider font-jetbrains">
+                  <span class="material-symbols-outlined text-base text-primary">inventory_2</span>
+                  <span>Success Vault</span>
+                </div>
+                <p class="text-[11px] text-on-surface-variant font-jetbrains mt-1">Persisted privesc success records stored in projects.json.</p>
+              </div>
+              <button type="button" id="p3-btn-close-success-vault" class="p-2 rounded-lg border border-outline-variant/60 text-on-surface-variant hover:text-on-surface hover:border-primary/50 transition-colors cursor-pointer" title="Close">
+                <span class="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+            <div id="p3-success-vault-list" class="flex-1 overflow-y-auto p-5 space-y-3"></div>
+          </div>
         </div>
 
         <!-- Panel 4: Surgical Remediation Generator -->
@@ -1163,6 +1160,11 @@
   {% if active_project and active_project.remediation_scripts %}
   <script id="saved-remediation-scripts-json" type="application/json">
     {{ active_project.remediation_scripts | tojson | safe }}
+  </script>
+  {% endif %}
+  {% if active_project and active_project.privesc_success_records %}
+  <script id="saved-privesc-success-json" type="application/json">
+    {{ active_project.privesc_success_records | tojson | safe }}
   </script>
   {% endif %}
 
@@ -2564,6 +2566,152 @@
     let p3CurrentStep = 0;
     let p3ExecutionState = "ready"; // "ready" | "running" | "completed" | "stuck"
       let p3ExecutionResults = [];
+    let p3SuccessRecords = [];
+
+    function loadP3SuccessRecords() {
+      const saved = document.getElementById("saved-privesc-success-json");
+      if (!saved) return [];
+      try {
+        const parsed = JSON.parse(saved.textContent);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function classifyP3SuccessRecord(record) {
+      const kind = String(record?.kind || "").toLowerCase();
+      const relationship = String(record?.relationship || "").toLowerCase();
+      const proof = String(record?.proof_value || "");
+
+      if (kind.includes("domain")) {
+        return "domain";
+      }
+      if (kind.includes("group")) {
+        return "group";
+      }
+      if (kind.includes("user")) {
+        return "user";
+      }
+
+      if (kind.includes("domain") || relationship === "dcsync" || proof.startsWith("$krb5") || /^([0-9a-f]{32}:[0-9a-f]{32}|[0-9a-f]{32})$/i.test(proof)) {
+        return "domain";
+      }
+      if (["memberof", "addmember"].includes(relationship)) {
+        return "group";
+      }
+      return "user";
+    }
+
+    function formatP3SuccessRecord(record) {
+      const recordType = classifyP3SuccessRecord(record);
+      const target = record?.target || "Unknown target";
+      const source = record?.source || "Foothold";
+      const proof = record?.proof_value || "";
+
+      if (recordType === "domain") {
+        return {
+          title: "Domain Success",
+          body: `Administrator NTLM hash: ${proof || "Stored in projects.json"}`,
+          accent: "text-emerald-300",
+        };
+      }
+
+      if (recordType === "group") {
+        return {
+          title: "Group Success",
+          body: `${source} added into ${target} group`,
+          accent: "text-amber-300",
+        };
+      }
+
+      return {
+        title: "User Success",
+        body: `${target} password successfully changed to ${proof || "the saved value"}`,
+        accent: "text-cyan-300",
+      };
+    }
+
+    function renderP3SuccessVault() {
+      const records = p3SuccessRecords || [];
+      const btn = document.getElementById("p3-btn-success-vault");
+      const label = document.getElementById("p3-success-vault-label");
+      const list = document.getElementById("p3-success-vault-list");
+
+      if (btn) {
+        if (records.length > 0) {
+          btn.className = "ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all cursor-pointer bg-emerald-950/35 border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/50 hover:border-emerald-400/60";
+        } else {
+          btn.className = "ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all cursor-pointer bg-surface-container-high border-outline-variant/70 text-on-surface-variant hover:border-primary/50 hover:text-on-surface";
+        }
+      }
+      if (label) {
+        label.textContent = records.length > 0 ? `${records.length} saved` : "No records yet";
+      }
+      if (!list) return;
+
+      if (records.length === 0) {
+        list.innerHTML = `
+          <div class="rounded-xl border border-outline-variant/50 bg-surface-container-high/50 p-5 text-center font-jetbrains text-xs text-on-surface-variant">
+            No records yet. Successful privesc results will appear here and stay available after path changes.
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = records.map((record, idx) => {
+        const display = formatP3SuccessRecord(record);
+        const relationship = record?.relationship || "Success";
+        const stepCount = record?.step_count || 0;
+        const createdAt = record?.created_at || "";
+        return `
+          <div class="rounded-2xl border border-outline-variant/60 bg-surface-container-low p-4 shadow-sm space-y-3">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="text-[10px] uppercase tracking-wider font-jetbrains ${display.accent}">${display.title}</div>
+                <div class="text-sm font-bold text-on-surface mt-1">${display.body}</div>
+              </div>
+              <div class="text-right text-[10px] font-jetbrains text-on-surface-variant">
+                <div>${relationship}</div>
+                <div>${stepCount} steps</div>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] font-jetbrains text-on-surface-variant">
+              <div class="rounded-lg border border-outline-variant/40 bg-surface-container-high/50 p-2 break-all"><span class="block text-[9px] uppercase text-on-surface-variant/70">Target</span>${record?.target || "--"}</div>
+              <div class="rounded-lg border border-outline-variant/40 bg-surface-container-high/50 p-2 break-all"><span class="block text-[9px] uppercase text-on-surface-variant/70">Proof</span>${record?.proof_value || "--"}</div>
+              <div class="rounded-lg border border-outline-variant/40 bg-surface-container-high/50 p-2 break-all"><span class="block text-[9px] uppercase text-on-surface-variant/70">Saved</span>${createdAt || "--"}</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function openP3SuccessVault() {
+      const modal = document.getElementById("p3-success-vault-modal");
+      const modalBox = document.getElementById("p3-success-vault-modal-box");
+      if (!modal || !modalBox) return;
+      renderP3SuccessVault();
+      modal.classList.remove("hidden");
+      requestAnimationFrame(() => {
+        modal.classList.remove("opacity-0");
+        modalBox.classList.remove("scale-95", "opacity-0");
+        modalBox.classList.add("scale-100", "opacity-100");
+      });
+    }
+
+    function closeP3SuccessVault() {
+      const modal = document.getElementById("p3-success-vault-modal");
+      const modalBox = document.getElementById("p3-success-vault-modal-box");
+      if (!modal || !modalBox) return;
+      modal.classList.add("opacity-0");
+      modalBox.classList.remove("scale-100", "opacity-100");
+      modalBox.classList.add("scale-95", "opacity-0");
+      const trigger = document.getElementById("p3-btn-success-vault");
+      if (trigger) trigger.blur();
+      setTimeout(() => {
+        modal.classList.add("hidden");
+      }, 200);
+    }
 
     function getP3CurrentPath() {
       if (currentPathData && currentPathData.steps && currentPathData.steps.length > 0) {
@@ -2589,6 +2737,7 @@
       if (type === "error" || type === "stuck") colorClass = "text-rose-400 font-bold";
       if (type === "warning") colorClass = "text-amber-400";
       if (type === "running") colorClass = "text-cyan-400";
+      if (type === "action") colorClass = "text-orange-300 font-medium";
       if (type === "system") colorClass = "text-slate-500";
 
       row.className = `leading-relaxed break-words ${colorClass}`;
@@ -2817,6 +2966,11 @@
 
       const nodeCountEl = document.getElementById("p3-graph-node-count");
       if (nodeCountEl) nodeCountEl.textContent = `${nodes.length} Nodes · ${edges.length} Hops`;
+
+      const phase3Panel = document.getElementById("tab-phase-3");
+      if (phase3Panel && !phase3Panel.classList.contains("hidden") && typeof updatePhase3View === "function") {
+        updatePhase3View();
+      }
     }
 
     function showP3NodeInspector(data) {
@@ -2884,6 +3038,16 @@
       const queueEl = document.getElementById("p3-task-queue");
       const countEl = document.getElementById("p3-queue-count");
       if (!queueEl || !path) return;
+
+      p3Tasks = [];
+      p3ExecutionResults = [];
+      p3CurrentStep = 0;
+      resetP3SimulationState(false);
+
+      const consoleBox = document.getElementById("p3-log-console");
+      if (consoleBox) {
+        consoleBox.innerHTML = "";
+      }
 
       queueEl.innerHTML = `
         <div class="text-center p-6 text-on-surface-variant font-jetbrains text-xs">
@@ -2987,7 +3151,9 @@
 
       resetP3SimulationState(false);
       updateP3Status("running", "Executing Chain...");
-      logP3Event("Initiating attack run against selected chain...", "running");
+      const dcIp = wsContext.dcIp || '127.0.0.1';
+      logP3Event("Initiating attack run against selected chain...", "warning");
+      logP3Event(`Pinging DC(${dcIp}) before execution begins...`, "warning");
 
       const payload = { path };
       try {
@@ -2998,14 +3164,38 @@
         });
 
         if (!resp.ok) {
-          const txt = await resp.text();
-          logP3Event(`Attack execution failed: ${txt}`, 'error');
-          updateP3Status('stuck', 'Execution Failed');
+          let payload = {};
+          try {
+            payload = await resp.json();
+          } catch (err) {
+            payload = {};
+          }
+
+          const detail = payload.detail || payload.message || '';
+          const normalized = String(detail || '').toLowerCase();
+
+          if (normalized.includes('failed to bind with foothold user') || normalized.includes('ldap bind failed for foothold user')) {
+            logP3Event('Failed to bind with foothold user. Check the foothold user credentials and domain.', 'error');
+            updateP3Status('stuck', 'Bind Failed');
+          } else if (normalized.includes('dc connectivity check failed') || normalized.includes('ping')) {
+            logP3Event('DC ping failed — attack aborted before execution.', 'error');
+            updateP3Status('stuck', 'DC Unreachable');
+          } else {
+            logP3Event('Attack execution failed. Check the foothold user credentials and domain settings.', 'error');
+            updateP3Status('stuck', 'Execution Failed');
+          }
           return;
         }
 
+        logP3Event('DC ping successful — continuing with selected chain execution.', 'success');
         const data = await resp.json();
         p3ExecutionResults = data.steps || [];
+        if (data.success_record) {
+          p3SuccessRecords = [data.success_record, ...p3SuccessRecords.filter((record) => {
+            return !(record?.created_at === data.success_record.created_at && record?.target === data.success_record.target && record?.relationship === data.success_record.relationship);
+          })];
+          renderP3SuccessVault();
+        }
         p3CurrentStep = 0;
         executeNextSimStep();
       } catch (err) {
@@ -3085,7 +3275,19 @@
           });
         }
 
-        logP3Event(stepResult.message || `[STEP ${idx+1} SUCCESS] ${relType} privilege modified on ${tgtName} (${latency}ms).`, "success");
+        const actionMessage = stepResult.action_message || null;
+        const grantResultMessage = stepResult.grant_result_message || null;
+        const addActionMessage = stepResult.add_action_message || null;
+        const passwordActionMessage = stepResult.password_action_message || null;
+        const resultMessage = stepResult.result_message || stepResult.message || `[STEP ${idx+1} SUCCESS] ${relType} privilege modified on ${tgtName} (${latency}ms).`;
+        const contextMessage = stepResult.context_message;
+
+        if (actionMessage) logP3Event(actionMessage, "action");
+        if (grantResultMessage) logP3Event(grantResultMessage, "success");
+        if (addActionMessage && addActionMessage !== actionMessage) logP3Event(addActionMessage, "action");
+        if (passwordActionMessage && passwordActionMessage !== actionMessage && passwordActionMessage !== addActionMessage) logP3Event(passwordActionMessage, "action");
+        logP3Event(resultMessage, "success");
+        if (contextMessage) logP3Event(contextMessage, "system");
 
         p3CurrentStep++;
         setP3Progress(p3CurrentStep, total);
@@ -3103,16 +3305,17 @@
         if (p3VisEdges) p3VisEdges.update({ id: `p3_edge_${idx}`, color: { color: "#f43f5e" }, width: 5.0 });
 
         updateP3Status("stuck", "Execution Stuck / Failure");
-        const alertBanner = document.getElementById("p3-alert-banner");
-        const alertTitle = document.getElementById("p3-alert-title");
-        const alertDesc = document.getElementById("p3-alert-desc");
-        if (alertBanner) {
-          if (alertTitle) alertTitle.textContent = `Execution Failed on Step ${idx+1} (${relType})`;
-          if (alertDesc) alertDesc.textContent = stepResult.message || `Step failed against ${tgtName}.`;
-          alertBanner.classList.remove("hidden");
-        }
 
-        logP3Event(stepResult.message || `[STEP ${idx+1} FAILED] ${relType} -> ${tgtName}`, "stuck");
+        const actionMessage = stepResult.action_message || null;
+        const grantResultMessage = stepResult.grant_result_message || null;
+        const addActionMessage = stepResult.add_action_message || null;
+        const passwordActionMessage = stepResult.password_action_message || null;
+        const resultMessage = stepResult.result_message || stepResult.message || `[STEP ${idx+1} FAILED] ${relType} -> ${tgtName}`;
+        if (actionMessage) logP3Event(actionMessage, "action");
+        if (grantResultMessage) logP3Event(grantResultMessage, "success");
+        if (addActionMessage && addActionMessage !== actionMessage) logP3Event(addActionMessage, "action");
+        if (passwordActionMessage && passwordActionMessage !== actionMessage && passwordActionMessage !== addActionMessage) logP3Event(passwordActionMessage, "action");
+        logP3Event(resultMessage, "error");
       }
     }
 
@@ -3124,9 +3327,6 @@
       p3ExecutionResults = [];
       updateP3Status("ready", "Plan Ready");
       setP3Progress(0, p3Tasks.length);
-
-      const alertBanner = document.getElementById("p3-alert-banner");
-      if (alertBanner) alertBanner.classList.add("hidden");
 
       renderP3TaskQueue();
 
@@ -3157,14 +3357,17 @@
       const btnAttack = document.getElementById("p3-btn-attack");
       const btnReset = document.getElementById("p3-btn-reset");
       const btnClearLogs = document.getElementById("p3-btn-clear-logs");
-      const btnDismissAlert = document.getElementById("p3-btn-dismiss-alert");
-      const btnRetryStep = document.getElementById("p3-btn-retry-step");
+      const btnSuccessVault = document.getElementById("p3-btn-success-vault");
+      const btnCloseSuccessVault = document.getElementById("p3-btn-close-success-vault");
 
       // Graph Toolbar Buttons
       const btnFit = document.getElementById("btn-p3-graph-fit");
       const btnZoomIn = document.getElementById("btn-p3-graph-zoomin");
       const btnZoomOut = document.getElementById("btn-p3-graph-zoomout");
       const btnLayout = document.getElementById("btn-p3-graph-layout");
+
+      p3SuccessRecords = loadP3SuccessRecords();
+      renderP3SuccessVault();
 
       function updatePhase3View() {
         const path = getP3CurrentPath();
@@ -3191,6 +3394,7 @@
 
         renderPrivescGraph(path);
         loadP3Tasks(path);
+        renderP3SuccessVault();
       }
 
       if (tabBtn3) {
@@ -3228,20 +3432,34 @@
         });
       }
 
-      if (btnDismissAlert) {
-        btnDismissAlert.addEventListener("click", () => {
-          const alertBanner = document.getElementById("p3-alert-banner");
-          if (alertBanner) alertBanner.classList.add("hidden");
+      if (btnSuccessVault) {
+        btnSuccessVault.addEventListener("click", openP3SuccessVault);
+        btnSuccessVault.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        });
+      }
+      if (btnCloseSuccessVault) {
+        btnCloseSuccessVault.addEventListener("click", closeP3SuccessVault);
+      }
+
+      const successVaultModal = document.getElementById("p3-success-vault-modal");
+      if (successVaultModal) {
+        successVaultModal.addEventListener("click", (event) => {
+          if (event.target === successVaultModal) closeP3SuccessVault();
         });
       }
 
-      if (btnRetryStep) {
-        btnRetryStep.addEventListener("click", () => {
-          const alertBanner = document.getElementById("p3-alert-banner");
-          if (alertBanner) alertBanner.classList.add("hidden");
-          runP3Attack();
-        });
-      }
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" || event.code === "Escape") {
+          const successVaultModal = document.getElementById("p3-success-vault-modal");
+          if (successVaultModal && !successVaultModal.classList.contains("hidden")) {
+            closeP3SuccessVault();
+          }
+        }
+      });
 
       // Graph Toolbar Actions
       if (btnFit) {

@@ -105,5 +105,29 @@ def test_workspace_no_active_project_greyed_out():
     assert "Create New Project" in res.text
 
 
+def test_project_target_save_keeps_detected_domain_when_blank():
+    mgr = ProjectManager()
+    project = mgr.register_project(
+        project_id="proj_domain_preserve_test",
+        name="Domain Preserve Test",
+        dc_ip="192.168.101.10",
+        foothold_username="jdoe",
+        foothold_password="Password123!",
+        domain="ViperLAB.local",
+    )
+
+    updated = mgr.update_project_target(
+        project_id=project["project_id"],
+        dc_ip="192.168.101.11",
+        foothold_username="jdoe",
+        foothold_password="Password456!",
+        domain="",
+    )
+
+    assert updated is not None
+    assert updated["domain"] == "ViperLAB.local"
+    assert updated["dc_ip"] == "192.168.101.11"
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
