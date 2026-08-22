@@ -20,9 +20,6 @@ data/logs/*
 data/projects/*
 !data/projects/.gitkeep
 
-data/scripts/*
-!data/scripts/.gitkeep
-
 data/settings.json
 data/settings.json.tmp
 data/extracted_hashes.txt

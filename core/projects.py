@@ -351,6 +351,54 @@ class ProjectManager:
             return self._normalize_project_entry(projects[project_id])
         return None
 
+    def reset_project_pipeline_on_reingest(self, project_id: str, nodes: int, relationships: int, source_zip: str | None = None) -> dict | None:
+        """
+        Resets Phase 3 and Phase 4 locks, clears selected paths, privesc records,
+        and remediation script history when a new archive is ingested.
+        """
+        data = self._load_data()
+        projects = data.get("projects", {})
+        if project_id in projects and not projects[project_id].get("is_deleted"):
+            projects[project_id]["nodes"] = nodes
+            projects[project_id]["relationships"] = relationships
+            if source_zip is not None:
+                projects[project_id]["source_zip"] = source_zip
+
+            # Lock Phase 3 & Phase 4: Reset unlocked_phase to phase_2 if nodes > 0, else phase_1
+            projects[project_id]["unlocked_phase"] = "phase_2" if nodes > 0 else "phase_1"
+            projects[project_id]["last_active_phase"] = "phase_2" if nodes > 0 else "phase_1"
+
+            # Clear pathfinder selection history
+            projects[project_id]["selected_engine"] = None
+            projects[project_id]["selected_path"] = None
+            projects[project_id]["selected_candidate_paths"] = None
+            projects[project_id]["selected_path_index"] = 0
+            projects[project_id]["selected_source"] = None
+            projects[project_id]["selected_target"] = None
+
+            # Clear PrivEsc execution history
+            projects[project_id]["privesc_success_records"] = []
+
+            # Clear Remediation script history
+            projects[project_id]["remediation_scripts"] = []
+
+            self._save_data(data)
+
+            # Also remove physical script files from project scripts directory on disk
+            try:
+                scripts_dir = self.get_project_dir(project_id) / "scripts"
+                if scripts_dir.exists():
+                    for s_file in scripts_dir.glob("*.ps1"):
+                        try:
+                            s_file.unlink()
+                        except OSError:
+                            pass
+            except Exception:
+                pass
+
+            return self._normalize_project_entry(projects[project_id])
+        return None
+
     def append_privesc_success_record(self, project_id: str, record: dict) -> dict | None:
         """Appends a completed privesc result record to the project registry."""
         data = self._load_data()

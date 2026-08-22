@@ -1178,12 +1178,6 @@
     let currentProjectNodes = parseInt(wsContext.nodes || "0", 10);
     let currentProjectRels = parseInt(wsContext.relationships || "0", 10);
 
-    function initWorkspace() {
-      initTabs();
-      initIngestUpload();
-      initModals();
-      initPathfinder();
-    }
 
     function initTabs() {
       const tabs = document.querySelectorAll(".phase-tab");
@@ -1275,6 +1269,27 @@
         tab4.classList.add("cursor-pointer", "hover:bg-surface-container-high", "text-on-surface-variant");
       }
       if (lockIcon4) lockIcon4.classList.add("hidden");
+    }
+
+    function lockPhase3And4() {
+      const tab3 = document.getElementById("tab-btn-3");
+      const lockIcon3 = document.getElementById("lock-icon-phase-3");
+      const tab4 = document.getElementById("tab-btn-4");
+      const lockIcon4 = document.getElementById("lock-icon-phase-4");
+
+      if (tab3) {
+        tab3.dataset.locked = "true";
+        tab3.classList.add("locked", "opacity-40", "cursor-not-allowed", "text-on-surface-variant/40");
+        tab3.classList.remove("cursor-pointer", "hover:bg-surface-container-high", "text-on-surface-variant", "active", "border-primary", "text-primary");
+      }
+      if (lockIcon3) lockIcon3.classList.remove("hidden");
+
+      if (tab4) {
+        tab4.dataset.locked = "true";
+        tab4.classList.add("locked", "opacity-40", "cursor-not-allowed", "text-on-surface-variant/40");
+        tab4.classList.remove("cursor-pointer", "hover:bg-surface-container-high", "text-on-surface-variant", "active", "border-primary", "text-primary");
+      }
+      if (lockIcon4) lockIcon4.classList.remove("hidden");
     }
 
     function initModals() {
@@ -1587,21 +1602,14 @@
           return;
         }
 
-        // If file is the exact same name and already ingested, remain in current state
-        if (file.name === lastIngestedFileName && isIngested) {
-          hideError();
-          stagedState.classList.remove("hidden");
-          return;
-        }
-
-        // A new or different file is being attached
+        // A new or attached file is being analyzed
         hideError();
         idleState.classList.add("hidden");
         stagedState.classList.add("hidden");
         loadingState.classList.remove("hidden");
         loadingText.textContent = `Analyzing ${file.name}...`;
 
-        // Clear previous alert banner for new file
+        // Clear previous alert banner for new file analysis
         if (alertBanner) {
           alertBanner.classList.add("hidden");
           alertBanner.innerHTML = "";
@@ -1627,7 +1635,7 @@
           currentStagedFileName = file.name;
           const meta = data.metadata;
 
-          // Populate Staged Card
+          // Populate Staged Card with the attached file's inspected metadata
           document.getElementById("staged-filename").textContent = meta.filename;
           document.getElementById("staged-filesize").textContent = `${meta.file_size_formatted} · SharpHound Collection`;
           document.getElementById("staged-domain").textContent = meta.primary_domain || "DOMAIN";
@@ -1635,11 +1643,34 @@
           document.getElementById("staged-computers").textContent = meta.counts.computers || 0;
           document.getElementById("staged-groups-acls").textContent = `${meta.counts.groups || 0} / ${meta.counts.acls || 0}`;
 
-          // Reset Ingest Action Button for the new file
-          if (executeIngestBtn) {
-            executeIngestBtn.disabled = false;
-            executeIngestBtn.className = "px-6 py-2 bg-primary text-on-primary hover:bg-primary/90 font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-primary/20";
-            executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm">rocket_launch</span><span>Ingest into Database</span>`;
+          // Check if this file is the exact one currently ingested in the database
+          if (file.name === lastIngestedFileName && isIngested) {
+            if (executeIngestBtn) {
+              executeIngestBtn.disabled = false;
+              executeIngestBtn.className = "px-6 py-2 bg-emerald-950/60 border border-primary/40 text-primary font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-pointer hover:bg-emerald-900/60";
+              executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm">check</span><span>Ingested Successfully</span>`;
+            }
+            if (alertBanner) {
+              alertBanner.className = "w-full p-3 rounded text-xs font-jetbrains leading-relaxed text-left flex items-start gap-2 bg-emerald-950/70 border border-primary/50 text-primary";
+              alertBanner.innerHTML = `
+                <span class="material-symbols-outlined text-base flex-shrink-0 text-primary">check_circle</span>
+                <div class="flex-1">
+                  <strong>Active Ingested File:</strong> This archive is currently loaded in the database (<strong>${currentProjectNodes}</strong> nodes, <strong>${currentProjectRels}</strong> relationships).
+                </div>
+              `;
+              alertBanner.classList.remove("hidden");
+            }
+          } else {
+            // A different or newly attached file waiting to be ingested
+            if (executeIngestBtn) {
+              executeIngestBtn.disabled = false;
+              executeIngestBtn.className = "px-6 py-2 bg-primary text-on-primary hover:bg-primary/90 font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-primary/20";
+              executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm">rocket_launch</span><span>Ingest into Database</span>`;
+            }
+            if (alertBanner) {
+              alertBanner.classList.add("hidden");
+              alertBanner.innerHTML = "";
+            }
           }
 
           loadingState.classList.add("hidden");
@@ -1670,11 +1701,18 @@
 
     async function executeDatabaseIngestion() {
       const executeIngestBtn = document.getElementById("btn-execute-ingest");
+      const changeFileBtn = document.getElementById("btn-change-file");
       const alertBanner = document.getElementById("ingest-alert-banner");
       if (!currentStagedPath || !executeIngestBtn) return;
 
       executeIngestBtn.disabled = true;
       executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm animate-spin">refresh</span> Ingesting...`;
+
+      if (changeFileBtn) {
+        changeFileBtn.disabled = true;
+        changeFileBtn.classList.add("opacity-40", "cursor-not-allowed", "pointer-events-none");
+        changeFileBtn.classList.remove("hover:bg-surface-container-highest", "cursor-pointer");
+      }
 
       try {
         const res = await fetch("/api/ingest/execute", {
@@ -1705,8 +1743,8 @@
         if (relDisplay) relDisplay.textContent = currentProjectRels;
 
         // Auto-update domain context across UI if detected from SharpHound
-        if (data.project && data.project.domain) {
-          const detectedDomain = data.project.domain.toUpperCase();
+        const detectedDomain = (data.project && data.project.domain) ? data.project.domain.toUpperCase() : (wsContext.domain || "").toUpperCase();
+        if (detectedDomain && detectedDomain !== "UNKNOWN.LOCAL") {
           wsContext.domain = detectedDomain;
 
           // Update workspace top bar
@@ -1727,12 +1765,6 @@
             editTargetDomainStatus.textContent = "Detected";
             editTargetDomainStatus.className = "text-[9px] px-1.5 py-0.5 rounded font-mono uppercase bg-secondary/15 text-secondary border border-secondary/30";
           }
-
-          // Auto-populate / update pf-source if foothold username is set
-          const srcInput = document.getElementById("pf-source");
-          if (srcInput && wsContext.footholdUsername && (!srcInput.value || !wsContext.selectedSource || srcInput.value.toUpperCase() === wsContext.footholdUsername.toUpperCase())) {
-            srcInput.value = `${wsContext.footholdUsername.toUpperCase()}@${detectedDomain}`;
-          }
         }
 
         // Ping sidebar to immediately refresh projects drawer stats (nodes & rels) without page reload
@@ -1752,13 +1784,59 @@
           alertBanner.classList.remove("hidden");
         }
 
-        // Unlock Phase 2 Tab
+        // Unlock Phase 2 Tab & Lock Phase 3 and 4
         unlockPhase2();
+        lockPhase3And4();
+
+        // Clear in-memory / DOM script tags for previous path, privesc records, and remediation scripts
+        wsContext.unlockedPhase = "phase_2";
+        wsContext.lastActivePhase = "phase_2";
+        wsContext.selectedEngine = "";
+        wsContext.selectedSource = "";
+        wsContext.selectedTarget = "";
+        wsContext.selectedPathIndex = "0";
+        currentPathData = null;
+
+        const savedPathScript = document.getElementById("saved-path-json");
+        if (savedPathScript) savedPathScript.textContent = "null";
+        const savedCandScript = document.getElementById("saved-candidate-paths-json");
+        if (savedCandScript) savedCandScript.textContent = "[]";
+        const savedRemScript = document.getElementById("saved-remediation-scripts-json");
+        if (savedRemScript) savedRemScript.textContent = "[]";
+        const savedPrivScript = document.getElementById("saved-privesc-success-json");
+        if (savedPrivScript) savedPrivScript.textContent = "[]";
+
+        // Reset Phase 2 UI (Pathfinder network, results, inputs with detected domain)
+        if (typeof window.resetPhase2State === "function") {
+          window.resetPhase2State(detectedDomain);
+        }
+
+        // Reset Phase 3 UI (Tasks, Console, Vault)
+        if (typeof window.resetPhase3State === "function") {
+          window.resetPhase3State();
+        }
+
+        // Reset Phase 4 UI (Edges, Scripts, Vault)
+        if (typeof window.resetPhase4State === "function") {
+          window.resetPhase4State();
+        }
+
+        if (changeFileBtn) {
+          changeFileBtn.disabled = false;
+          changeFileBtn.classList.remove("opacity-40", "cursor-not-allowed", "pointer-events-none");
+          changeFileBtn.classList.add("hover:bg-surface-container-highest", "cursor-pointer");
+        }
 
         executeIngestBtn.className = "px-6 py-2 bg-emerald-950/60 border border-primary/40 text-primary font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-default";
         executeIngestBtn.disabled = false;
         executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm">check</span> Ingested Successfully`;
       } catch (err) {
+        if (changeFileBtn) {
+          changeFileBtn.disabled = false;
+          changeFileBtn.classList.remove("opacity-40", "cursor-not-allowed", "pointer-events-none");
+          changeFileBtn.classList.add("hover:bg-surface-container-highest", "cursor-pointer");
+        }
+
         executeIngestBtn.disabled = false;
         executeIngestBtn.className = "px-6 py-2 bg-primary text-on-primary hover:bg-primary/90 font-jetbrains font-bold text-xs rounded transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-primary/20";
         executeIngestBtn.innerHTML = `<span class="material-symbols-outlined text-sm">rocket_launch</span> Ingest into Database`;
@@ -2343,6 +2421,71 @@
         });
       }
 
+      window.resetPhase2State = function(detectedDomain) {
+        currentResults = [];
+        currentMode = "";
+        currentPathData = null;
+
+        if (pfNetwork) {
+          pfNetwork.destroy();
+          pfNetwork = null;
+        }
+
+        const emptyState = document.getElementById("pf-empty-state");
+        const dataState = document.getElementById("pf-data-state");
+        const loadingState = document.getElementById("pf-loading-state");
+        const inspector = document.getElementById("pf-inspector-drawer");
+        const selectorContainer = document.getElementById("pf-path-selector-container");
+        const pathSelector = document.getElementById("pf-path-selector");
+        const btnProceed = document.getElementById("btn-proceed-privesc");
+
+        if (emptyState) {
+          emptyState.innerHTML = `
+            <div class="w-14 h-14 rounded-2xl bg-surface-container border border-outline-variant/60 flex items-center justify-center text-on-surface-variant/50 mb-3">
+              <span class="material-symbols-outlined text-2xl">map</span>
+            </div>
+            <p class="text-xs text-on-surface-variant max-w-sm mx-auto leading-relaxed font-jetbrains">
+              Enter a source and target node above to generate a visual attack path sequence.
+            </p>
+          `;
+          emptyState.classList.remove("hidden");
+        }
+        if (dataState) {
+          dataState.classList.add("hidden");
+          dataState.classList.remove("flex");
+        }
+        if (loadingState) loadingState.classList.add("hidden");
+        if (inspector) inspector.classList.add("hidden");
+        if (selectorContainer) {
+          selectorContainer.classList.add("hidden");
+          selectorContainer.classList.remove("flex");
+        }
+        if (pathSelector) pathSelector.innerHTML = "";
+        if (btnProceed) {
+          btnProceed.classList.add("hidden");
+          btnProceed.classList.remove("flex");
+        }
+
+        const domain = (detectedDomain || wsContext.domain || "").toUpperCase();
+        if (srcInput) {
+          if (wsContext.footholdUsername) {
+            const user = wsContext.footholdUsername.toUpperCase();
+            srcInput.value = domain ? `${user}@${domain}` : user;
+          } else {
+            srcInput.value = "";
+          }
+          srcInput.classList.remove("input-error-shake");
+        }
+        if (tgtInput) {
+          tgtInput.value = "";
+          tgtInput.classList.remove("input-error-shake");
+        }
+        const engineSelect = document.getElementById("pf-engine");
+        if (engineSelect) {
+          engineSelect.value = "tactical";
+        }
+      };
+
       // Auto-restore saved project path and candidates on page load
       const savedPathScript = document.getElementById("saved-path-json");
       const savedCandidatesScript = document.getElementById("saved-candidate-paths-json");
@@ -2469,7 +2612,7 @@
               source_name: sourceName,
               target_name: targetName,
               mode: mode,
-              project_id: wsContext.activeProjectId
+              project_id: wsContext.projectId || wsContext.activeProjectId || ""
             })
           });
           const data = await res.json();
@@ -3371,8 +3514,21 @@
       const btnZoomOut = document.getElementById("btn-p3-graph-zoomout");
       const btnLayout = document.getElementById("btn-p3-graph-layout");
 
-      p3SuccessRecords = loadP3SuccessRecords();
-      renderP3SuccessVault();
+      window.resetPhase3State = function() {
+        p3SuccessRecords = [];
+        const vaultBody = document.getElementById("p3-vault-table-body");
+        if (vaultBody) vaultBody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-on-surface-variant/40 italic">No completed privilege escalation credentials stored yet.</td></tr>`;
+        const vaultCount = document.getElementById("p3-vault-count-badge");
+        if (vaultCount) vaultCount.textContent = "0";
+        if (emptyState) emptyState.classList.remove("hidden");
+        if (activeState) activeState.classList.add("hidden");
+        if (p3Network) {
+          p3Network.destroy();
+          p3Network = null;
+        }
+        const consoleEl = document.getElementById("p3-console");
+        if (consoleEl) consoleEl.innerHTML = "";
+      };
 
       function updatePhase3View() {
         const path = getP3CurrentPath();
@@ -3541,6 +3697,21 @@
           p4SavedScripts = [];
         }
       }
+
+      window.resetPhase4State = function() {
+        p4SavedScripts = [];
+        p4CurrentEdges = [];
+        p4SelectedIndices.clear();
+        p4InspectedScript = null;
+        if (p4EmptyState) p4EmptyState.classList.remove("hidden");
+        if (p4MainContainer) p4MainContainer.classList.add("hidden");
+        if (p4EdgesList) p4EdgesList.innerHTML = "";
+        if (p4VaultList) p4VaultList.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-on-surface-variant/40 italic">No generated remediation scripts available yet.</td></tr>`;
+        if (p4SelectionBadge) p4SelectionBadge.textContent = "0";
+        if (p4VaultBadge) p4VaultBadge.textContent = "0";
+        if (p4InspectView) p4InspectView.classList.add("hidden");
+        if (p4ActiveView) p4ActiveView.classList.remove("hidden");
+      };
 
       function getP4Path() {
         if (currentPathData && currentPathData.steps && currentPathData.steps.length > 0) {

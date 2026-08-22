@@ -216,17 +216,16 @@ def execute_ingest(request: ExecuteIngestRequest, req: Request):
     finally:
         manager.close()
 
-    # Auto-detect domain from archive inspection if project domain is not yet set
+    # Auto-detect domain from archive inspection and update project target domain
     try:
         inspect_result = inspect_sharphound_zip(target_path)
         primary_domain = inspect_result.get("primary_domain")
-        proj = project_mgr.get_project(project_id)
-        if primary_domain and proj and not proj.get("domain"):
+        if primary_domain and primary_domain != "UNKNOWN.LOCAL":
             project_mgr.update_project_target(project_id, domain=primary_domain)
     except Exception:
         pass
 
-    updated_proj = project_mgr.update_project_stats(
+    updated_proj = project_mgr.reset_project_pipeline_on_reingest(
         project_id,
         snapshot.get("nodes", 0),
         snapshot.get("relationships", 0),
