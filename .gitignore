@@ -1,33 +1,72 @@
-# Environments & Secrets
+# ==============================================================================
+# ViperACL Git Ignore Policy
+# ==============================================================================
+
+# Environments & Local Secrets
 .env
-.venv/
-venv/
-env/
+.env.*
 config.yaml
+venv/
+.venv/
+env/
 
-# Data Storage & Dynamic Artifacts
-data/
+# Development & Test Environment
+dev/
 
-# Python Cache & Bytecode
+# Session Data Storage & Dynamic Artifacts
+data/logs/*
+!data/logs/.gitkeep
+
+data/projects/*
+!data/projects/.gitkeep
+
+data/scripts/*
+!data/scripts/.gitkeep
+
+data/settings.json
+data/settings.json.tmp
+data/extracted_hashes.txt
+data/*.kirbi
+data/*.zip
+/projects/
+
+# Preserve Essential Tools, Datasets & Models in data/
+!data/tools/
+!data/tools/**
+!data/synthetic_training.csv
+!data/synthetic_desc.csv
+
+# Python Bytecode, Caching & Testing
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+*.so
 
 # Packaging & Distribution
 build/
 dist/
 *.egg-info/
 
-# IDEs, Agents & Internal Tools
+# IDEs, Agents, Plans & Scratch Files
 .vscode/
+.idea/
 .roo/
 .gemini/
 .agents/
 scratch/
+plans/
+AGENTS.md
+AGENTS.MD
+agents.md
 
-# OS Generated Files
+# OS & Generic Archives
 .DS_Store
 Thumbs.db
-
-# Raw Zip Archives
 *.zip
+*.tar.gz
+*.rar
+*.7z
+*.bak
+*.swp
+*~

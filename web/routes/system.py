@@ -113,7 +113,7 @@ def test_neo4j_connection(req: TestDatabaseRequest):
 def save_user_settings(request: Request, payload: dict):
     logger.info(
         "SYSTEM", "config.settings.save",
-        "Saving user settings to config.yaml",
+        "Saving user settings to data/settings.json",
         source="web.app",
         details=payload
     )

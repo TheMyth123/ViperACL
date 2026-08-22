@@ -131,13 +131,13 @@ def validate_domain(domain: str | None) -> tuple[bool, str]:
 
 
 def generate_safe_project_id(name: str) -> str:
-    """Generates a sanitized, deterministic-prefix project_id with timestamp."""
+    """Generates a sanitized, timestamp-prefixed project_id for chronological sorting."""
     cleaned = " ".join(name.strip().split())
     slug = re.sub(r"[^a-zA-Z0-9]+", "_", cleaned.lower()).strip("_")
     if not slug:
         slug = "project"
     timestamp_slug = datetime.now().strftime("%Y%m%d%H%M%S")
-    return f"proj_{slug[:32]}_{timestamp_slug}"
+    return f"{timestamp_slug}_{slug[:32]}"
 
 
 class ProjectManager:
@@ -152,6 +152,24 @@ class ProjectManager:
         self.projects_dir.mkdir(parents=True, exist_ok=True)
         if not self.registry_file.exists():
             self._save_data({"active_project_id": None, "projects": {}})
+
+    def get_project_dir(self, project_id: str) -> Path:
+        """
+        Returns the dedicated storage directory for a project's files (staging archives, scripts).
+        Files are organized under data/projects/storage/{project_id}/.
+        """
+        if not project_id:
+            storage_dir = self.projects_dir / "storage" / "default"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            return storage_dir
+        storage_dir = self.projects_dir / "storage" / project_id
+        if not storage_dir.exists():
+            # Check legacy location directly under data/projects/{project_id}
+            legacy_dir = self.projects_dir / project_id
+            if legacy_dir.exists() and legacy_dir.is_dir():
+                return legacy_dir
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        return storage_dir
 
     def _load_data(self):
         """Loads data from projects.json safely."""

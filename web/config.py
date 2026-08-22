@@ -81,17 +81,7 @@ def load_settings() -> AppSettings:
         except Exception:
             config = {}
     else:
-        # Check if legacy config.yaml exists
-        legacy_yaml = Path(__file__).resolve().parents[1] / "config.yaml"
-        if legacy_yaml.exists():
-            try:
-                import yaml
-                with legacy_yaml.open("r", encoding="utf-8") as handle:
-                    config = yaml.safe_load(handle) or {}
-            except Exception:
-                config = {}
-        if not config:
-            config = default_config
+        config = default_config
         try:
             settings_file.write_text(json.dumps(config, indent=2), encoding="utf-8")
         except Exception:

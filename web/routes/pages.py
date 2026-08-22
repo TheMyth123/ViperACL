@@ -48,6 +48,7 @@ def workspace_page(request: Request):
     if active_project and active_project.get("source_zip") and active_project_id:
         source_zip_name = active_project["source_zip"]
         possible_paths = [
+            project_mgr.get_project_dir(active_project_id) / "staging" / source_zip_name,
             BASE_DIR.parent / "data" / "projects" / active_project_id / "staging" / source_zip_name,
             BASE_DIR.parent / "dev" / source_zip_name,
             BASE_DIR.parent / source_zip_name,

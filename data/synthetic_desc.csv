@@ -1,0 +1,10 @@
+# Row 1: Standard Safe (3 Hops): Basic safe exploitation using low-cost writes
+# Row 2: Long but Safe (6 Hops): Heavy reliance on existing groups (Cost 0)
+# Row 3: PARADOX - Sync Delay: AddMember followed by immediate exploit crashes automation
+# Row 4: PARADOX - Locked Out: Noisy password reset alerts SOC before DACL write finishes
+# Row 5: PARADOX - Extreme Noise: Double password reset triggers immediate EDR kill-switch
+# Row 6: High Risk / High Reward: Noisy but requires only 1 exploit step
+# Row 7: Instant Win: Direct DCSync using already possessed privileges
+# Row 8: Complex Friction: Too many complex DACL manipulations fail in automation
+# Row 9: Standard High Privilege: Relying on full GenericAll control
+# Row10: PARADOX - Token Bloat: Multiple group additions cause Kerberos token failure

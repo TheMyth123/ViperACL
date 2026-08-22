@@ -102,9 +102,16 @@ async def upload_ingest_archive(
             detail="Invalid file format. Only SharpHound .zip archives are supported.",
         )
 
-    # Sanitize filename
-    safe_filename = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", filename)
-    staging_dir = PROJECT_ROOT / "data" / "projects" / target_project_id / "staging"
+    # Sanitize and timestamp filename for chronological sorting
+    raw_safe_name = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", filename)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    if not re.match(r"^\d{14}_", raw_safe_name):
+        safe_filename = f"{timestamp}_{raw_safe_name}"
+    else:
+        safe_filename = raw_safe_name
+
+    project_dir = project_mgr.get_project_dir(target_project_id)
+    staging_dir = project_dir / "staging"
     staging_dir.mkdir(parents=True, exist_ok=True)
     staged_path = staging_dir / safe_filename
 
@@ -529,8 +536,9 @@ def generate_remediation_script(request: GenerateRemediationRequest, req: Reques
             detail="No remediation targets were selected. Please select at least one relationship to remediate.",
         )
 
-    # Set up project-specific scripts directory: data/projects/{project_id}/scripts/
-    scripts_dir = PROJECT_ROOT / "data" / "projects" / project_id / "scripts"
+    # Set up project-specific scripts directory: data/projects/storage/{project_id}/scripts/
+    project_dir = project_mgr.get_project_dir(project_id)
+    scripts_dir = project_dir / "scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
 
     project_name = project.get("name", "Active Assessment")

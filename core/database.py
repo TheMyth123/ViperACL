@@ -1,29 +1,14 @@
 import os
-import yaml
 from neo4j import GraphDatabase
 from neo4j.exceptions import AuthError, ServiceUnavailable
 
 class DatabaseManager:
-    def __init__(self, uri=None, username=None, password=None, database=None, config_path=None):
-        """Load Neo4j connection parameters from config.yaml with env overrides."""
-        config_path = config_path or os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "..", "config.yaml"
-        )
-        cfg = {}
-
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, "r") as f:
-                    cfg = yaml.safe_load(f) or {}
-            except yaml.YAMLError as e:
-                raise RuntimeError(f"Error parsing config.yaml: {e}")
-
-        neo4j_cfg = cfg.get("neo4j", {})
-
-        self.uri = uri or os.getenv("VIPERACL_NEO4J_URI") or neo4j_cfg.get("uri") or "bolt://127.0.0.1:7687"
-        self.user = username or os.getenv("VIPERACL_NEO4J_USERNAME") or neo4j_cfg.get("username") or "neo4j"
-        self.password = password or os.getenv("VIPERACL_NEO4J_PASSWORD") or neo4j_cfg.get("password") or "viperacl"
-        self.database = database or os.getenv("VIPERACL_NEO4J_DATABASE") or neo4j_cfg.get("database") or "neo4j"
+    def __init__(self, uri=None, username=None, password=None, database=None):
+        """Initializes Neo4j connection parameters with environment overrides and defaults."""
+        self.uri = uri or os.getenv("VIPERACL_NEO4J_URI") or "bolt://127.0.0.1:7687"
+        self.user = username or os.getenv("VIPERACL_NEO4J_USERNAME") or "neo4j"
+        self.password = password or os.getenv("VIPERACL_NEO4J_PASSWORD") or "viperacl"
+        self.database = database or os.getenv("VIPERACL_NEO4J_DATABASE") or "neo4j"
 
         if not all([self.uri, self.user, self.password, self.database]):
             raise RuntimeError("Incomplete Neo4j connection settings")
