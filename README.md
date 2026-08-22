@@ -93,9 +93,13 @@ ViperACL strictly models, validates, and remediates the **19 universal Active Di
 - **Docker**: Docker & Docker Compose (used for the background Neo4j database container)
   > **Note for Kali / Debian users**: If Docker is not installed on your system, install and configure it via:
   > ```bash
+  > # Update package indices
   > sudo apt update
+  > 
+  > # Install Docker Engine and Docker Compose
   > sudo apt install -y docker.io && sudo apt install -y docker-compose
-  > sudo systemctl start docker
+  > 
+  > # Grant current user permission to run Docker without sudo
   > sudo usermod -aG docker $USER && newgrp docker
   > ```
 
