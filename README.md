@@ -133,12 +133,6 @@ python3 viperacl.py --port 8000
 
 Open your browser and navigate to: **`http://127.0.0.1:8000`**
 
-### Run Automated Test Suite
-To verify environment readiness and run all unit and integration tests:
-```bash
-pytest
-```
-
 ---
 
 ## 🛡️ Forensic Audit Trail & Evidence Logging
