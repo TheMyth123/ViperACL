@@ -90,11 +90,11 @@ ViperACL strictly models, validates, and remediates the **19 universal Active Di
 
 ### Prerequisites
 - **Docker**: Docker Engine & Docker Compose
-  > **Note for Kali / Debian users**: If Docker is not installed on your system, install it via:
+  > **Note for Kali / Debian users**: If Docker is not installed on your system, you can install it via:
   > ```bash
-  > sudo apt update && sudo apt install -y docker.io docker-compose-v2
+  > sudo apt update
+  > sudo apt install -y docker.io && sudo apt install -y docker-compose
   > sudo systemctl start docker
-  > sudo usermod -aG docker $USER && newgrp docker
   > ```
 
 ---
@@ -110,14 +110,15 @@ git clone https://github.com/TheMyth123/ViperACL.git
 cd ViperACL
 
 # 2. Launch platform in background
-docker compose up -d
+sudo docker compose up -d
 ```
+*(Note: If using standalone Docker Compose, you can run `sudo docker-compose up -d`)*
 
 Open your browser and navigate to: **`http://127.0.0.1:8000`**
 
 *To stop the platform:*
 ```bash
-docker compose down
+sudo docker compose down
 ```
 
 ---
