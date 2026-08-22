@@ -59,37 +59,73 @@ def initialize_environment():
 
 
 def start_local_neo4j():
-    compose_file = PROJECT_ROOT / "docker-compose.yml"
-    if not compose_file.is_file():
-        raise RuntimeError(f"Docker Compose file not found: {compose_file}")
-
+    """Ensures the local Neo4j container is running across Docker Compose V2, V1, and direct Docker environments."""
     print("[*] Ensuring local Neo4j container is running...")
-    commands = [
-        ["docker", "compose", "up", "-d", "neo4j"],
-        ["docker-compose", "up", "-d", "neo4j"],
+
+    # Method 1: Docker Compose V2 CLI Plugin ('docker compose')
+    res_v2 = subprocess.run(["docker", "compose", "version"], capture_output=True, text=True)
+    if res_v2.returncode == 0:
+        up_res = subprocess.run(
+            ["docker", "compose", "up", "-d", "neo4j"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        if up_res.returncode == 0:
+            return
+
+    # Method 2: Standalone Docker Compose ('docker-compose')
+    res_v1 = subprocess.run(["docker-compose", "version"], capture_output=True, text=True)
+    if res_v1.returncode == 0 and "Docker Compose" in (res_v1.stdout + res_v1.stderr):
+        up_res = subprocess.run(
+            ["docker-compose", "up", "-d", "neo4j"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        if up_res.returncode == 0:
+            return
+
+    # Method 3: Direct Docker Engine fallback ('docker start' / 'docker run')
+    # Guarantees startup even on minimal setups without docker-compose or docker-compose-v2
+    inspect_res = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", "viperacl-neo4j"],
+        capture_output=True,
+        text=True,
+    )
+    if inspect_res.returncode == 0:
+        if inspect_res.stdout.strip().lower() == "true":
+            return
+        start_res = subprocess.run(["docker", "start", "viperacl-neo4j"], capture_output=True, text=True)
+        if start_res.returncode == 0:
+            return
+
+    run_cmd = [
+        "docker", "run", "-d",
+        "--name", "viperacl-neo4j",
+        "--restart", "unless-stopped",
+        "-p", "7474:7474",
+        "-p", "7687:7687",
+        "-e", "NEO4J_AUTH=neo4j/viperacl",
+        "-e", "NEO4J_server_memory_heap_initial__size=512m",
+        "-e", "NEO4J_server_memory_heap_max__size=1G",
+        "-e", "NEO4J_server_memory_pagecache_size=512m",
+        "-v", "neo4j_data:/data",
+        "-v", "neo4j_logs:/logs",
+        "-v", "neo4j_import:/import",
+        "-v", "neo4j_plugins:/plugins",
+        "neo4j:5.26-community",
     ]
+    run_res = subprocess.run(run_cmd, capture_output=True, text=True)
+    if run_res.returncode == 0:
+        return
 
-    last_error = None
-    for cmd in commands:
-        try:
-            result = subprocess.run(
-                cmd,
-                cwd=str(PROJECT_ROOT),
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                return
-            last_error = (result.stderr or result.stdout or "").strip()
-        except FileNotFoundError:
-            continue
-        except Exception as e:
-            last_error = str(e)
-
+    err_msg = (run_res.stderr or run_res.stdout or "").strip() or "Docker daemon is not responding."
     raise RuntimeError(
-        f"Failed to start local Neo4j container via Docker Compose.\n"
-        f"Error details: {last_error if last_error else 'docker / docker-compose command not found'}\n"
-        f"Please verify Docker is running, or pass --no-bootstrap-db to use an external Neo4j instance."
+        f"Failed to start local Neo4j container.\n"
+        f"Error details: {err_msg}\n"
+        f"Ensure Docker is running (`sudo systemctl start docker` / `sudo apt install docker-compose-v2`), "
+        f"or pass --no-bootstrap-db to use an external Neo4j instance."
     )
 
 
