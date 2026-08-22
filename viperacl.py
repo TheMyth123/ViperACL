@@ -63,9 +63,34 @@ def start_local_neo4j():
     if not compose_file.is_file():
         raise RuntimeError(f"Docker Compose file not found: {compose_file}")
 
-    command = ["docker", "compose", "-f", str(compose_file), "up", "-d", "neo4j"]
     print("[*] Ensuring local Neo4j container is running...")
-    subprocess.run(command, check=True)
+    commands = [
+        ["docker", "compose", "up", "-d", "neo4j"],
+        ["docker-compose", "up", "-d", "neo4j"],
+    ]
+
+    last_error = None
+    for cmd in commands:
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                return
+            last_error = (result.stderr or result.stdout or "").strip()
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            last_error = str(e)
+
+    raise RuntimeError(
+        f"Failed to start local Neo4j container via Docker Compose.\n"
+        f"Error details: {last_error if last_error else 'docker / docker-compose command not found'}\n"
+        f"Please verify Docker is running, or pass --no-bootstrap-db to use an external Neo4j instance."
+    )
 
 
 def wait_for_neo4j(settings, timeout_seconds=60):
