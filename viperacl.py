@@ -158,6 +158,7 @@ def start_local_neo4j():
 
 
 def wait_for_neo4j(settings, timeout_seconds=60):
+    print("[*] Waiting for Neo4j database engine to initialize...", end="", flush=True)
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
         manager = DatabaseManager(
@@ -167,14 +168,17 @@ def wait_for_neo4j(settings, timeout_seconds=60):
             database=settings.neo4j_database,
         )
         try:
-            if manager.connect():
+            if manager.connect(silent=True):
                 manager.close()
+                print(" ready!")
                 return True
         finally:
             manager.close()
 
+        print(".", end="", flush=True)
         time.sleep(2)
 
+    print(" failed!")
     return False
 
 

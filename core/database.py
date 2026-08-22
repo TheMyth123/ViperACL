@@ -15,7 +15,7 @@ class DatabaseManager:
 
         self.driver = None
 
-    def connect(self):
+    def connect(self, silent=False):
         """Establishes a connection to the Neo4j instance."""
         try:
             # Modern driver initialization
@@ -45,11 +45,14 @@ class DatabaseManager:
                 pass
             return True
         except AuthError:
-            print("[!] Authentication failed. Check your username and password.")
+            if not silent:
+                print("[!] Authentication failed. Check your username and password.")
         except ServiceUnavailable:
-            print(f"[!] Could not connect to the database at {self.uri}. Is Neo4j running?")
+            if not silent:
+                print(f"[!] Could not connect to the database at {self.uri}. Is Neo4j running?")
         except Exception as e:
-            print(f"[!] An unexpected error occurred: {e}")
+            if not silent:
+                print(f"[!] An unexpected error occurred: {e}")
         return False
 
     def close(self):
