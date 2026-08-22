@@ -91,11 +91,12 @@ ViperACL strictly models, validates, and remediates the **19 universal Active Di
 ### 1. Prerequisites
 - **Python**: Python 3.10 or higher
 - **Docker**: Docker & Docker Compose (used for the background Neo4j database container)
-  > **Note for Kali / Debian users**: If Docker is not installed on your system, install it via:
+  > **Note for Kali / Debian users**: If Docker is not installed on your system, install and configure it via:
   > ```bash
   > sudo apt update
   > sudo apt install -y docker.io && sudo apt install -y docker-compose
   > sudo systemctl start docker
+  > sudo usermod -aG docker $USER && newgrp docker
   > ```
 
 ### 2. Setup Environment
