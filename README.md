@@ -95,7 +95,7 @@ ViperACL strictly models, validates, and remediates the **19 universal Active Di
 ### 2. Setup Environment
 ```bash
 # Clone the repository
-git clone https://github.com/YourUsername/ViperACL.git
+git clone https://github.com/TheMyth123/ViperACL.git
 cd ViperACL
 
 # Create and activate Python virtual environment
