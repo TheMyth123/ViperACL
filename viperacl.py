@@ -135,8 +135,16 @@ def start_local_neo4j():
                 return
 
             err_msg = (run_res.stderr or run_res.stdout or "").strip()
-            if err_msg:
-                raise RuntimeError(err_msg)
+            if "docker.sock" in err_msg or "Cannot connect to the Docker daemon" in err_msg:
+                raise RuntimeError(
+                    "Docker daemon is not running.\n"
+                    "Start it on your system with:\n"
+                    "  sudo systemctl start docker\n\n"
+                    "To run Docker without sudo in the future:\n"
+                    "  sudo usermod -aG docker $USER && newgrp docker"
+                )
+            elif err_msg:
+                raise RuntimeError(f"Docker error: {err_msg}")
         except Exception as e:
             if isinstance(e, RuntimeError):
                 raise
