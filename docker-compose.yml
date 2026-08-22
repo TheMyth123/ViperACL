@@ -16,6 +16,31 @@ services:
       - neo4j_logs:/logs
       - neo4j_import:/import
       - neo4j_plugins:/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p viperacl 'RETURN 1' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+
+  app:
+    build: .
+    container_name: viperacl-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      VIPERACL_WEB_HOST: "0.0.0.0"
+      VIPERACL_WEB_PORT: "8000"
+      VIPERACL_NEO4J_URI: "bolt://neo4j:7687"
+      VIPERACL_NEO4J_USERNAME: "neo4j"
+      VIPERACL_NEO4J_PASSWORD: "viperacl"
+      VIPERACL_NEO4J_DATABASE: "neo4j"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      neo4j:
+        condition: service_healthy
 
 volumes:
   neo4j_data:
