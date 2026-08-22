@@ -46,10 +46,13 @@ def resolve_project_path(raw_path: str) -> Path:
 
 @lru_cache(maxsize=1)
 def load_predictive_model():
-    """Load the ML model from disk (cached)."""
+    """Load the ML model from disk (cached) without unpickling version warnings."""
     if not MODEL_PATH.exists():
         return None
-    return joblib.load(MODEL_PATH)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        return joblib.load(MODEL_PATH)
 
 
 def serialize_node(node) -> dict:

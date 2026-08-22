@@ -22,7 +22,6 @@ class DatabaseManager:
             self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
             # New in modern drivers: Verify the connection immediately
             self.driver.verify_connectivity()
-            print("[+] Successfully connected to Neo4j database!")
             # Ensure a few name indexes exist to make MATCH {name:..} queries fast on large graphs.
             try:
                 with self.driver.session(database=self.database) as session:

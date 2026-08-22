@@ -463,7 +463,7 @@ def privesc_execute(request: PrivescPlanRequest, req: Request):
             domain=target_domain,
             dc_ip=dc_ip,
             context=session_ctx,
-            default_reset_password=getattr(req.app.state.settings, "privesc_default_change_password", "P@ssw0rd!"),
+            default_reset_password=getattr(req.app.state.settings, "privesc_default_change_password", "Secur3P@ssw0rd!"),
         )
         execution = executor.execute_path(path)
         results = execution.get("steps", [])

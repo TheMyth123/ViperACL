@@ -16,7 +16,7 @@ from core.privesc.modules.shared import (
 from core.privesc.path_utils import path_to_sequence
 
 
-DEFAULT_RESET_PASSWORD = "P@ssw0rd!"
+DEFAULT_RESET_PASSWORD = "Secur3P@ssw0rd!"
 
 
 def _node_name(node: Any) -> str:
@@ -265,7 +265,7 @@ def build_strict_action_plan(path, db=None):
 
 
 class StrictPrivescExecutor:
-    def __init__(self, conn, domain, dc_ip, context, default_reset_password="P@ssw0rd!"):
+    def __init__(self, conn, domain, dc_ip, context, default_reset_password="Secur3P@ssw0rd!"):
         self.conn = conn
         self.domain = domain
         self.dc_ip = dc_ip
@@ -273,7 +273,7 @@ class StrictPrivescExecutor:
         self.project_id = getattr(context, "project_id", None)
         self.actions = PrivescActions(SimpleNamespace(conn=conn, domain=domain, dc_ip=dc_ip))
         self._last_plan = []
-        self.default_reset_password = default_reset_password or "P@ssw0rd!"
+        self.default_reset_password = default_reset_password or "Secur3P@ssw0rd!"
 
     def _audit_event(self, event_type, level, message, target, **details):
         payload = {"target": target, **details}

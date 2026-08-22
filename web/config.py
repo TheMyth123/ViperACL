@@ -71,7 +71,7 @@ def load_settings() -> AppSettings:
             "ml_threshold": 0.50
         },
         "privesc": {
-            "default_change_password": "P@ssw0rd!"
+            "default_change_password": "Secur3P@ssw0rd!"
         }
     }
 
@@ -104,7 +104,7 @@ def load_settings() -> AppSettings:
         pathfinder_default_mode=pathfinder_cfg.get("default_mode", "tactical"),
         pathfinder_max_hops=int(pathfinder_cfg.get("max_hops", 15)),
         pathfinder_ml_threshold=float(pathfinder_cfg.get("ml_threshold", 0.50)),
-        privesc_default_change_password=os.getenv("VIPERACL_PRIVESC_DEFAULT_CHANGE_PASSWORD") or privesc_cfg.get("default_change_password") or "P@ssw0rd!",
+        privesc_default_change_password=os.getenv("VIPERACL_PRIVESC_DEFAULT_CHANGE_PASSWORD") or privesc_cfg.get("default_change_password") or "Secur3P@ssw0rd!",
     )
 
 
@@ -125,7 +125,7 @@ def save_settings(updates: dict):
     if "pathfinder" not in config:
         config["pathfinder"] = {"default_mode": "tactical", "max_hops": 15, "ml_threshold": 0.50}
     if "privesc" not in config:
-        config["privesc"] = {"default_change_password": "P@ssw0rd!"}
+        config["privesc"] = {"default_change_password": "Secur3P@ssw0rd!"}
 
     if "neo4j_uri" in updates and updates["neo4j_uri"]:
         config["neo4j"]["uri"] = updates["neo4j_uri"]

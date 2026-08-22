@@ -10,9 +10,6 @@ class PathfinderCoordinator:
         """
         Routes the pathfinding request to the appropriate engine.
         """
-        print(f"[*] Initializing ViperACL Pathfinder...")
-        print(f"[*] Mode Selected: Viper {mode.capitalize()} (Max Hops: {max_hops}, ML Threshold: {ml_threshold})")
-
         if mode == "fasttrack":
             return run_fasttrack(self.db, source_name, target_name, max_hops=max_hops)
         

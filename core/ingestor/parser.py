@@ -10,22 +10,17 @@ class SharpHoundIngestor:
     def clear_database(self, project_id=None):
         pid = project_id or self.project_id
         if pid:
-            print(f"[*] Clearing Neo4j data for project '{pid}'...")
             self.db.run_query("MATCH (n {project_id: $pid}) DETACH DELETE n", {"pid": pid})
         else:
-            print("[*] Clearing entire Neo4j database...")
             self.db.run_query("MATCH (n) DETACH DELETE n")
-        print("[+] Database cleared.")
 
     def ingest_zip(self, zip_path, project_id=None):
         pid = project_id or self.project_id or "default"
         self.project_id = pid
 
         if not os.path.exists(zip_path):
-            print(f"[!] Error: File {zip_path} not found.")
             return
 
-        print(f"[*] Opening SharpHound archive: {zip_path} for project '{pid}'")
         with zipfile.ZipFile(zip_path, 'r') as z:
             for filename in z.namelist():
                 if filename.endswith('.json'):
@@ -50,7 +45,6 @@ class SharpHoundIngestor:
                         continue
 
                     with z.open(filename) as f:
-                        print(f"[*] Parsing {filename} as type ':{node_type}' for project '{pid}'...")
                         data = json.load(f)
                         items = data.get('data', [])
                         
@@ -60,10 +54,7 @@ class SharpHoundIngestor:
                         self._process_items(node_type, items, pid)
 
         if zip_path == "dev/20260613062313_ILFREIGHT.zip":
-            print("[*] Injecting demonstration constraint path to show engine differentiation...")
             self._inject_demo_scenario(pid)
-        
-        print(f"[+] Ingestion complete for project '{pid}'! The database graph is now aligned.")
 
     def _process_items(self, node_type, items, project_id):
         nodes = []
@@ -103,7 +94,6 @@ class SharpHoundIngestor:
             SET n.name = data.name, n.project_id = $pid, n:`{node_type}`
             """
             self.db.run_query(query_nodes, {"batch": nodes, "pid": project_id})
-            print(f"  [+] Synced {len(nodes)} elements under label ':{node_type}' [Project: {project_id}]")
 
         # 2. Dynamic relationship creation with project_id tagging
         if edges:
@@ -124,7 +114,6 @@ class SharpHoundIngestor:
                 SET r.project_id = $pid
                 """
                 self.db.run_query(query_edges, {"batch": batch, "pid": project_id})
-            print(f"  [+] Structuralized {len(edges)} attack relationships [Project: {project_id}]")
 
     def _inject_demo_scenario(self, project_id):
         """
@@ -159,4 +148,3 @@ class SharpHoundIngestor:
         MERGE (u4)-[:GenericWrite {project_id: $pid}]->(tgt)
         """
         self.db.run_query(inject_query, {"pid": project_id})
-        print("  [+] Injected Paradox scenario: Sync Delay trap successfully planted.")

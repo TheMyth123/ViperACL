@@ -21,6 +21,33 @@ def find_free_port(host):
         return sock.getsockname()[1]
 
 
+def initialize_environment():
+    """Initializes and verifies necessary session storage, registry, and audit files on startup."""
+    data_dir = PROJECT_ROOT / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    print("[*] Initializing ViperACL workspace storage and session files...")
+
+    # 1. Configuration: data/settings.json
+    settings_file = data_dir / "settings.json"
+    if not settings_file.exists():
+        load_settings()
+        print("    [+] Created data/settings.json (configuration loaded with default policy)")
+    else:
+        print("    [*] Loaded data/settings.json")
+
+    # 2. Projects Registry: data/projects/projects.json
+    from core.projects import ProjectManager
+    pm = ProjectManager()
+    active_count = len(pm.list_projects())
+    print(f"    [*] Initialized data/projects/projects.json ({active_count} active projects registered)")
+
+    # 3. Forensic Audit Logs: data/logs/viperacl_audit.jsonl
+    from core.logger import logger
+    logger.info("SYSTEM", "system.startup", "ViperACL web application startup initiated", source="app.cli")
+    print("    [*] Initialized data/logs/viperacl_audit.jsonl (audit trail active)")
+
+
 def start_local_neo4j():
     compose_file = PROJECT_ROOT / "docker-compose.yml"
     if not compose_file.is_file():
@@ -53,7 +80,9 @@ def wait_for_neo4j(settings, timeout_seconds=60):
 
 
 def main():
+    initialize_environment()
     settings = load_settings()
+
     parser = argparse.ArgumentParser(description="Start the ViperACL web app.")
     parser.add_argument("--host", default=settings.host)
     parser.add_argument("--port", type=int, default=settings.port)
