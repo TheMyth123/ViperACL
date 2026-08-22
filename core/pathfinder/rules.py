@@ -83,6 +83,19 @@ def get_node_type(node: Any, db: Optional[Any] = None, project_id: Optional[str]
     if "CONTAINER" in labels_upper:
         return "Container"
 
+    # Fallback heuristic from node name string when labels are absent
+    raw_name = node if isinstance(node, str) else (node.get("name") if isinstance(node, dict) else getattr(node, "name", str(node)))
+    name_str = str(raw_name or "").upper().strip()
+    if name_str:
+        if name_str.endswith((".LOCAL", ".CORP", ".LAN", ".INTERNAL", ".COM", ".NET", ".ORG")) and "@" not in name_str:
+            return "Domain"
+        if any(w in name_str for w in ("DEPARTMENT", "DEPT", "OPERATIONS", "OPS", "ADMINS", "GROUP", "GRP", "HELPDESK", "USERS_GRP", "SECURITY_OPS", "INFRASTRUCTURE", "DEVELOPERS", "MANAGERS")):
+            return "Group"
+        if name_str.endswith("$") or any(w in name_str for w in ("COMP_", "DC0", "WS-", "SRV-", "DESKTOP-")):
+            return "Computer"
+        if "@" in name_str or "_" in name_str:
+            return "User"
+
     return ""
 
 

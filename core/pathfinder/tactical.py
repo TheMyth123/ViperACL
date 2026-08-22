@@ -50,7 +50,9 @@ COST_MAP = {
 def get_edge_cost(rel, target_node_or_type, db=None, project_id=None) -> int:
     """Returns tactical cost for a (relationship, target) pair."""
     rel_type = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
-    if isinstance(target_node_or_type, str):
+    known_types = {"USER", "GROUP", "DOMAIN", "COMPUTER", "GPO", "OU", "CONTAINER"}
+
+    if isinstance(target_node_or_type, str) and target_node_or_type.upper() in known_types:
         target_type = target_node_or_type.upper()
     else:
         target_type = get_node_type(target_node_or_type, db, project_id=project_id).upper()

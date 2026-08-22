@@ -1,10 +1,32 @@
-# Row 1: Standard Safe (3 Hops): Basic safe exploitation using low-cost writes
-# Row 2: Long but Safe (6 Hops): Heavy reliance on existing groups (Cost 0)
-# Row 3: PARADOX - Sync Delay: AddMember followed by immediate exploit crashes automation
-# Row 4: PARADOX - Locked Out: Noisy password reset alerts SOC before DACL write finishes
-# Row 5: PARADOX - Extreme Noise: Double password reset triggers immediate EDR kill-switch
-# Row 6: High Risk / High Reward: Noisy but requires only 1 exploit step
-# Row 7: Instant Win: Direct DCSync using already possessed privileges
-# Row 8: Complex Friction: Too many complex DACL manipulations fail in automation
-# Row 9: Standard High Privilege: Relying on full GenericAll control
-# Row10: PARADOX - Token Bloat: Multiple group additions cause Kerberos token failure
+# ACTIVE DIRECTORY PRIVILEGE PATH TELEMETRY DATASET
+# Schema & Feature Definitions
+# 
+# Feature,Type,Description,Domain Scope
+# Hops,Integer,Total discrete traversal steps from source principal to target object,Graph Metric
+# TotalCost,Integer,Cumulative tactical complexity and noise score based on operational weight matrix,Execution Metric
+# MaxCost,Integer,Highest individual step noise cost encountered across the traversal sequence,Execution Metric
+# Count_AddMember,Integer,Total group membership injection operations,Directory Modification
+# Count_AllExtendedRights,Integer,Extended rights delegations exercised,Access Rights
+# Count_DCSync,Integer,Domain replication rights exercised against Directory Service agent,Directory Service
+# Count_ForceChangePassword,Integer,Account password reset operations performed on user objects,Account Management
+# Count_GenericAll,Integer,Full object control delegations exercised across users or groups,Object Security
+# Count_GenericWrite,Integer,Attribute write delegations exercised across target objects,Object Security
+# Count_GetChanges,Integer,Replication sync directory change requests initiated,Directory Service
+# Count_GetChangesAll,Integer,Replication sync secret change requests initiated,Directory Service
+# Count_MemberOf,Integer,Passive group membership relationships traversed without write action,Directory Structure
+# Count_Owns,Integer,Direct object ownership delegations traversed,Object Security
+# Count_WriteDacl,Integer,Discretionary access control list modification operations performed,Security Descriptor
+# Count_WriteOwner,Integer,Object owner change operations performed on target security descriptors,Security Descriptor
+# Has_AddMember_GenericAll,Binary (0/1),Indicator of group membership addition immediately preceding full object access,Sequence Vector
+# Has_AddMember_Exploit,Binary (0/1),Indicator of group membership addition immediately preceding active privilege escalation,Sequence Vector
+# Consecutive_AddMember,Integer,Maximum continuous run of sequential group additions,PAC/Token Telemetry
+# Consecutive_ForceChangePassword,Integer,Maximum continuous run of sequential account password resets,Event ID 4724 Telemetry
+# Has_Double_PasswordReset,Binary (0/1),Indicator of multiple account password resets within single traversal chain,Event Log Telemetry
+# Has_PasswordReset_Then_AddMember,Binary (0/1),Indicator of account password reset immediately followed by group injection,Authentication Race
+# Consecutive_DACL_Mods,Integer,Maximum continuous run of security descriptor modifications,SACL Telemetry
+# Count_Passive,Integer,Total passive steps requiring zero directory writes,Environmental Noise
+# Count_Active,Integer,Total active modification steps requiring directory write access,Environmental Noise
+# Avg_Hop_Cost,Float,Mean tactical cost per individual traversal hop,Path Efficiency
+# DACL_Chain_Length,Integer,Continuous length of coordinated security descriptor takeover operations,Chain Continuity
+# High_Hop_Friction,Binary (0/1),Indicator of long multi-hop paths with elevated active write density,Latency & Friction
+# Success,Binary (0/1),Historical operational completion status of automated execution pipeline,Ground Truth Label

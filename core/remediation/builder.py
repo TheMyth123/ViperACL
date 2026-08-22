@@ -39,29 +39,57 @@ def clean_principal_name(name: Any, is_domain: bool = False) -> str:
     return raw.strip()
 
 
-def extract_node_type(node: Any, default: str = "User") -> str:
+def extract_node_type(node: Any, rel_type: Optional[str] = None, default: str = "User") -> str:
     """Extracts or infers standard AD object type ('User', 'Group', 'Domain', 'Computer')."""
     if not node:
         return default
-        
-    labels = []
-    if isinstance(node, dict):
-        labels = node.get("labels") or []
-        target_type = node.get("target_type") or node.get("type")
-        if target_type and target_type.upper() in {"USER", "GROUP", "DOMAIN", "COMPUTER"}:
-            return target_type.capitalize()
-    elif hasattr(node, "labels"):
-        labels = list(node.labels)
 
-    labels_upper = {str(lbl).upper() for lbl in labels}
-    if "USER" in labels_upper:
-        return "User"
-    if "GROUP" in labels_upper:
-        return "Group"
-    if "DOMAIN" in labels_upper:
-        return "Domain"
-    if "COMPUTER" in labels_upper:
-        return "Computer"
+    # 1. Edge-inherent relationship typing (strict 19 rules mapping)
+    if rel_type:
+        clean_rel = rel_type.strip()
+        if clean_rel in {"MemberOf", "AddMember", "GenericWrite"}:
+            return "Group"
+        if clean_rel in {"DCSync", "GetChanges", "GetChangesAll"}:
+            return "Domain"
+        if clean_rel in {"ForceChangePassword"}:
+            return "User"
+
+    # 2. Check explicit dictionary properties or labels
+    if isinstance(node, dict):
+        target_type = node.get("target_type") or node.get("targetType") or node.get("type")
+        if target_type and str(target_type).upper() in {"USER", "GROUP", "DOMAIN", "COMPUTER"}:
+            return str(target_type).capitalize()
+        labels = node.get("labels") or []
+        labels_upper = {str(lbl).upper() for lbl in labels}
+        if "GROUP" in labels_upper:
+            return "Group"
+        if "DOMAIN" in labels_upper:
+            return "Domain"
+        if "USER" in labels_upper:
+            return "User"
+        if "COMPUTER" in labels_upper:
+            return "Computer"
+    elif hasattr(node, "labels"):
+        labels_upper = {str(lbl).upper() for lbl in node.labels}
+        if "GROUP" in labels_upper:
+            return "Group"
+        if "DOMAIN" in labels_upper:
+            return "Domain"
+        if "USER" in labels_upper:
+            return "User"
+        if "COMPUTER" in labels_upper:
+            return "Computer"
+
+    # 3. Fallback name-based heuristic
+    raw_name = node if isinstance(node, str) else (node.get("name") if isinstance(node, dict) else getattr(node, "name", str(node)))
+    name_str = str(raw_name or "").upper().strip()
+    if name_str:
+        if name_str.endswith((".LOCAL", ".CORP", ".LAN", ".INTERNAL", ".COM", ".NET", ".ORG")) and "@" not in name_str:
+            return "Domain"
+        if any(w in name_str for w in ("DEPARTMENT", "DEPT", "OPERATIONS", "OPS", "ADMINS", "GROUP", "GRP", "HELPDESK", "USERS_GRP", "SECURITY_OPS", "INFRASTRUCTURE", "DEVELOPERS", "MANAGERS")):
+            return "Group"
+        if name_str.endswith("$") or any(w in name_str for w in ("COMP_", "DC0", "WS-", "SRV-", "DESKTOP-")):
+            return "Computer"
 
     return default
 
@@ -102,8 +130,8 @@ class ScriptBuilder:
         """
         Generates a PowerShell snippet for a specific relationship and target type.
         """
-        # Normalize target type
-        resolved_tgt_type = target_type or extract_node_type(target, default="User")
+        # Normalize target type with relationship and name context
+        resolved_tgt_type = target_type or extract_node_type(target, rel_type=rel_type, default="User")
         norm_rel = rel_type.strip() if rel_type else ""
         norm_tgt_type = resolved_tgt_type.strip().capitalize() if resolved_tgt_type else "User"
 
