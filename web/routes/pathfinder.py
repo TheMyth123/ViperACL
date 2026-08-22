@@ -13,12 +13,16 @@ router = APIRouter(prefix="/api")
 @router.post("/pathfind")
 def pathfind(request: PathfindRequest, req: Request):
     settings = req.app.state.settings
+    from core.projects import ProjectManager
+    project_mgr = ProjectManager()
+    project_id = request.project_id or project_mgr.get_active_project_id()
 
     logger.info(
         "PATHFINDER", "pathfinder.started",
         f"Pathfinding [{request.mode}] {request.source_name} → {request.target_name}",
+        project_id=project_id,
         source="web.app",
-        details={"mode": request.mode, "source": request.source_name, "target": request.target_name},
+        details={"mode": request.mode, "source": request.source_name, "target": request.target_name, "project_id": project_id},
     )
 
     manager = db_manager(settings)
@@ -28,6 +32,7 @@ def pathfind(request: PathfindRequest, req: Request):
             logger.error(
                 "PATHFINDER", "pathfinder.model_unavailable",
                 "Predictive model is not available for pathfinding",
+                project_id=project_id,
                 source="web.app",
             )
             raise HTTPException(status_code=503, detail="Predictive model is not available.")
@@ -46,8 +51,9 @@ def pathfind(request: PathfindRequest, req: Request):
         logger.error(
             "PATHFINDER", "pathfinder.failed",
             f"Pathfinding failed [{request.mode}] {request.source_name} → {request.target_name}: {exc}",
+            project_id=project_id,
             source="web.app",
-            details={"mode": request.mode, "error": str(exc)},
+            details={"mode": request.mode, "error": str(exc), "project_id": project_id},
         )
         raise
     finally:
@@ -73,12 +79,14 @@ def pathfind(request: PathfindRequest, req: Request):
     logger.info(
         "PATHFINDER", "pathfinder.completed",
         f"Pathfinding [{request.mode}] completed — {len(extracted)} path(s) found from {request.source_name} → {request.target_name}",
+        project_id=project_id,
         source="web.app",
         details={
             "mode": request.mode,
             "source": request.source_name,
             "target": request.target_name,
             "result_count": len(extracted),
+            "project_id": project_id,
         },
     )
 

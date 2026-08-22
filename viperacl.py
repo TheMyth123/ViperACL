@@ -37,15 +37,25 @@ def initialize_environment():
         print("    [*] Loaded data/settings.json")
 
     # 2. Projects Registry: data/projects/projects.json
+    projects_file = data_dir / "projects" / "projects.json"
+    is_new_projects = not projects_file.exists()
     from core.projects import ProjectManager
     pm = ProjectManager()
-    active_count = len(pm.list_projects())
-    print(f"    [*] Initialized data/projects/projects.json ({active_count} active projects registered)")
+    if is_new_projects:
+        print("    [+] Created data/projects/projects.json (project registry initialized)")
+    else:
+        active_count = len(pm.list_projects())
+        print(f"    [*] Loaded data/projects/projects.json ({active_count} active projects registered)")
 
     # 3. Forensic Audit Logs: data/logs/viperacl_audit.jsonl
+    audit_file = data_dir / "logs" / "viperacl_audit.jsonl"
+    is_new_audit = not audit_file.exists()
     from core.logger import logger
     logger.info("SYSTEM", "system.startup", "ViperACL web application startup initiated", source="app.cli")
-    print("    [*] Initialized data/logs/viperacl_audit.jsonl (audit trail active)")
+    if is_new_audit:
+        print("    [+] Created data/logs/viperacl_audit.jsonl (audit trail initialized)")
+    else:
+        print("    [*] Loaded data/logs/viperacl_audit.jsonl (audit trail active)")
 
 
 def start_local_neo4j():

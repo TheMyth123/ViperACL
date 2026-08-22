@@ -2465,7 +2465,12 @@
           const res = await fetch("/api/pathfind", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ source_name: sourceName, target_name: targetName, mode: mode })
+            body: JSON.stringify({
+              source_name: sourceName,
+              target_name: targetName,
+              mode: mode,
+              project_id: wsContext.activeProjectId
+            })
           });
           const data = await res.json();
           
