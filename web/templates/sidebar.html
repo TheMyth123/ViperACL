@@ -1,0 +1,399 @@
+<!-- ViperACL Reusable Sidebar & Global Modals Partial -->
+
+<!-- SideNavBar -->
+<nav class="flex bg-surface-container fixed left-0 top-0 h-full w-64 border-r border-outline-variant shadow-lg flex-col py-5 gap-2 z-40">
+  <!-- Header -->
+  <div class="px-5 pb-5 mb-1 border-b border-outline-variant">
+    <a href="/" class="block no-underline">
+      <h1 class="text-headline-md font-headline-md font-black text-primary flex items-center gap-2 tracking-tight">
+        <span class="material-symbols-outlined fill-icon text-primary">security</span>
+        ViperACL
+      </h1>
+    </a>
+    <p class="text-label-sm font-label-sm text-on-surface-variant mt-1 tracking-widest uppercase">Tactical Command</p>
+  </div>
+
+  <!-- Navigation Links -->
+  <div class="flex-1 px-3 space-y-2">
+    <!-- Launchpad / Home link -->
+    <a href="/" class="w-full flex items-center gap-3 rounded-lg px-4 py-2.5 text-left no-underline cursor-pointer transition-all {{ 'btn-new-project' if active_page == 'launchpad' else 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}">
+      <span class="material-symbols-outlined fill-icon pointer-events-none">dashboard</span>
+      <span class="text-label-md font-label-md font-bold pointer-events-none">Launchpad</span>
+    </a>
+
+    <!-- Tactical Workspace / 4 Phases link -->
+    <a href="/workspace" class="w-full flex items-center gap-3 rounded-lg px-4 py-2.5 text-left no-underline cursor-pointer transition-all {{ 'btn-new-project' if active_page == 'workspace' else 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}">
+      <span class="material-symbols-outlined fill-icon pointer-events-none">account_tree</span>
+      <span class="text-label-md font-label-md font-bold pointer-events-none">Workspace</span>
+    </a>
+
+    <!-- New Project Trigger -->
+    <button class="w-full flex items-center gap-3 text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer" id="open-new-project-modal-btn" type="button">
+      <span class="material-symbols-outlined fill-icon pointer-events-none">add_box</span>
+      <span class="text-label-md font-label-md pointer-events-none">New Project</span>
+    </button>
+
+    <!-- Projects Archive Accordion Drawer -->
+    <details class="group rounded-lg transition-all" id="archive-details" open>
+      <summary class="w-full flex items-center justify-between text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden" id="toggle-archive-btn">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined">inventory_2</span>
+          <span class="text-label-md font-label-md">Projects Archive</span>
+        </div>
+        <span class="material-symbols-outlined text-sm inline-block transition-transform duration-200 group-open:rotate-180" id="archive-chevron">expand_more</span>
+      </summary>
+      <div class="pl-2 pr-1 py-1.5 space-y-1.5 max-h-56 overflow-y-auto" id="projects-drawer">
+        <!-- Dynamic list of projects rendered with delete buttons by sidebar.js -->
+        <div class="text-xs text-on-surface-variant italic px-3 py-1">Loading projects...</div>
+      </div>
+    </details>
+
+    <!-- Global Logs Link -->
+    <a class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all no-underline cursor-pointer {{ 'nav-link-active' if active_page == 'logs' else 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}" href="/logs">
+      <span class="material-symbols-outlined">terminal</span>
+      <span class="text-label-md font-label-md font-bold">Global Logs</span>
+    </a>
+
+    <!-- SharpHound Link -->
+    <a href="/sharphound" class="w-full flex items-center gap-3 rounded-lg px-4 py-2.5 text-left no-underline cursor-pointer transition-all {{ 'btn-new-project' if active_page == 'sharphound' else 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}">
+      <span class="material-symbols-outlined pointer-events-none">download</span>
+      <span class="text-label-md font-label-md font-bold pointer-events-none">SharpHound</span>
+    </a>
+
+    <!-- Settings Trigger -->
+    <button class="w-full flex items-center gap-3 text-on-surface-variant hover:text-on-surface px-4 py-2.5 hover:bg-surface-container-high rounded-lg transition-all text-left cursor-pointer" id="open-settings-btn" type="button">
+      <span class="material-symbols-outlined pointer-events-none">settings</span>
+      <span class="text-label-md font-label-md pointer-events-none">Settings</span>
+    </button>
+  </div>
+
+  <!-- Status / Footer -->
+  <div class="px-5 pt-3 border-t border-outline-variant mt-auto">
+    <div class="flex items-center gap-2 text-label-sm font-label-sm transition-colors {{ 'text-[#10b981]' if snapshot.connected and runtime.model_available else ('text-[#ffbe5c]' if snapshot.connected else 'text-[#ff7f7f]') }}" id="sidebar-status-container">
+      <span class="w-2 h-2 rounded-full animate-pulse {{ 'bg-[#10b981] shadow-[0_0_8px_#10b981]' if snapshot.connected and runtime.model_available else ('bg-[#ffbe5c] shadow-[0_0_8px_#ffbe5c]' if snapshot.connected else 'bg-[#ff7f7f] shadow-[0_0_8px_#ff7f7f]') }}" id="sidebar-status-dot"></span>
+      Status: <span id="sidebar-model-state">{{ 'Active' if snapshot.connected and runtime.model_available else ('Degraded (No ML)' if snapshot.connected else 'Offline (No DB)') }}</span>
+    </div>
+  </div>
+</nav>
+
+<!-- New Project Modal Dialog -->
+<div class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="new-project-modal">
+  <div class="bg-[#1E293B] border border-[#334155] rounded-xl p-6 w-full max-w-lg shadow-2xl space-y-4 relative transform scale-95 opacity-0 transition-all duration-200 ease-out" id="new-project-modal-box">
+    <div class="flex items-center justify-between border-b border-outline-variant pb-3">
+      <h3 class="text-headline-md font-bold text-on-surface flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">add_box</span>
+        Create New Project
+      </h3>
+      <button class="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer transition-colors" id="close-modal-btn" type="button" title="Close">
+        <span class="material-symbols-outlined pointer-events-none">close</span>
+      </button>
+    </div>
+
+    <!-- Error / Validation Alert Box -->
+    <div id="new-project-error" class="hidden p-3 rounded bg-red-950/70 border border-red-500/50 text-error text-xs font-jetbrains leading-relaxed flex items-start gap-2">
+      <span class="material-symbols-outlined text-base flex-shrink-0 text-red-400">error</span>
+      <span id="new-project-error-text" class="flex-1"></span>
+    </div>
+
+    <form id="new-project-form" class="space-y-3.5" novalidate>
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label for="project-name-input" class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">Project Name <span class="text-primary">*</span></label>
+          <span class="text-[10px] text-on-surface-variant/70 font-jetbrains" id="project-name-counter">0 / 64</span>
+        </div>
+        <input 
+          type="text" 
+          id="project-name-input" 
+          name="name"
+          maxlength="64"
+          autocomplete="off"
+          class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
+          placeholder="e.g. Internal AD Assessment" 
+          required 
+        />
+        <p class="text-[11px] text-on-surface-variant/75 mt-1 leading-snug">
+          3–64 characters. Unique assessment name.
+        </p>
+      </div>
+
+      <!-- Target DC & Foothold Setup -->
+      <div class="pt-2 border-t border-outline-variant/40 space-y-3">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-sm">target</span>
+          Target Environment &amp; Foothold
+        </div>
+
+        <div>
+          <label for="project-dc-ip-input" class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Domain Controller IP</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">dns</span>
+            <input 
+              type="text" 
+              id="project-dc-ip-input" 
+              name="dc_ip"
+              maxlength="128"
+              autocomplete="off"
+              class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-2.5 py-1.5 text-xs text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
+              placeholder="e.g. 10.10.10.1" 
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="project-foothold-user-input" class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Foothold Username</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">person</span>
+              <input 
+                type="text" 
+                id="project-foothold-user-input" 
+                name="foothold_username"
+                maxlength="64"
+                autocomplete="off"
+                class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-2.5 py-1.5 text-xs text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
+                placeholder="e.g. JDOE" 
+              />
+            </div>
+          </div>
+
+          <div>
+            <label for="project-foothold-pass-input" class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Foothold Password</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">key</span>
+              <input 
+                type="password" 
+                id="project-foothold-pass-input" 
+                name="foothold_password"
+                maxlength="256"
+                autocomplete="off"
+                class="w-full bg-surface-container-low border border-outline-variant rounded pl-8 pr-9 py-1.5 text-xs text-on-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-jetbrains transition-all" 
+                placeholder="Account password" 
+              />
+              <button type="button" id="toggle-new-proj-pass-btn" class="absolute right-2 top-1.5 text-on-surface-variant hover:text-on-surface p-0.5 rounded cursor-pointer transition-colors" title="Toggle password visibility">
+                <span class="material-symbols-outlined text-xs pointer-events-none" id="toggle-new-proj-pass-icon">visibility</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Optional Pre-Check Connectivity & Credentials Section -->
+        <div class="pt-2 border-t border-outline-variant/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/80 flex items-center gap-1">
+              <span class="material-symbols-outlined text-xs text-primary">network_check</span>
+              Target Connectivity Pre-Check
+            </span>
+            <span class="text-[9px] text-on-surface-variant/60 uppercase font-mono tracking-wider">Optional</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button 
+              type="button" 
+              id="btn-test-ping-dc" 
+              class="px-2.5 py-1.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/60 hover:border-primary/50 text-on-surface text-[11px] font-bold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="material-symbols-outlined text-xs text-secondary" id="test-ping-icon">cell_tower</span>
+              <span id="test-ping-label">Ping DC</span>
+            </button>
+
+            <button 
+              type="button" 
+              id="btn-test-foothold-creds" 
+              class="px-2.5 py-1.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/60 hover:border-primary/50 text-on-surface text-[11px] font-bold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="material-symbols-outlined text-xs text-tertiary" id="test-foothold-icon">verified_user</span>
+              <span id="test-foothold-label">Verify Foothold Creds</span>
+            </button>
+          </div>
+
+          <!-- Result Line -->
+          <div id="test-connection-result" class="hidden text-[11px] font-jetbrains px-2.5 py-1.5 rounded border leading-snug flex items-center gap-1.5 transition-all">
+            <span class="material-symbols-outlined text-xs flex-shrink-0" id="test-connection-icon">info</span>
+            <span id="test-connection-text" class="flex-1 truncate"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-2.5 border-t border-outline-variant/30">
+        <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer transition-colors">
+          Cancel
+        </button>
+        <button type="submit" id="submit-new-project-btn" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          <span class="material-symbols-outlined text-sm pointer-events-none" id="new-project-btn-icon">rocket_launch</span>
+          <span id="new-project-btn-label">Create Project</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- IDE-Style Settings Modal Dialog -->
+<div class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="settings-modal">
+  <div class="bg-[#1E293B] border border-[#334155] rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] transform scale-95 opacity-0 transition-all duration-200 ease-out" id="settings-modal-box">
+    <!-- Modal Header -->
+    <div class="flex items-center justify-between border-b border-outline-variant p-4 bg-surface-container-low flex-shrink-0">
+      <div class="flex items-center gap-2 text-on-surface font-bold text-headline-sm">
+        <span class="material-symbols-outlined text-primary">settings</span>
+        System Preferences &amp; Config
+      </div>
+      <button class="text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer" id="close-settings-modal-btn" type="button">
+        <span class="material-symbols-outlined pointer-events-none">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Content: Sidebar Tab Switcher + Panel -->
+    <div class="flex flex-1 overflow-hidden min-h-[360px]">
+      <!-- Left Tab Menu -->
+      <div class="w-48 bg-surface-container-lowest border-r border-outline-variant p-2 space-y-1 flex-shrink-0">
+        <button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors bg-primary/15 text-primary border border-primary/30 cursor-pointer" data-tab="tab-db" type="button">
+          <span class="material-symbols-outlined text-sm">database</span>
+          Database
+        </button>
+        <button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high cursor-pointer" data-tab="tab-engine" type="button">
+          <span class="material-symbols-outlined text-sm">psychology</span>
+          Engine &amp; ML
+        </button>
+        <button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high cursor-pointer" data-tab="tab-privesc" type="button">
+          <span class="material-symbols-outlined text-sm">admin_panel_settings</span>
+          Privilege Escalation
+        </button>
+        <button class="settings-tab-btn w-full flex items-center gap-2.5 px-3 py-2 rounded text-xs font-bold text-left transition-colors text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high cursor-pointer" data-tab="tab-remediation" type="button">
+          <span class="material-symbols-outlined text-sm">healing</span>
+          Remediation
+        </button>
+      </div>
+
+      <!-- Right Tab Panels Container -->
+      <div class="flex-1 p-5 overflow-y-auto">
+        <!-- 1. Database Connection Tab -->
+        <div class="settings-panel space-y-4" id="tab-db">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Neo4j Database Connection</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Bolt URI</label>
+              <input type="text" id="settings-db-uri" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="{{ settings.neo4j_uri if settings else 'bolt://127.0.0.1:7687' }}" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Username</label>
+                <input type="text" id="settings-db-user" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="{{ settings.neo4j_username if settings else 'neo4j' }}" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Password</label>
+                <input type="password" id="settings-db-pass" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="{{ settings.neo4j_password if settings else 'viperacl' }}" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Database Name</label>
+              <input type="text" id="settings-db-name" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="{{ settings.neo4j_database if settings else 'neo4j' }}" />
+            </div>
+            <div class="pt-3 border-t border-outline-variant/30 space-y-2">
+              <button type="button" id="btn-test-db" class="px-4 py-2 bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant text-xs font-bold rounded flex items-center gap-1.5 transition-colors cursor-pointer">
+                <span class="material-symbols-outlined text-sm text-primary">network_check</span>
+                Test Connection
+              </button>
+              <div id="test-db-feedback" class="text-xs font-jetbrains font-bold leading-relaxed hidden p-2.5 rounded bg-surface-container-lowest border border-outline-variant/30"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Engine & ML Preferences Tab -->
+        <div class="settings-panel hidden space-y-4" id="tab-engine">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Pathfinder &amp; Model Engine Defaults</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Default Path Mode</label>
+              <select id="settings-default-mode" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none">
+                <option value="tactical" {{ 'selected' if settings and settings.pathfinder_default_mode == 'tactical' else '' }}>Tactical (Strict Choke Point Focus)</option>
+                <option value="fasttrack" {{ 'selected' if settings and settings.pathfinder_default_mode == 'fasttrack' else '' }}>FastTrack (Shortest Path Speed)</option>
+                <option value="predictive" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive' else '' }}>Predictive (Random Forest Probability)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Max Path Hops Limit</label>
+              <input type="number" id="settings-max-hops" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" min="1" max="50" value="{{ settings.pathfinder_max_hops if settings else 10 }}" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">ML Predictive Confidence Threshold</label>
+              <input type="number" id="settings-ml-threshold" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" step="0.05" min="0.0" max="1.0" value="{{ settings.pathfinder_ml_threshold if settings else 0.70 }}" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Privilege Escalation Defaults Tab -->
+        <div class="settings-panel hidden space-y-4" id="tab-privesc">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Privilege Escalation Defaults</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Default Change Password</label>
+              <div class="relative">
+                <input type="password" id="settings-privesc-default-password" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 pr-9 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none" value="{{ settings.privesc_default_change_password if settings else 'Secur3P@ssw0rd!' }}" />
+                <button type="button" id="toggle-privesc-pass-btn" class="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 rounded cursor-pointer transition-colors" title="Toggle password visibility">
+                  <span class="material-symbols-outlined text-xs pointer-events-none" id="toggle-privesc-pass-icon">visibility</span>
+                </button>
+              </div>
+              <p class="text-[11px] text-on-surface-variant/80 mt-1 leading-snug" id="settings-privesc-password-guidelines">
+                Active Directory policy: 12-64 characters, at least one uppercase letter, one lowercase letter, one number, one special character, and no spaces.
+              </p>
+              <p class="hidden text-[11px] font-bold mt-1 leading-snug text-error" id="settings-privesc-password-error"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Remediation Tab -->
+        <div class="settings-panel hidden space-y-4" id="tab-remediation">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-primary border-b border-outline-variant/40 pb-2">Remediation Settings</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Project Script Export Directory</label>
+              <input type="text" id="settings-remediation-dir" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface-variant font-jetbrains opacity-80 cursor-not-allowed" value="data/projects/storage/{project_id}/scripts" readonly />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Target Script Format</label>
+              <p class="text-xs text-on-surface-variant opacity-80 font-jetbrains">Active Directory PowerShell Script (.ps1)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="flex items-center justify-end gap-3 border-t border-outline-variant p-4 bg-surface-container-low flex-shrink-0">
+      <button type="button" id="cancel-settings-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer">Cancel</button>
+      <button type="button" id="save-settings-btn" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-colors flex items-center gap-1.5 cursor-pointer">
+        <span class="material-symbols-outlined text-sm pointer-events-none">save</span>
+        Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Delete Confirmation Modal Dialog -->
+<div class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-200 opacity-0" id="delete-project-modal">
+  <div class="bg-[#1E293B] border border-red-900/50 rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 relative transform scale-95 opacity-0 transition-all duration-200 ease-out" id="delete-project-modal-box">
+    <div class="flex items-center gap-3.5 border-b border-outline-variant/40 pb-3">
+      <div class="w-10 h-10 rounded-full bg-red-950/80 text-red-400 border border-red-800/50 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-xl">warning</span>
+      </div>
+      <div>
+        <h3 class="text-sm font-bold text-on-surface">Delete Project Evidence</h3>
+        <p class="text-xs text-on-surface-variant/80">Confirm graph data removal</p>
+      </div>
+    </div>
+    
+    <div class="text-xs text-on-surface-variant/90 leading-relaxed bg-surface-container-low p-3.5 rounded-lg border border-outline-variant/30 font-jetbrains space-y-2">
+      <p>Are you sure you want to delete project <strong id="delete-modal-project-name" class="text-on-surface font-bold"></strong>?</p>
+      <p class="text-red-400/90 text-[11px]">This will clear its graph nodes and relationships from Neo4j while retaining metadata logs for audit evidence.</p>
+    </div>
+
+    <div class="flex items-center justify-end gap-3 pt-2">
+      <button type="button" id="cancel-delete-modal-btn" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded transition-colors cursor-pointer">
+        Cancel
+      </button>
+      <button type="button" id="confirm-delete-modal-btn" class="px-4 py-2 text-xs font-bold bg-error hover:bg-error/90 text-on-error rounded shadow-lg shadow-error/20 transition-all flex items-center gap-1.5 cursor-pointer">
+        <span class="material-symbols-outlined text-sm">delete</span>
+        Delete Project
+      </button>
+    </div>
+  </div>
+</div>

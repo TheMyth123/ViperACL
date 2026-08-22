@@ -31,6 +31,10 @@ class DestructiveModule:
             return False
 
         context.add_credential(target_dn, "password", new_password)
+        # Also store credential under the username/UPN for easier lookup by UI
+        if target_name:
+            context.add_credential(target_name, "password", new_password)
+
         if not context.switch_identity(target_dn):
             logging.error(f"DESTRUCTIVE: context switch failed after password reset for {target_name}.")
             return False

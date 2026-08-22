@@ -50,13 +50,38 @@ class SessionContext:
 
     def switch_identity(self, new_user: str) -> bool:
         """
-        Switches the active context to a new user. 
-        Requires that we have credentials for the new user.
+        Switches the active context to a new user.
+        Accepts common AD identity aliases such as UPN, SAM, and NetBIOS formats.
         """
-        if new_user in self.credentials:
-            self.current_identity = new_user
-            logging.info(f"Context switched. Now operating as: {self.current_identity}")
-            return True
+        if not new_user:
+            return False
+
+        candidates = set()
+        raw = str(new_user).strip()
+        candidates.add(raw)
+
+        if "\\" in raw:
+            candidates.add(raw.split("\\")[-1])
+        if "@" in raw:
+            candidates.add(raw.split("@")[0])
+            sam = raw.split("@")[0]
+            if self.domain:
+                netbios = self.domain.split(".")[0]
+                candidates.add(f"{netbios}\\{sam}")
+                candidates.add(f"{sam}@{self.domain}")
+        else:
+            sam = raw
+            if self.domain:
+                netbios = self.domain.split(".")[0]
+                candidates.add(f"{netbios}\\{raw}")
+                candidates.add(f"{raw}@{self.domain}")
+
+        for candidate in candidates:
+            if candidate in self.credentials:
+                self.current_identity = candidate
+                logging.info(f"Context switched. Now operating as: {self.current_identity}")
+                return True
+
         logging.error(f"Cannot switch to {new_user}: No credentials in context.")
         return False
 

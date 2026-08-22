@@ -1,58 +1,142 @@
+# core/remediation/engine.py
+"""
+ViperACL Surgical Remediation Engine.
+Takes selected attack path edges and generates production-ready, standalone
+PowerShell scripts with detailed execution feedback and forensic evidence.
+"""
+
 import os
 from datetime import datetime
-from .builder import ScriptBuilder
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 from . import ps_templates
+from .builder import ScriptBuilder, clean_principal_name
+
 
 class RemediationEngine:
-    def __init__(self, output_dir="scripts"):
-        self.output_dir = output_dir
+    def __init__(self, output_dir: str = "data/scripts"):
+        self.output_dir = Path(output_dir)
         self.builder = ScriptBuilder()
+        self.last_output_path: Optional[str] = None
+        self.last_script_content: Optional[str] = None
 
-    def generate_script(self, remediation_targets: list) -> bool:
+    def generate_script(
+        self,
+        remediation_targets: List[Dict[str, Any]],
+        project_name: str = "Active Directory Security Assessment",
+        domain: str = "Target Active Directory Domain",
+        project_root: Optional[Path] = None,
+    ) -> Dict[str, Any]:
         """
-        Takes a list of relationships and writes a unified PowerShell script.
-        Expected format: [{'type': 'GenericAll', 'source': 'UserA', 'target': 'GroupB'}, ...]
+        Takes a list of selected relationships/edges and writes a unified PowerShell script.
+        Expected target format:
+        [
+            {
+                'type': 'GenericAll', # or 'relationship'
+                'source': 'UserA' or {'name': 'UserA@DOMAIN'},
+                'target': 'GroupB' or {'name': 'GroupB@DOMAIN'},
+                'target_type': 'Group',
+                'index': 0 # optional hop index
+            }, ...
+        ]
         """
+        self.last_output_path = None
+        self.last_script_content = None
+
         if not remediation_targets:
-            print("[-] No relationships provided for remediation.")
-            return False
+            return {
+                "success": False,
+                "error": "No remediation actions were selected for compilation.",
+                "target_count": 0,
+            }
 
-        print(f"[*] Generating remediation script with {len(remediation_targets)} actions...")
-        
-        script_content = [ps_templates.HEADER]
+        now = datetime.now()
+        timestamp_str = now.strftime("%Y-%m-%d %H:%M:%S")
+        file_timestamp = now.strftime("%Y%m%d_%H%M%S")
 
+        # 1. Format Header
+        header = ps_templates.HEADER.format(
+            project_name=project_name,
+            timestamp=timestamp_str,
+            domain=domain,
+            action_count=len(remediation_targets),
+        )
+        script_parts = [header]
+
+        # 2. Append Each Action Block
+        valid_actions_count = 0
         for idx, task in enumerate(remediation_targets, 1):
-            rel_type = task.get('type')
-            source = task.get('source')
-            target = task.get('target')
+            rel_type = task.get("type") or task.get("relationship") or ""
+            source = task.get("source")
+            target = task.get("target")
+            target_type = task.get("target_type") or task.get("targetType")
 
-            if not all([rel_type, source, target]):
-                print(f"  [-] Skipping invalid task {idx}: Missing required fields.")
+            if not rel_type or source is None or target is None:
                 continue
 
-            # Add a visual separator for the script
-            script_content.append(f"\n# --- Action {idx}: Mitigate {rel_type} ---")
-            
-            # Fetch and append the block
-            block = self.builder.get_remediation_block(rel_type, source, target)
-            script_content.append(block)
+            src_display = clean_principal_name(source)
+            tgt_display = clean_principal_name(target, is_domain=(target_type == "Domain"))
 
-        script_content.append(ps_templates.FOOTER)
+            script_parts.append(
+                f"\n# ========================================================="
+                f"\n# Action {idx}: Neutralize {rel_type} on {target_type or 'Object'}"
+                f"\n# Route Flaw: {src_display} --[{rel_type}]--> {tgt_display}"
+                f"\n# ========================================================="
+            )
 
-        # 1. Generate a meaningful filename using a timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"remediation_plan_{timestamp}.ps1"
-        output_path = os.path.join(self.output_dir, filename)
+            block = self.builder.get_remediation_block(
+                rel_type=rel_type,
+                source=source,
+                target=target,
+                target_type=target_type,
+            )
+            script_parts.append(block)
+            valid_actions_count += 1
 
-        # 2. Ensure the 'scripts/' directory exists safely
-        os.makedirs(self.output_dir, exist_ok=True)
+        if valid_actions_count == 0:
+            return {
+                "success": False,
+                "error": "None of the selected edges could be parsed into valid remediation actions.",
+                "target_count": 0,
+            }
 
-        # 3. Write to file
+        # 3. Append Footer
+        script_parts.append(ps_templates.FOOTER)
+        full_script = "".join(script_parts)
+
+        # 4. Determine Filename and Output Path
+        filename = f"remediation_plan_{file_timestamp}.ps1"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        output_file = self.output_dir / filename
+
+        # 5. Write to File
         try:
-            with open(output_path, "w") as f:
-                f.write("".join(script_content))
-            print(f"[+] Remediation script successfully saved to: {os.path.abspath(output_path)}")
-            return True
-        except Exception as e:
-            print(f"[!] Failed to write script: {e}")
-            return False
+            output_file.write_text(full_script, encoding="utf-8")
+            self.last_output_path = str(output_file.resolve())
+            self.last_script_content = full_script
+            file_size = output_file.stat().st_size
+
+            rel_path = str(output_file)
+            if project_root:
+                try:
+                    rel_path = str(output_file.relative_to(project_root))
+                except ValueError:
+                    pass
+
+            return {
+                "success": True,
+                "filename": filename,
+                "output_path": str(output_file.resolve()),
+                "relative_path": rel_path,
+                "file_size": file_size,
+                "target_count": valid_actions_count,
+                "script_content": full_script,
+                "created_at": timestamp_str,
+            }
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": f"Failed to write PowerShell script to disk: {exc}",
+                "target_count": valid_actions_count,
+            }

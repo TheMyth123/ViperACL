@@ -7,7 +7,7 @@ from pathlib import Path
 
 import uvicorn
 
-from utils.database import DatabaseManager
+from core.database import DatabaseManager
 from web.app import create_app
 from web.config import load_settings
 
@@ -19,6 +19,43 @@ def find_free_port(host):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind((host, 0))
         return sock.getsockname()[1]
+
+
+def initialize_environment():
+    """Initializes and verifies necessary session storage, registry, and audit files on startup."""
+    data_dir = PROJECT_ROOT / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    print("[*] Initializing ViperACL workspace storage and session files...")
+
+    # 1. Configuration: data/settings.json
+    settings_file = data_dir / "settings.json"
+    if not settings_file.exists():
+        load_settings()
+        print("    [+] Created data/settings.json (configuration loaded with default policy)")
+    else:
+        print("    [*] Loaded data/settings.json")
+
+    # 2. Projects Registry: data/projects/projects.json
+    projects_file = data_dir / "projects" / "projects.json"
+    is_new_projects = not projects_file.exists()
+    from core.projects import ProjectManager
+    pm = ProjectManager()
+    if is_new_projects:
+        print("    [+] Created data/projects/projects.json (project registry initialized)")
+    else:
+        active_count = len(pm.list_projects())
+        print(f"    [*] Loaded data/projects/projects.json ({active_count} active projects registered)")
+
+    # 3. Forensic Audit Logs: data/logs/viperacl_audit.jsonl
+    audit_file = data_dir / "logs" / "viperacl_audit.jsonl"
+    is_new_audit = not audit_file.exists()
+    from core.logger import logger
+    logger.info("SYSTEM", "system.startup", "ViperACL web application startup initiated", source="app.cli")
+    if is_new_audit:
+        print("    [+] Created data/logs/viperacl_audit.jsonl (audit trail initialized)")
+    else:
+        print("    [*] Loaded data/logs/viperacl_audit.jsonl (audit trail active)")
 
 
 def start_local_neo4j():
@@ -53,11 +90,14 @@ def wait_for_neo4j(settings, timeout_seconds=60):
 
 
 def main():
+    initialize_environment()
     settings = load_settings()
+
     parser = argparse.ArgumentParser(description="Start the ViperACL web app.")
     parser.add_argument("--host", default=settings.host)
     parser.add_argument("--port", type=int, default=settings.port)
     parser.add_argument("--no-bootstrap-db", action="store_true", help="Skip starting the local Neo4j container.")
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development.")
     args = parser.parse_args()
 
     if not args.no_bootstrap_db:
@@ -67,11 +107,29 @@ def main():
             sys.exit(1)
 
     port = args.port or find_free_port(args.host)
-    app = create_app()
 
     print(f"[*] ViperACL web app starting on http://{args.host}:{port}")
     print(f"[*] Neo4j target: {settings.neo4j_uri} ({settings.neo4j_database})")
-    uvicorn.run(app, host=args.host, port=port, log_level="info")
+
+    if args.reload:
+        uvicorn.run(
+            "web.app:create_app",
+            host=args.host,
+            port=port,
+            log_level="info",
+            factory=True,
+            reload=True,
+            timeout_graceful_shutdown=2,
+        )
+    else:
+        app = create_app()
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=port,
+            log_level="info",
+            timeout_graceful_shutdown=2,
+        )
 
 
 if __name__ == "__main__":

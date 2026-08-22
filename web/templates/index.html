@@ -1,50 +1,160 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ settings.title }}</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>ViperACL - Global Launchpad</title>
+  {% include 'head_assets.html' %}
 </head>
-<body>
-  <main class="shell">
-    <section class="hero">
-      <div>
-        <p class="eyebrow">ViperACL base</p>
-        <h1>Web-first attack path planning</h1>
-        <p class="lede">
-          The app boots as a local web service, assigns a port on startup, and connects to your own Neo4j instance.
-        </p>
-      </div>
-      <div class="status-card">
-        <span class="status-label">Server</span>
-        <strong>Ready for expansion</strong>
-        <p>{{ settings.host }} : auto port</p>
+
+<body class="bg-background text-on-surface flex min-h-screen h-screen overflow-hidden">
+  {% include 'sidebar.html' %}
+
+  <!-- Main Content Area - Dynamic 1-Page Layout without Scrollbar -->
+  <main class="flex-1 ml-64 w-[calc(100%-16rem)] h-screen max-h-screen flex flex-col justify-between p-5 xl:p-6 bg-background overflow-hidden box-border gap-3">
+    <!-- Header Section -->
+    <header class="w-full flex-shrink-0">
+      <h1 class="text-headline-xl font-headline-xl text-on-surface mb-1 font-bold flex items-center tracking-tight">
+        <span class="text-primary font-black">V</span>iperACL Launchpad
+      </h1>
+      <p class="text-body-md font-body-md text-on-surface-variant max-w-4xl leading-relaxed">
+        Automated machine learning-driven Active Directory attack path navigation, exploitation, <span class="whitespace-nowrap">and surgical remediation.</span>
+      </p>
+    </header>
+
+    <!-- Hero Start From Scratch Block -->
+    <section class="w-full flex-[1.1] min-h-[160px] flex flex-col">
+      <div class="bg-surface-container border border-outline-variant rounded-xl p-5 flex-1 flex flex-col items-center justify-center text-center shadow-lg tactical-card relative overflow-hidden">
+        <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-size: 36px 36px; background-image: linear-gradient(to right, #3c4a42 1px, transparent 1px), linear-gradient(to bottom, #3c4a42 1px, transparent 1px);"></div>
+        <span class="material-symbols-outlined text-[48px] text-primary-container mb-2 drop-shadow-md relative z-10">account_tree</span>
+        <h2 class="text-headline-lg font-headline-lg text-on-surface mb-1.5 relative z-10 font-bold">Start From Scratch</h2>
+        <p class="text-body-md font-body-md text-on-surface-variant mb-4 max-w-lg relative z-10">Initialize a new secure workspace to orchestrate multi-stage pathfinding and mitigation logic.</p>
+        <button class="bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors text-label-md font-label-md px-8 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-lg relative z-10 active:scale-95 duration-150 action-button cursor-pointer" id="create-project-button" type="button">
+          <span class="material-symbols-outlined fill-icon">add</span>
+          Create New Project
+        </button>
       </div>
     </section>
 
-    <section class="grid">
-      <article class="panel">
-        <h2>Database</h2>
-        <dl>
-          <div><dt>Connected</dt><dd>{{ snapshot.connected }}</dd></div>
-          <div><dt>URI</dt><dd>{{ snapshot.uri }}</dd></div>
-          <div><dt>Database</dt><dd>{{ snapshot.database }}</dd></div>
-          <div><dt>Nodes</dt><dd>{{ snapshot.nodes if snapshot.nodes is not none else "n/a" }}</dd></div>
-          <div><dt>Relationships</dt><dd>{{ snapshot.relationships if snapshot.relationships is not none else "n/a" }}</dd></div>
-        </dl>
-      </article>
+    <!-- System Status Cards (Database Status & ML Core Engine - Tightened internal space) -->
+    <section class="grid grid-cols-2 gap-4 w-full flex-shrink-0">
+      <!-- Database Status -->
+      <div class="bg-[#1E293B] border-t-2 border-primary rounded-xl p-3.5 flex flex-col justify-between tactical-card border border-[#334155]">
+        <div class="flex items-center gap-2.5 mb-2">
+          <span class="material-symbols-outlined text-primary text-2xl">database</span>
+          <h3 class="text-headline-md font-headline-md text-on-surface text-lg font-bold">Database Status</h3>
+        </div>
+        <div class="space-y-2 font-jetbrains flex-1 flex flex-col justify-center">
+          <div class="flex items-center justify-between bg-surface-container-low p-2 px-3.5 rounded border border-outline-variant text-xs">
+            <span class="text-on-surface-variant font-medium">Neo4j Graph Database</span>
+            <div class="flex items-center gap-2 px-2.5 py-0.5 rounded font-bold border {{ 'text-primary bg-primary/10 border-primary/20' if snapshot.connected else 'text-[#ff7f7f] bg-red-950/60 border-red-500/50' }}" id="connection-badge">
+              <span class="w-2 h-2 rounded-full {{ 'bg-[#10b981] shadow-[0_0_8px_#10b981]' if snapshot.connected else 'bg-[#ff7f7f] shadow-[0_0_8px_#ff7f7f]' }}" id="connection-state-dot"></span> <span id="connection-state">{{ "Connected" if snapshot.connected else "Disconnected" }}</span>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <div class="flex-1 bg-surface-container-low p-2 px-3.5 rounded border border-outline-variant">
+              <span class="block text-xs text-on-surface-variant mb-0.5 font-medium">Nodes</span>
+              <span class="text-xl font-black text-on-surface" id="node-count">{{ snapshot.nodes if snapshot.nodes is not none else "0" }}</span>
+            </div>
+            <div class="flex-1 bg-surface-container-low p-2 px-3.5 rounded border border-outline-variant">
+              <span class="block text-xs text-on-surface-variant mb-0.5 font-medium">Relationships</span>
+              <span class="text-xl font-black text-on-surface" id="relationship-count">{{ snapshot.relationships if snapshot.relationships is not none else "0" }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <article class="panel">
-        <h2>Foundation</h2>
-        <ul>
-          <li>FastAPI web host</li>
-          <li>Dedicated Neo4j service</li>
-          <li>Config-driven startup</li>
-          <li>API surface ready for UI work</li>
-        </ul>
-      </article>
+      <!-- ML Core Engine -->
+      <div class="bg-[#1E293B] border-t-2 border-secondary rounded-xl p-3.5 flex flex-col justify-between tactical-card border border-[#334155]">
+        <div class="flex items-center gap-2.5 mb-2">
+          <span class="material-symbols-outlined text-secondary text-2xl">memory</span>
+          <h3 class="text-headline-md font-headline-md text-on-surface text-lg font-bold">ML Core Engine</h3>
+        </div>
+        <div class="space-y-2 font-jetbrains flex-1 flex flex-col justify-center">
+          <div class="bg-surface-container-low p-2 px-3.5 rounded border border-outline-variant text-xs flex items-center justify-between gap-2">
+            <div>
+              <span class="block text-on-surface-variant mb-0.5 font-medium">Model Architecture</span>
+              <span class="text-on-surface font-bold text-sm" id="ml-model-type">{{ runtime.model_type if runtime.model_type else "Random Forest" }}</span>
+            </div>
+            <span class="text-[11px] font-mono text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded border border-outline-variant whitespace-nowrap" id="ml-model-file">{{ runtime.model_name if runtime.model_available else "viper_rf_model.pkl" }}</span>
+          </div>
+          <div class="flex items-center justify-between bg-surface-container-low p-2 px-3.5 rounded border border-outline-variant text-xs">
+            <span class="text-on-surface-variant font-medium">Engine Status</span>
+            <div class="flex items-center gap-2 px-2.5 py-0.5 rounded border font-bold transition-all {{ 'text-[#4cd7f6] bg-[#4cd7f6]/10 border-[#4cd7f6]/30' if runtime.model_available else 'text-[#ff7f7f] bg-red-950/60 border-red-500/50 shadow-[0_0_12px_rgba(239,68,68,0.2)]' }}" id="ml-engine-status">
+              {{ "Optimized & Ready" if runtime.model_available else "Model Unavailable" }}
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
-  </main>
+
+    <!-- 4 Phase Pipeline Preview -->
+    <section class="w-full flex-shrink-0">
+      <h3 class="text-sm font-bold text-on-surface mb-2 border-b border-outline-variant pb-1 uppercase tracking-wider">Operational Pipeline Preview</h3>
+      <div class="grid grid-cols-4 gap-4">
+        <!-- Phase 1 -->
+        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-ingest">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-bold text-secondary tracking-widest uppercase bg-secondary/10 px-2 py-0.5 rounded">Phase 1</span>
+            <span class="material-symbols-outlined text-secondary opacity-70 text-xl">upload_file</span>
+          </div>
+          <h4 class="text-base font-bold text-on-surface mb-1">Ingest</h4>
+          <p class="text-xs text-on-surface-variant leading-relaxed">Parse BloodHound/SharpHound JSON data to populate target domain graph.</p>
+        </div>
+        <!-- Phase 2 -->
+        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-tertiary rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-pathfinder">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-bold text-tertiary tracking-widest uppercase bg-tertiary/10 px-2 py-0.5 rounded">Phase 2</span>
+            <span class="material-symbols-outlined text-tertiary opacity-70 text-xl">route</span>
+          </div>
+          <h4 class="text-base font-bold text-on-surface mb-1">Pathfinder</h4>
+          <p class="text-xs text-on-surface-variant leading-relaxed">Leverage Random Forest predictive models to analyze attack paths.</p>
+        </div>
+        <!-- Phase 3 -->
+        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-error rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-privesc">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-bold text-error tracking-widest uppercase bg-error/10 px-2 py-0.5 rounded">Phase 3</span>
+            <span class="material-symbols-outlined text-error opacity-70 text-xl">admin_panel_settings</span>
+          </div>
+          <h4 class="text-base font-bold text-on-surface mb-1">Privilege Escalation</h4>
+          <p class="text-xs text-on-surface-variant leading-relaxed">Execute automated ACL privilege escalation chains safely.</p>
+        </div>
+        <!-- Phase 4 -->
+        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary-container rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-remediation">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-bold text-secondary-container tracking-widest uppercase bg-secondary-container/10 px-2 py-0.5 rounded">Phase 4</span>
+            <span class="material-symbols-outlined text-secondary-container opacity-70 text-xl">healing</span>
+          </div>
+          <h4 class="text-base font-bold text-on-surface mb-1 whitespace-nowrap">Remediation</h4>
+          <p class="text-xs text-on-surface-variant leading-relaxed">Generate surgical PowerShell scripts to neutralize choke points.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Hidden fallback containers for script hooks -->
+    <div class="hidden">
+      <div id="latest-path-meta"></div>
+      <div id="latest-path-count"></div>
+      <div id="latest-plan-count"></div>
+      <div id="latest-remediation-count"></div>
+      <div id="latest-plan-meta"></div>
+      <div id="latest-remediation-meta"></div>
+      <div id="console"></div>
+      <span id="footer-model-state"></span>
+    </div>
+
+    <script>
+      window.VIPERACL_STATE = {
+        healthUrl: "/api/health",
+        ingestUrl: "/api/ingest",
+        pathfindUrl: "/api/pathfind",
+        privescUrl: "/api/privesc/plan",
+        remediationUrl: "/api/remediation"
+      };
+    </script>
+    <script src="/static/sidebar.js?v=3"></script>
+    <script src="/static/app.js?v=10"></script>
 </body>
+
 </html>

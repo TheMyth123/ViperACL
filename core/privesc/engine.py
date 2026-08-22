@@ -3,6 +3,7 @@ import logging
 from types import SimpleNamespace
 
 from core.privesc.factory import get_module
+from core.privesc.modules.shared import PrivescActions
 
 
 class PrivescEngine:
@@ -35,36 +36,12 @@ class PrivescEngine:
             rels = []
             for i in range(0, len(path) - 2, 2):
                 rel_type = path[i + 1]
-                start_node = self._node_to_dict(path[i])
-                end_node = self._node_to_dict(path[i + 2])
+                start_node = PrivescActions._node_to_dict(path[i])
+                end_node = PrivescActions._node_to_dict(path[i + 2])
                 rels.append(SimpleNamespace(type=rel_type, start_node=start_node, end_node=end_node))
             return rels
 
         raise TypeError("Unsupported path format: expected Neo4j Path or predictive list path")
-
-    @staticmethod
-    def _node_to_dict(node):
-        """Convert path nodes into dict-like objects with keys used by modules."""
-        if isinstance(node, dict):
-            return node
-
-        result = {}
-        if hasattr(node, "get"):
-            result["name"] = node.get("name")
-            result["distinguishedname"] = node.get("distinguishedname")
-            return result
-
-        try:
-            result["name"] = node["name"]
-        except Exception:
-            result["name"] = None
-
-        try:
-            result["distinguishedname"] = node["distinguishedname"]
-        except Exception:
-            result["distinguishedname"] = None
-
-        return result
 
     def execute_all(self) -> bool:
         total = len(self.task_queue)
