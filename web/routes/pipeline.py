@@ -297,8 +297,8 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
 
     db = db_manager(settings)
     try:
-        path = normalize_path_dcsync(path, db)
-        plan = build_strict_action_plan(path, db)
+        path = normalize_path_dcsync(path, db, project_id=active_id)
+        plan = build_strict_action_plan(path, db, project_id=active_id)
     except Exception as exc:
         logger.error(
             "PRIVESC", "privesc.plan.failed",
@@ -361,7 +361,7 @@ def privesc_execute(request: PrivescPlanRequest, req: Request):
 
     db = db_manager(req.app.state.settings)
     try:
-        path = normalize_path_dcsync(path, db)
+        path = normalize_path_dcsync(path, db, project_id=active_id)
     finally:
         db.close()
 

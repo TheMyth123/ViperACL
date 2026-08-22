@@ -233,13 +233,13 @@ def _map_action(rel_type: str, target_type: str) -> str:
     return ""
 
 
-def build_strict_action_plan(path, db=None):
+def build_strict_action_plan(path, db=None, project_id=None):
     if db is None:
         db = DatabaseManager()
         db.connect()
 
-    normalized = normalize_path_dcsync(path, db)
-    if not is_valid_path(normalized, db):
+    normalized = normalize_path_dcsync(path, db, project_id=project_id)
+    if not is_valid_path(normalized, db, project_id=project_id):
         raise RuntimeError("Path contains disallowed edge/target pairs after strict validation")
 
     plan = []
@@ -247,7 +247,7 @@ def build_strict_action_plan(path, db=None):
         start_node = normalized[i]
         rel_type = normalized[i + 1]
         end_node = normalized[i + 2]
-        target_type = get_node_type(end_node, db)
+        target_type = get_node_type(end_node, db, project_id=project_id)
         action = _map_action(rel_type, target_type)
         if not action:
             raise RuntimeError(f"No strict action mapped for {rel_type} -> {target_type}")

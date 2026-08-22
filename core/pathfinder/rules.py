@@ -37,7 +37,7 @@ ACCEPTED_EDGES: Set[Tuple[str, str]] = {
 }
 
 
-def get_node_type(node: Any, db: Optional[Any] = None) -> str:
+def get_node_type(node: Any, db: Optional[Any] = None, project_id: Optional[str] = None) -> str:
     """Extract standard AD object type ('User', 'Group', 'Domain', 'Computer', etc.) from node."""
     if not node:
         return ""
@@ -47,10 +47,16 @@ def get_node_type(node: Any, db: Optional[Any] = None) -> str:
         labels = node.get("labels") or []
         if not labels and "name" in node and db is not None:
             try:
-                res = db.run_query(
-                    "MATCH (n {name: $name}) RETURN labels(n) AS labels LIMIT 1",
-                    {"name": node["name"]},
-                )
+                if project_id:
+                    res = db.run_query(
+                        "MATCH (n {name: $name, project_id: $pid}) RETURN labels(n) AS labels LIMIT 1",
+                        {"name": node["name"], "pid": project_id},
+                    )
+                else:
+                    res = db.run_query(
+                        "MATCH (n {name: $name}) RETURN labels(n) AS labels LIMIT 1",
+                        {"name": node["name"]},
+                    )
                 if res and res[0].get("labels"):
                     labels = res[0]["labels"]
             except Exception:
@@ -81,7 +87,7 @@ def get_node_type(node: Any, db: Optional[Any] = None) -> str:
 
 
 def check_has_dcsync_pair(
-    db: Any, source_node: Any, target_node: Any, cache: Optional[Dict[Tuple[str, str], bool]] = None
+    db: Any, source_node: Any, target_node: Any, cache: Optional[Dict[Tuple[str, str], bool]] = None, project_id: Optional[str] = None
 ) -> bool:
     """
     Checks whether source_node has both GetChanges and GetChangesAll
@@ -96,7 +102,7 @@ def check_has_dcsync_pair(
     tgt_id = target_node.get("objectid") if isinstance(target_node, dict) else getattr(target_node, "objectid", None)
     tgt_name = target_node.get("name") if isinstance(target_node, dict) else getattr(target_node, "name", None)
 
-    cache_key = (str(src_id or src_name or ""), str(tgt_id or tgt_name or ""))
+    cache_key = (str(src_id or src_name or ""), str(tgt_id or tgt_name or ""), str(project_id or ""))
     if cache is not None and cache_key in cache:
         return cache[cache_key]
 
@@ -112,12 +118,22 @@ def check_has_dcsync_pair(
         params["src_name"] = src_name or ""
         params["tgt_name"] = tgt_name or ""
 
+    if project_id:
+        src_clause += " AND s.project_id = $pid"
+        tgt_clause += " AND t.project_id = $pid"
+        params["pid"] = project_id
+        gc_match = "MATCH (s)-[:GetChanges {project_id: $pid}]->(t)"
+        gca_match = "MATCH (s)-[:GetChangesAll {project_id: $pid}]->(t)"
+    else:
+        gc_match = "MATCH (s)-[:GetChanges]->(t)"
+        gca_match = "MATCH (s)-[:GetChangesAll]->(t)"
+
     query = f"""
     MATCH (s), (t)
     WHERE {src_clause} AND {tgt_clause}
     RETURN 
-        EXISTS {{ MATCH (s)-[:GetChanges]->(t) }} AS has_gc,
-        EXISTS {{ MATCH (s)-[:GetChangesAll]->(t) }} AS has_gca
+        EXISTS {{ {gc_match} }} AS has_gc,
+        EXISTS {{ {gca_match} }} AS has_gca
     LIMIT 1
     """
     try:
@@ -137,7 +153,7 @@ def check_has_dcsync_pair(
 
 
 def normalize_path_dcsync(
-    path: List[Any], db: Optional[Any] = None, cache: Optional[Dict[Tuple[str, str], bool]] = None
+    path: List[Any], db: Optional[Any] = None, cache: Optional[Dict[Tuple[str, str], bool]] = None, project_id: Optional[str] = None
 ) -> List[Any]:
     """
     Normalizes a path representation by transforming GetChanges / GetChangesAll
@@ -153,21 +169,21 @@ def normalize_path_dcsync(
         tgt_node = normalized[i + 1]
 
         rel_type = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
-        tgt_type = get_node_type(tgt_node, db)
+        tgt_type = get_node_type(tgt_node, db, project_id=project_id)
 
         if tgt_type == "Domain" and rel_type in ("GetChanges", "GetChangesAll"):
-            if check_has_dcsync_pair(db, src_node, tgt_node, cache=cache):
+            if check_has_dcsync_pair(db, src_node, tgt_node, cache=cache, project_id=project_id):
                 normalized[i] = "DCSync"
 
     return normalized
 
 
-def is_valid_edge(rel: Any, target_node: Any, db: Optional[Any] = None) -> bool:
+def is_valid_edge(rel: Any, target_node: Any, db: Optional[Any] = None, project_id: Optional[str] = None) -> bool:
     """
     Checks if a single edge satisfies one of the 19 accepted (Relationship, TargetType) pairs.
     """
     rel_str = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
-    target_type = get_node_type(target_node, db)
+    target_type = get_node_type(target_node, db, project_id=project_id)
 
     if not target_type:
         return False
@@ -179,9 +195,9 @@ def is_valid_edge(rel: Any, target_node: Any, db: Optional[Any] = None) -> bool:
     return False
 
 
-def is_valid_path(path: List[Any], db: Optional[Any] = None) -> bool:
+def is_valid_path(path: List[Any], db: Optional[Any] = None, project_id: Optional[str] = None) -> bool:
     """
-    Validates that EVERY edge in the path (from start to end) is an accepted edge.
+    Validates that every step in the path is one of the strictly accepted 19 edge types.
     """
     if not isinstance(path, list) or len(path) < 3:
         return False
@@ -189,7 +205,7 @@ def is_valid_path(path: List[Any], db: Optional[Any] = None) -> bool:
     for i in range(1, len(path) - 1, 2):
         rel = path[i]
         target_node = path[i + 1]
-        if not is_valid_edge(rel, target_node, db):
+        if not is_valid_edge(rel, target_node, db, project_id=project_id):
             return False
 
     return True

@@ -112,10 +112,24 @@ def main():
     print(f"[*] Neo4j target: {settings.neo4j_uri} ({settings.neo4j_database})")
 
     if args.reload:
-        uvicorn.run("web.app:create_app", host=args.host, port=port, log_level="info", factory=True, reload=True)
+        uvicorn.run(
+            "web.app:create_app",
+            host=args.host,
+            port=port,
+            log_level="info",
+            factory=True,
+            reload=True,
+            timeout_graceful_shutdown=2,
+        )
     else:
         app = create_app()
-        uvicorn.run(app, host=args.host, port=port, log_level="info")
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=port,
+            log_level="info",
+            timeout_graceful_shutdown=2,
+        )
 
 
 if __name__ == "__main__":

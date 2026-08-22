@@ -139,6 +139,58 @@ class TestDatabaseRequest(BaseModel):
     database: str = Field("neo4j", min_length=1)
 
 
+class TestPingRequest(BaseModel):
+    dc_ip: str = Field(..., min_length=1, max_length=128, description="Domain Controller IP or hostname")
+    port: int = Field(default=445, ge=1, le=65535)
+
+    @field_validator("dc_ip")
+    @classmethod
+    def check_dc_ip(cls, v: str) -> str:
+        valid, result = validate_dc_ip(v)
+        if not valid or not result:
+            raise ValueError("A valid Domain Controller IP or hostname is required.")
+        return result
+
+
+class TestFootholdRequest(BaseModel):
+    dc_ip: str = Field(..., min_length=1, max_length=128, description="Domain Controller IP or hostname")
+    foothold_username: str = Field(..., min_length=1, max_length=64, description="Foothold account username")
+    foothold_password: str = Field(..., min_length=1, max_length=256, description="Foothold account password")
+    domain: str | None = Field(default="", max_length=128)
+
+    @field_validator("dc_ip")
+    @classmethod
+    def check_dc_ip(cls, v: str) -> str:
+        valid, result = validate_dc_ip(v)
+        if not valid or not result:
+            raise ValueError("A valid Domain Controller IP is required.")
+        return result
+
+    @field_validator("foothold_username")
+    @classmethod
+    def check_foothold_username(cls, v: str) -> str:
+        valid, result = validate_foothold_username(v)
+        if not valid or not result:
+            raise ValueError("Foothold username is required.")
+        return result
+
+    @field_validator("foothold_password")
+    @classmethod
+    def check_foothold_password(cls, v: str) -> str:
+        valid, result = validate_foothold_password(v)
+        if not valid or not result:
+            raise ValueError("Foothold password is required.")
+        return result
+
+    @field_validator("domain")
+    @classmethod
+    def check_domain(cls, v: str | None) -> str:
+        valid, result = validate_domain(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+
 class UnlockPhaseRequest(BaseModel):
     phase: Literal["phase_1", "phase_2", "all"] = "all"
     project_id: str | None = None

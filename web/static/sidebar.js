@@ -24,6 +24,38 @@ function showNewProjectError(message) {
   }
 }
 
+function hideConnectionResult() {
+  const resultBox = document.getElementById("test-connection-result");
+  if (resultBox) {
+    resultBox.classList.add("hidden");
+    resultBox.className = "hidden text-[11px] font-jetbrains px-2.5 py-1.5 rounded border leading-snug flex items-center gap-1.5 transition-all";
+  }
+}
+
+function showConnectionResult(msg, type = "info") {
+  const resultBox = document.getElementById("test-connection-result");
+  const resultIcon = document.getElementById("test-connection-icon");
+  const resultText = document.getElementById("test-connection-text");
+  if (!resultBox || !resultText) return;
+
+  resultBox.className = "text-[11px] font-jetbrains px-2.5 py-1.5 rounded border leading-snug flex items-center gap-1.5 transition-all";
+
+  if (type === "success") {
+    resultBox.classList.add("bg-emerald-950/60", "border-emerald-500/50", "text-emerald-300");
+    if (resultIcon) resultIcon.textContent = "check_circle";
+  } else if (type === "error") {
+    resultBox.classList.add("bg-rose-950/60", "border-rose-500/50", "text-rose-300");
+    if (resultIcon) resultIcon.textContent = "cancel";
+  } else if (type === "warning") {
+    resultBox.classList.add("bg-amber-950/60", "border-amber-500/50", "text-amber-300");
+    if (resultIcon) resultIcon.textContent = "warning";
+  } else {
+    resultBox.classList.add("bg-surface-container-high", "border-outline-variant", "text-on-surface-variant");
+    if (resultIcon) resultIcon.textContent = "info";
+  }
+  resultText.textContent = msg;
+}
+
 // Clear error inside the New Project Modal
 function clearNewProjectError() {
   const errorBox = document.getElementById("new-project-error");
@@ -50,6 +82,7 @@ function openNewProjectModal() {
   const btnLabel = document.getElementById("new-project-btn-label");
 
   clearNewProjectError();
+  hideConnectionResult();
   if (nameInput) nameInput.value = "";
   if (dcIpInput) dcIpInput.value = "";
   if (footholdUserInput) footholdUserInput.value = "";
@@ -92,6 +125,7 @@ function closeNewProjectModal(e) {
     setTimeout(() => {
       modal.classList.add("hidden");
       clearNewProjectError();
+      hideConnectionResult();
     }, 200);
   }
 }
@@ -469,6 +503,132 @@ function initSidebarEvents() {
       const isPass = passInput.type === "password";
       passInput.type = isPass ? "text" : "password";
       passIcon.textContent = isPass ? "visibility_off" : "visibility";
+    });
+  }
+
+  // 1. Ping DC Button Handler
+  const btnTestPing = document.getElementById("btn-test-ping-dc");
+  const pingIcon = document.getElementById("test-ping-icon");
+  const pingLabel = document.getElementById("test-ping-label");
+
+  if (btnTestPing) {
+    btnTestPing.addEventListener("click", async () => {
+      const dcIpInput = document.getElementById("project-dc-ip-input");
+      const dcIp = dcIpInput ? dcIpInput.value.trim() : "";
+      if (!dcIp) {
+        showConnectionResult("Enter a Domain Controller IP to test connectivity.", "warning");
+        if (dcIpInput) dcIpInput.focus();
+        return;
+      }
+
+      btnTestPing.disabled = true;
+      if (pingIcon) {
+        pingIcon.textContent = "refresh";
+        pingIcon.classList.add("animate-spin");
+      }
+      if (pingLabel) pingLabel.textContent = "Pinging...";
+      hideConnectionResult();
+
+      try {
+        const res = await fetch("/api/projects/test/ping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dc_ip: dcIp }),
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "ok") {
+          showConnectionResult(data.message || "Successfully connected to Domain Controller.", "success");
+        } else {
+          const err = data.detail || data.message || "Failed to connect: DC unreachable";
+          showConnectionResult(err, "error");
+        }
+      } catch (err) {
+        showConnectionResult("Failed to connect: DC unreachable", "error");
+      } finally {
+        btnTestPing.disabled = false;
+        if (pingIcon) {
+          pingIcon.textContent = "cell_tower";
+          pingIcon.classList.remove("animate-spin");
+        }
+        if (pingLabel) pingLabel.textContent = "Ping DC";
+      }
+    });
+  }
+
+  // 2. Verify Foothold Creds Button Handler
+  const btnTestFoothold = document.getElementById("btn-test-foothold-creds");
+  const fhIcon = document.getElementById("test-foothold-icon");
+  const fhLabel = document.getElementById("test-foothold-label");
+
+  if (btnTestFoothold) {
+    btnTestFoothold.addEventListener("click", async () => {
+      const dcIpInput = document.getElementById("project-dc-ip-input");
+      const footholdUserInput = document.getElementById("project-foothold-user-input");
+      const footholdPassInput = document.getElementById("project-foothold-pass-input");
+
+      const dcIp = dcIpInput ? dcIpInput.value.trim() : "";
+      let footholdUser = footholdUserInput ? footholdUserInput.value.trim() : "";
+      const footholdPass = footholdPassInput ? footholdPassInput.value : "";
+
+      if (!dcIp) {
+        showConnectionResult("Foothold verification failed: DC unreachable", "warning");
+        if (dcIpInput) dcIpInput.focus();
+        return;
+      }
+      if (!footholdUser) {
+        showConnectionResult("Enter a foothold username to verify.", "warning");
+        if (footholdUserInput) footholdUserInput.focus();
+        return;
+      }
+      if (!footholdPass) {
+        showConnectionResult("Enter the foothold account password.", "warning");
+        if (footholdPassInput) footholdPassInput.focus();
+        return;
+      }
+
+      // Strip domain prefix if user entered DOMAIN\user or user@domain
+      if (footholdUser.includes("\\")) {
+        footholdUser = footholdUser.split("\\").pop().trim();
+      }
+      if (footholdUser.includes("@")) {
+        footholdUser = footholdUser.split("@")[0].trim();
+      }
+
+      btnTestFoothold.disabled = true;
+      if (fhIcon) {
+        fhIcon.textContent = "refresh";
+        fhIcon.classList.add("animate-spin");
+      }
+      if (fhLabel) fhLabel.textContent = "Verifying...";
+      hideConnectionResult();
+
+      try {
+        const res = await fetch("/api/projects/test/foothold", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dc_ip: dcIp,
+            foothold_username: footholdUser,
+            foothold_password: footholdPass,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "ok") {
+          showConnectionResult(data.message || `Successfully bound with foothold account '${footholdUser}'.`, "success");
+        } else {
+          const err = data.detail || data.message || "Foothold verification failed: Invalid credentials";
+          showConnectionResult(err, "error");
+        }
+      } catch (err) {
+        showConnectionResult("Foothold verification failed: DC unreachable", "error");
+      } finally {
+        btnTestFoothold.disabled = false;
+        if (fhIcon) {
+          fhIcon.textContent = "verified_user";
+          fhIcon.classList.remove("animate-spin");
+        }
+        if (fhLabel) fhLabel.textContent = "Verify Foothold Creds";
+      }
     });
   }
 

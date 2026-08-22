@@ -12,7 +12,7 @@ from .tactical import COST_MAP, get_edge_cost
 REL_TYPES = sorted(list({k[0] for k in COST_MAP.keys()} | {"GetChanges", "GetChangesAll"}))
 FEATURE_COLUMNS = ['Hops', 'TotalCost', 'MaxCost'] + [f'Count_{rel}' for rel in REL_TYPES]
 
-def extract_features(path, db=None):
+def extract_features(path, db=None, project_id=None):
     """Translates a Cypher path into ML features, including counts of all relationship types."""
     hops = (len(path) - 1) // 2
     total_cost = 0
@@ -25,7 +25,7 @@ def extract_features(path, db=None):
         rel = path[i]
         rel_type = rel if isinstance(rel, str) else getattr(rel, "type", str(rel))
         target_node = path[i + 1]
-        cost = get_edge_cost(rel_type, target_node, db)
+        cost = get_edge_cost(rel_type, target_node, db, project_id=project_id)
         
         total_cost += cost
         if cost > max_cost:
@@ -42,14 +42,16 @@ def extract_features(path, db=None):
         
     return features
 
-def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshold=0.50):
+def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshold=0.50, project_id=None):
     """
     Viper Predictive Engine: Evaluates multiple paths using Random Forest probabilities.
-    Ensures strictly one-way acyclic attack chains from source to target, respecting
-    max_hops limit, DCSync combination, and strict accepted edges across all steps.
+    Ensures strictly one-way acyclic attack chains from source to target within the active project graph.
     """
     try:
-        rel_rows = db.run_query("MATCH ()-[r]->() RETURN DISTINCT type(r) AS rel")
+        if project_id:
+            rel_rows = db.run_query("MATCH ()-[r {project_id: $pid}]->() RETURN DISTINCT type(r) AS rel", {"pid": project_id})
+        else:
+            rel_rows = db.run_query("MATCH ()-[r]->() RETURN DISTINCT type(r) AS rel")
         present_rels = {row.get("rel") for row in rel_rows if row.get("rel")}
     except Exception:
         present_rels = set()
@@ -70,11 +72,21 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
         "source_name": source_name.upper(),
         "target_name": target_name.upper(),
     }
+    if project_id:
+        params["pid"] = project_id
+        src_node = "(source {name: $source_name, project_id: $pid})"
+        tgt_node = "(target {name: $target_name, project_id: $pid})"
+        rel_filter = "WHERE ALL(r IN relationships(p) WHERE r.project_id = $pid)"
+    else:
+        src_node = "(source {name: $source_name})"
+        tgt_node = "(target {name: $target_name})"
+        rel_filter = ""
 
     # 1. First retrieve all shortest paths efficiently
     q_shortest = f"""
-    MATCH (source {{name: $source_name}}), (target {{name: $target_name}})
+    MATCH {src_node}, {tgt_node}
     MATCH p = allShortestPaths((source)-[:{rel_pattern}*..{hops_limit}]->(target))
+    {rel_filter}
     RETURN p, length(p) AS hops, [n IN nodes(p) | labels(n)] AS node_labels, labels(target) AS target_labels
     """
     candidate_records = db.run_query(q_shortest, parameters=params) or []
@@ -87,14 +99,25 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
         for h in range(min_hops + 1, max_search_hop + 1):
             if len(candidate_records) >= 50:
                 break
-            qh = f"""
-            MATCH (source {{name: $source_name}}), (target {{name: $target_name}})
-            MATCH p = (source)-[:{rel_pattern}*{h}]->(target)
-            WHERE none(n IN nodes(p)[0..-2] WHERE toUpper(n.name) = toUpper($target_name))
-            AND none(n IN nodes(p)[1..] WHERE toUpper(n.name) = toUpper($source_name))
-            RETURN p, length(p) AS hops, [n IN nodes(p) | labels(n)] AS node_labels, labels(target) AS target_labels
-            LIMIT 20
-            """
+            if project_id:
+                qh = f"""
+                MATCH {src_node}, {tgt_node}
+                MATCH p = (source)-[:{rel_pattern}*{h}]->(target)
+                WHERE ALL(r IN relationships(p) WHERE r.project_id = $pid)
+                AND none(n IN nodes(p)[0..-2] WHERE toUpper(n.name) = toUpper($target_name))
+                AND none(n IN nodes(p)[1..] WHERE toUpper(n.name) = toUpper($source_name))
+                RETURN p, length(p) AS hops, [n IN nodes(p) | labels(n)] AS node_labels, labels(target) AS target_labels
+                LIMIT 20
+                """
+            else:
+                qh = f"""
+                MATCH {src_node}, {tgt_node}
+                MATCH p = (source)-[:{rel_pattern}*{h}]->(target)
+                WHERE none(n IN nodes(p)[0..-2] WHERE toUpper(n.name) = toUpper($target_name))
+                AND none(n IN nodes(p)[1..] WHERE toUpper(n.name) = toUpper($source_name))
+                RETURN p, length(p) AS hops, [n IN nodes(p) | labels(n)] AS node_labels, labels(target) AS target_labels
+                LIMIT 20
+                """
             extra_records = db.run_query(qh, parameters=params) or []
             candidate_records.extend(extra_records)
 
@@ -119,9 +142,9 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
             continue
 
         path = enrich_path_node_labels(raw_path, record.get("node_labels"))
-        normalized = normalize_path_dcsync(path, db, cache=dcsync_cache)
+        normalized = normalize_path_dcsync(path, db, cache=dcsync_cache, project_id=project_id)
 
-        if not is_valid_path(normalized, db):
+        if not is_valid_path(normalized, db, project_id=project_id):
             continue
 
         sig = get_path_signature(normalized)
@@ -129,7 +152,7 @@ def run_predictive(db, source_name, target_name, model, max_hops=15, ml_threshol
             continue
         seen_signatures.add(sig)
 
-        features = extract_features(normalized, db=db)
+        features = extract_features(normalized, db=db, project_id=project_id)
         df_features = pd.DataFrame([features], columns=FEATURE_COLUMNS)
         
         success_prob = model.predict_proba(df_features)[0][1] 

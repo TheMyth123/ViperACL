@@ -25,12 +25,16 @@ class DatabaseManager:
             # Ensure a few name indexes exist to make MATCH {name:..} queries fast on large graphs.
             try:
                 with self.driver.session(database=self.database) as session:
-                    # Create indexes for common labels used by the ingestor/importer.
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.name)")
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:User) ON (n.name)")
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Group) ON (n.name)")
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Computer) ON (n.name)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Domain) ON (n.name)")
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.project_id)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:User) ON (n.project_id)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Group) ON (n.project_id)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Computer) ON (n.project_id)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Domain) ON (n.project_id)")
             except Exception:
                 # Non-fatal: if index creation fails, continue — queries will still run.
                 pass

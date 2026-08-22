@@ -175,6 +175,43 @@
             </div>
           </div>
         </div>
+
+        <!-- Optional Pre-Check Connectivity & Credentials Section -->
+        <div class="pt-2 border-t border-outline-variant/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/80 flex items-center gap-1">
+              <span class="material-symbols-outlined text-xs text-primary">network_check</span>
+              Target Connectivity Pre-Check
+            </span>
+            <span class="text-[9px] text-on-surface-variant/60 uppercase font-mono tracking-wider">Optional</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button 
+              type="button" 
+              id="btn-test-ping-dc" 
+              class="px-2.5 py-1.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/60 hover:border-primary/50 text-on-surface text-[11px] font-bold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="material-symbols-outlined text-xs text-secondary" id="test-ping-icon">cell_tower</span>
+              <span id="test-ping-label">Ping DC</span>
+            </button>
+
+            <button 
+              type="button" 
+              id="btn-test-foothold-creds" 
+              class="px-2.5 py-1.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/60 hover:border-primary/50 text-on-surface text-[11px] font-bold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="material-symbols-outlined text-xs text-tertiary" id="test-foothold-icon">verified_user</span>
+              <span id="test-foothold-label">Verify Foothold Creds</span>
+            </button>
+          </div>
+
+          <!-- Result Line -->
+          <div id="test-connection-result" class="hidden text-[11px] font-jetbrains px-2.5 py-1.5 rounded border leading-snug flex items-center gap-1.5 transition-all">
+            <span class="material-symbols-outlined text-xs flex-shrink-0" id="test-connection-icon">info</span>
+            <span id="test-connection-text" class="flex-1 truncate"></span>
+          </div>
+        </div>
       </div>
 
       <div class="flex items-center justify-end gap-3 pt-2.5 border-t border-outline-variant/30">

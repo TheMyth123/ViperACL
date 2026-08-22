@@ -1,5 +1,4 @@
-"""Project CRUD API routes."""
-
+import socket
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -12,12 +11,206 @@ from web.models import (
     SelectProjectRequest,
     CreateProjectRequest,
     UpdateProjectTargetRequest,
+    TestPingRequest,
+    TestFootholdRequest,
     UnlockPhaseRequest,
     SavePathRequest,
     SetActivePhaseRequest,
 )
 
 router = APIRouter(prefix="/api/projects")
+
+
+def ping_target_dc(dc_ip: str, port: int = 445, timeout: float = 3.0) -> bool:
+    """Check TCP connectivity on common AD ports (SMB 445, LDAP 389, LDAPS 636, Kerberos 88)."""
+    if not dc_ip:
+        return False
+    ports = [port, 389, 636, 88]
+    for p in ports:
+        try:
+            with socket.create_connection((str(dc_ip), int(p)), timeout=timeout):
+                return True
+        except (OSError, socket.timeout):
+            continue
+    return False
+
+
+def discover_ad_domain(dc_ip: str, timeout: float = 3.0) -> tuple[str, str]:
+    """
+    Discovers the Active Directory DNS domain and NetBIOS domain from the DC IP
+    using anonymous RootDSE query over LDAP (port 389) or NTLMSSP probe over SMB (port 445).
+    """
+    import ldap3
+
+    dns_domain = ""
+    netbios_domain = ""
+
+    # Method 1: LDAP RootDSE query on port 389 (anonymous)
+    try:
+        server = ldap3.Server(dc_ip, port=389, get_info=ldap3.ALL, connect_timeout=timeout)
+        conn = ldap3.Connection(server, auto_bind=False)
+        conn.open()
+        if server.info and server.info.other:
+            naming_context = server.info.other.get('defaultNamingContext') or server.info.other.get('rootDomainNamingContext')
+            if naming_context:
+                nc_str = naming_context[0] if isinstance(naming_context, list) else str(naming_context)
+                parts = [part.split('=', 1)[1] for part in nc_str.split(',') if part.strip().upper().startswith('DC=')]
+                if parts:
+                    dns_domain = ".".join(parts).upper()
+                    netbios_domain = parts[0].upper()
+
+            if not dns_domain:
+                dns_host = server.info.other.get('dnsHostName')
+                if dns_host:
+                    host_str = dns_host[0] if isinstance(dns_host, list) else str(dns_host)
+                    if '.' in host_str:
+                        dns_domain = host_str.split('.', 1)[1].upper()
+                        netbios_domain = dns_domain.split('.')[0]
+        conn.unbind()
+    except Exception:
+        pass
+
+    # Method 2: NTLMSSP Challenge over SMB (port 445)
+    if not dns_domain:
+        try:
+            from impacket.smbconnection import SMBConnection
+            smb = SMBConnection(dc_ip, dc_ip, timeout=int(timeout))
+            dns_domain = (smb.getServerDNSDomainName() or "").upper()
+            netbios_domain = (smb.getServerDomain() or (dns_domain.split('.')[0] if dns_domain else "")).upper()
+        except Exception:
+            pass
+
+    return dns_domain, netbios_domain
+
+
+def verify_target_foothold(dc_ip: str, user: str, password: str, domain: str = "", timeout: float = 3.5) -> tuple[bool, str, str]:
+    """
+    Attempts DC connectivity first, discovers AD domain, and tests LDAP/LDAPS authentication.
+    Returns (success, reason_code, message):
+      - If DC is unreachable: (False, "dc_unreachable", "Foothold verification failed: DC unreachable")
+      - If bind fails: (False, "invalid_credentials", "Foothold verification failed: Invalid credentials")
+      - If bind succeeds: (True, "success", f"Successfully bound with foothold account '{user}'.")
+    """
+    import ldap3
+
+    # Step 1: Ping DC first
+    if not ping_target_dc(dc_ip, timeout=timeout):
+        return False, "dc_unreachable", "Foothold verification failed: DC unreachable"
+
+    # Step 2: Discover domain from DC if not explicitly provided
+    discovered_dns, discovered_netbios = "", ""
+    if not domain or not domain.strip():
+        discovered_dns, discovered_netbios = discover_ad_domain(dc_ip, timeout=timeout)
+        domain = discovered_dns or ""
+
+    candidates = []
+    raw = (user or "").strip()
+    if raw:
+        candidates.append(raw)
+        if "\\" in raw:
+            parts = raw.split("\\", 1)
+            candidates.append(parts[1])
+        elif "@" in raw:
+            parts = raw.split("@", 1)
+            candidates.append(parts[0])
+
+    clean_u = raw.split("\\")[-1].split("@")[0].strip() if raw else ""
+    if clean_u:
+        if domain:
+            candidates.append(f"{clean_u}@{domain}")
+            netbios = discovered_netbios or (domain.split(".")[0] if "." in domain else domain)
+            if netbios:
+                candidates.append(f"{netbios}\\{clean_u}")
+        if discovered_netbios:
+            candidates.append(f"{discovered_netbios}\\{clean_u}")
+        if clean_u not in candidates:
+            candidates.append(clean_u)
+
+    unique_candidates = list(dict.fromkeys(candidates))
+
+    # Step 3: Try LDAPS (636) and plain LDAP (389)
+    servers = [
+        ldap3.Server(dc_ip, port=636, use_ssl=True, connect_timeout=timeout, get_info=None),
+        ldap3.Server(dc_ip, port=389, use_ssl=False, connect_timeout=timeout, get_info=None),
+    ]
+
+    for server in servers:
+        for candidate in unique_candidates:
+            try:
+                conn = ldap3.Connection(server, user=candidate, password=password, auto_bind=True, raise_exceptions=True)
+                if conn.bound:
+                    conn.unbind()
+                    return True, "success", f"Successfully bound with foothold account '{clean_u}'."
+            except Exception:
+                continue
+
+    return False, "invalid_credentials", "Foothold verification failed: Invalid credentials"
+
+
+@router.post("/test/ping")
+def test_dc_ping(request: TestPingRequest):
+    """Test TCP connectivity to the specified Domain Controller."""
+    dc_ip = request.dc_ip.strip()
+    success = ping_target_dc(dc_ip, port=request.port, timeout=3.0)
+    if success:
+        logger.info(
+            "SYSTEM", "project.dc_ping.success",
+            f"Pre-flight ping check succeeded for DC {dc_ip}",
+            source="web.app",
+            details={"dc_ip": dc_ip},
+        )
+        return {
+            "status": "ok",
+            "reachable": True,
+            "message": "Successfully connected to Domain Controller.",
+        }
+    else:
+        logger.warning(
+            "SYSTEM", "project.dc_ping.failed",
+            f"Pre-flight ping check failed for DC {dc_ip}",
+            source="web.app",
+            details={"dc_ip": dc_ip},
+        )
+        return {
+            "status": "error",
+            "reachable": False,
+            "message": "Failed to connect: DC unreachable",
+        }
+
+
+@router.post("/test/foothold")
+def test_foothold_credentials(request: TestFootholdRequest):
+    """Test LDAP authentication and bind for the specified foothold account on the target DC."""
+    dc_ip = request.dc_ip.strip()
+    user = request.foothold_username.strip()
+    password = request.foothold_password
+    domain = request.domain.strip() if request.domain else ""
+
+    success, code, msg = verify_target_foothold(dc_ip, user, password, domain=domain, timeout=4.0)
+    if success:
+        logger.info(
+            "AUTH", "project.foothold_test.success",
+            f"Pre-flight foothold authentication succeeded for user '{user}' on DC {dc_ip}",
+            source="web.app",
+            details={"dc_ip": dc_ip, "username": user},
+        )
+        return {
+            "status": "ok",
+            "authenticated": True,
+            "message": msg,
+        }
+    else:
+        logger.warning(
+            "AUTH", "project.foothold_test.failed",
+            f"Pre-flight foothold authentication failed for user '{user}' on DC {dc_ip} [{code}]: {msg}",
+            source="web.app",
+            details={"dc_ip": dc_ip, "username": user, "code": code},
+        )
+        return {
+            "status": "error",
+            "authenticated": False,
+            "message": msg,
+        }
 
 
 @router.get("")

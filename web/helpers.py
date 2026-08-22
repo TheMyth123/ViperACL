@@ -166,11 +166,10 @@ def build_runtime_state(settings) -> dict:
     """Build the full runtime state dict used by page templates and health endpoint."""
     project_mgr = ProjectManager()
     active_id = project_mgr.get_active_project_id()
-    snapshot = build_neo4j_snapshot(settings, project_id=None)
+    snapshot = build_neo4j_snapshot(settings, project_id=active_id)
 
     if active_id and snapshot.get("connected"):
-        active_snapshot = build_neo4j_snapshot(settings, project_id=active_id)
-        project_mgr.update_project_stats(active_id, active_snapshot.get("nodes", 0), active_snapshot.get("relationships", 0))
+        project_mgr.update_project_stats(active_id, snapshot.get("nodes", 0), snapshot.get("relationships", 0))
 
     projects = project_mgr.list_projects()
     active_project = project_mgr.get_project(active_id) if active_id else None

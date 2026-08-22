@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from core.logger import logger
 from core.pathfinder.pathfinder import PathfinderCoordinator
+from core.projects import ProjectManager
 from web.helpers import db_manager, load_predictive_model, summarize_path
 from web.models import PathfindRequest
 
@@ -13,7 +14,6 @@ router = APIRouter(prefix="/api")
 @router.post("/pathfind")
 def pathfind(request: PathfindRequest, req: Request):
     settings = req.app.state.settings
-    from core.projects import ProjectManager
     project_mgr = ProjectManager()
     project_id = request.project_id or project_mgr.get_active_project_id()
 
@@ -44,6 +44,7 @@ def pathfind(request: PathfindRequest, req: Request):
             ml_model=load_predictive_model() if request.mode == "predictive" else None,
             max_hops=settings.pathfinder_max_hops,
             ml_threshold=settings.pathfinder_ml_threshold,
+            project_id=project_id,
         )
     except HTTPException:
         raise
@@ -101,21 +102,30 @@ def pathfind(request: PathfindRequest, req: Request):
 
 
 @router.get("/nodes/search")
-def search_nodes(q: str, req: Request):
+def search_nodes(q: str, req: Request, project_id: str | None = None):
     if not q or len(q.strip()) < 1:
         return {"status": "ok", "results": []}
         
     settings = req.app.state.settings
+    project_mgr = ProjectManager()
+    target_project_id = project_id or project_mgr.get_active_project_id()
     manager = db_manager(settings)
     
     try:
         if not manager.connect():
             raise HTTPException(status_code=503, detail="Database not connected")
             
+        params = {"q": q}
+        if target_project_id:
+            params["pid"] = target_project_id
+            where_clause = "n.name IS NOT NULL AND n.project_id = $pid AND toUpper(n.name) CONTAINS toUpper($q)"
+        else:
+            where_clause = "n.name IS NOT NULL AND toUpper(n.name) CONTAINS toUpper($q)"
+
         # Prioritize exact match, prefix match, Domain root, then Users/Groups/Computers
-        query = """
+        query = f"""
         MATCH (n)
-        WHERE n.name IS NOT NULL AND toUpper(n.name) CONTAINS toUpper($q)
+        WHERE {where_clause}
         WITH DISTINCT n.name AS name,
           CASE 
             WHEN toUpper(n.name) = toUpper($q) THEN 1
@@ -130,17 +140,15 @@ def search_nodes(q: str, req: Request):
         ORDER BY priority ASC, size(name) ASC, name ASC
         LIMIT 25
         """
-        results = manager.run_query(query, {"q": q})
+        results = manager.run_query(query, params)
         names = [r["name"] for r in results if r.get("name")]
         
         return {"status": "ok", "results": names}
     except Exception as exc:
-        project_mgr = ProjectManager()
-        active_id = project_mgr.get_active_project_id()
         logger.error(
             "PATHFINDER", "nodes.search.error",
             f"Error searching nodes for {q}: {exc}",
-            project_id=active_id,
+            project_id=target_project_id,
             source="web.app"
         )
         return {"status": "error", "results": []}

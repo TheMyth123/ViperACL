@@ -1119,6 +1119,43 @@
           </p>
         </div>
 
+        <!-- Optional Pre-Check Connectivity & Credentials Section -->
+        <div class="pt-2 border-t border-outline-variant/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/80 flex items-center gap-1">
+              <span class="material-symbols-outlined text-xs text-primary">network_check</span>
+              Target Connectivity Pre-Check
+            </span>
+            <span class="text-[9px] text-on-surface-variant/60 uppercase font-mono tracking-wider">Optional</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button 
+              type="button" 
+              id="btn-edit-target-ping-dc" 
+              class="px-2.5 py-1.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/60 hover:border-primary/50 text-on-surface text-[11px] font-bold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="material-symbols-outlined text-xs text-secondary" id="edit-target-ping-icon">cell_tower</span>
+              <span id="edit-target-ping-label">Ping DC</span>
+            </button>
+
+            <button 
+              type="button" 
+              id="btn-edit-target-foothold-creds" 
+              class="px-2.5 py-1.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/60 hover:border-primary/50 text-on-surface text-[11px] font-bold rounded flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="material-symbols-outlined text-xs text-tertiary" id="edit-target-foothold-icon">verified_user</span>
+              <span id="edit-target-foothold-label">Verify Foothold Creds</span>
+            </button>
+          </div>
+
+          <!-- Result Line -->
+          <div id="edit-target-connection-result" class="hidden text-[11px] font-jetbrains px-2.5 py-1.5 rounded border leading-snug flex items-center gap-1.5 transition-all">
+            <span class="material-symbols-outlined text-xs flex-shrink-0" id="edit-target-connection-icon">info</span>
+            <span id="edit-target-connection-text" class="flex-1 truncate"></span>
+          </div>
+        </div>
+
         <div class="flex items-center justify-end gap-3 pt-3 border-t border-outline-variant/30">
           <button type="button" id="btn-cancel-edit-target" class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:text-on-surface rounded cursor-pointer transition-colors">Cancel</button>
           <button type="submit" id="btn-save-edit-target" class="px-5 py-2 text-xs font-bold bg-primary text-on-primary rounded hover:bg-primary/90 shadow transition-all flex items-center gap-1.5 cursor-pointer">
@@ -1358,9 +1395,41 @@
         });
       }
 
+      const editResultBox = document.getElementById("edit-target-connection-result");
+      const editResultIcon = document.getElementById("edit-target-connection-icon");
+      const editResultText = document.getElementById("edit-target-connection-text");
+
+      function hideEditConnectionResult() {
+        if (editResultBox) {
+          editResultBox.classList.add("hidden");
+          editResultBox.className = "hidden text-[11px] font-jetbrains px-2.5 py-1.5 rounded border leading-snug flex items-center gap-1.5 transition-all";
+        }
+      }
+
+      function showEditConnectionResult(msg, type = "info") {
+        if (!editResultBox || !editResultText) return;
+        editResultBox.className = "text-[11px] font-jetbrains px-2.5 py-1.5 rounded border leading-snug flex items-center gap-1.5 transition-all";
+
+        if (type === "success") {
+          editResultBox.classList.add("bg-emerald-950/60", "border-emerald-500/50", "text-emerald-300");
+          if (editResultIcon) editResultIcon.textContent = "check_circle";
+        } else if (type === "error") {
+          editResultBox.classList.add("bg-rose-950/60", "border-rose-500/50", "text-rose-300");
+          if (editResultIcon) editResultIcon.textContent = "cancel";
+        } else if (type === "warning") {
+          editResultBox.classList.add("bg-amber-950/60", "border-amber-500/50", "text-amber-300");
+          if (editResultIcon) editResultIcon.textContent = "warning";
+        } else {
+          editResultBox.classList.add("bg-surface-container-high", "border-outline-variant", "text-on-surface-variant");
+          if (editResultIcon) editResultIcon.textContent = "info";
+        }
+        editResultText.textContent = msg;
+      }
+
       function showEditTargetModal() {
         if (!modal || !modalBox) return;
         if (errorBox) errorBox.classList.add("hidden");
+        hideEditConnectionResult();
         modal.classList.remove("hidden");
         requestAnimationFrame(() => {
           modal.classList.remove("opacity-0");
@@ -1381,6 +1450,7 @@
         setTimeout(() => {
           modal.classList.add("hidden");
           if (errorBox) errorBox.classList.add("hidden");
+          hideEditConnectionResult();
         }, 200);
       }
 
@@ -1393,6 +1463,122 @@
       if (modal) {
         modal.addEventListener("click", (e) => {
           if (e.target === modal) hideEditTargetModal();
+        });
+      }
+
+      // Ping DC Button in Edit Target Modal
+      const btnEditPing = document.getElementById("btn-edit-target-ping-dc");
+      const editPingIcon = document.getElementById("edit-target-ping-icon");
+      const editPingLabel = document.getElementById("edit-target-ping-label");
+
+      if (btnEditPing) {
+        btnEditPing.addEventListener("click", async () => {
+          const dcIp = document.getElementById("edit-target-dc-ip")?.value.trim() || "";
+          if (!dcIp) {
+            showEditConnectionResult("Enter a Domain Controller IP to test connectivity.", "warning");
+            document.getElementById("edit-target-dc-ip")?.focus();
+            return;
+          }
+
+          btnEditPing.disabled = true;
+          if (editPingIcon) {
+            editPingIcon.textContent = "refresh";
+            editPingIcon.classList.add("animate-spin");
+          }
+          if (editPingLabel) editPingLabel.textContent = "Pinging...";
+          hideEditConnectionResult();
+
+          try {
+            const res = await fetch("/api/projects/test/ping", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ dc_ip: dcIp }),
+            });
+            const data = await res.json();
+            if (res.ok && data.status === "ok") {
+              showEditConnectionResult(data.message || "Successfully connected to Domain Controller.", "success");
+            } else {
+              const err = data.detail || data.message || "Failed to connect: DC unreachable";
+              showEditConnectionResult(err, "error");
+            }
+          } catch (err) {
+            showEditConnectionResult("Failed to connect: DC unreachable", "error");
+          } finally {
+            btnEditPing.disabled = false;
+            if (editPingIcon) {
+              editPingIcon.textContent = "cell_tower";
+              editPingIcon.classList.remove("animate-spin");
+            }
+            if (editPingLabel) editPingLabel.textContent = "Ping DC";
+          }
+        });
+      }
+
+      // Verify Foothold Creds Button in Edit Target Modal
+      const btnEditFoothold = document.getElementById("btn-edit-target-foothold-creds");
+      const editFhIcon = document.getElementById("edit-target-foothold-icon");
+      const editFhLabel = document.getElementById("edit-target-foothold-label");
+
+      if (btnEditFoothold) {
+        btnEditFoothold.addEventListener("click", async () => {
+          const dcIp = document.getElementById("edit-target-dc-ip")?.value.trim() || "";
+          let footholdUser = document.getElementById("edit-target-foothold-user")?.value.trim() || "";
+          const footholdPass = document.getElementById("edit-target-foothold-pass")?.value || "";
+
+          if (!dcIp) {
+            showEditConnectionResult("Foothold verification failed: DC unreachable", "warning");
+            document.getElementById("edit-target-dc-ip")?.focus();
+            return;
+          }
+          if (!footholdUser) {
+            showEditConnectionResult("Enter a foothold username to verify.", "warning");
+            document.getElementById("edit-target-foothold-user")?.focus();
+            return;
+          }
+          if (!footholdPass) {
+            showEditConnectionResult("Enter the foothold account password.", "warning");
+            document.getElementById("edit-target-foothold-pass")?.focus();
+            return;
+          }
+
+          if (footholdUser.includes("\\")) footholdUser = footholdUser.split("\\").pop().trim();
+          if (footholdUser.includes("@")) footholdUser = footholdUser.split("@")[0].trim();
+
+          btnEditFoothold.disabled = true;
+          if (editFhIcon) {
+            editFhIcon.textContent = "refresh";
+            editFhIcon.classList.add("animate-spin");
+          }
+          if (editFhLabel) editFhLabel.textContent = "Verifying...";
+          hideEditConnectionResult();
+
+          try {
+            const res = await fetch("/api/projects/test/foothold", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                dc_ip: dcIp,
+                foothold_username: footholdUser,
+                foothold_password: footholdPass,
+              }),
+            });
+            const data = await res.json();
+            if (res.ok && data.status === "ok") {
+              showEditConnectionResult(data.message || `Successfully bound with foothold account '${footholdUser}'.`, "success");
+            } else {
+              const err = data.detail || data.message || "Foothold verification failed: Invalid credentials";
+              showEditConnectionResult(err, "error");
+            }
+          } catch (err) {
+            showEditConnectionResult("Foothold verification failed: DC unreachable", "error");
+          } finally {
+            btnEditFoothold.disabled = false;
+            if (editFhIcon) {
+              editFhIcon.textContent = "verified_user";
+              editFhIcon.classList.remove("animate-spin");
+            }
+            if (editFhLabel) editFhLabel.textContent = "Verify Foothold Creds";
+          }
         });
       }
 
@@ -1872,7 +2058,8 @@
 
         debounceTimeout = setTimeout(async () => {
           try {
-            const res = await fetch(`/api/nodes/search?q=${encodeURIComponent(val)}`);
+            const pid = encodeURIComponent(wsContext.projectId || wsContext.activeProjectId || "");
+            const res = await fetch(`/api/nodes/search?q=${encodeURIComponent(val)}&project_id=${pid}`);
             const data = await res.json();
             
             if (data.status === "ok" && data.results.length > 0) {
