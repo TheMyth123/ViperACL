@@ -22,7 +22,6 @@ class DatabaseManager:
             self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
             # New in modern drivers: Verify the connection immediately
             self.driver.verify_connectivity()
-            # Ensure a few name indexes exist to make MATCH {name:..} queries fast on large graphs.
             try:
                 with self.driver.session(database=self.database) as session:
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.name)")
@@ -35,6 +34,12 @@ class DatabaseManager:
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Group) ON (n.project_id)")
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Computer) ON (n.project_id)")
                     session.run("CREATE INDEX IF NOT EXISTS FOR (n:Domain) ON (n.project_id)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.objectid)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.objectid, n.project_id)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:User) ON (n.objectid, n.project_id)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Group) ON (n.objectid, n.project_id)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Computer) ON (n.objectid, n.project_id)")
+                    session.run("CREATE INDEX IF NOT EXISTS FOR (n:Domain) ON (n.objectid, n.project_id)")
             except Exception:
                 # Non-fatal: if index creation fails, continue — queries will still run.
                 pass

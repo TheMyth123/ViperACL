@@ -7,9 +7,32 @@ class SharpHoundIngestor:
         self.db = db_manager
         self.project_id = project_id
 
+    def _ensure_indexes(self):
+        """Ensure critical objectid and project_id composite indexes exist in Neo4j."""
+        try:
+            queries = [
+                "CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.name)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:User) ON (n.name)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:Group) ON (n.name)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:Computer) ON (n.name)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:Domain) ON (n.name)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.project_id)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.objectid)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:Base) ON (n.objectid, n.project_id)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:User) ON (n.objectid, n.project_id)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:Group) ON (n.objectid, n.project_id)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:Computer) ON (n.objectid, n.project_id)",
+                "CREATE INDEX IF NOT EXISTS FOR (n:Domain) ON (n.objectid, n.project_id)",
+            ]
+            for q in queries:
+                self.db.run_query(q)
+        except Exception:
+            pass
+
     def clear_database(self, project_id=None):
         pid = project_id or self.project_id
         if pid:
+            self.db.run_query("MATCH (n:Base {project_id: $pid}) DETACH DELETE n", {"pid": pid})
             self.db.run_query("MATCH (n {project_id: $pid}) DETACH DELETE n", {"pid": pid})
         else:
             self.db.run_query("MATCH (n) DETACH DELETE n")
@@ -21,37 +44,60 @@ class SharpHoundIngestor:
         if not os.path.exists(zip_path):
             return
 
-        with zipfile.ZipFile(zip_path, 'r') as z:
-            for filename in z.namelist():
-                if filename.endswith('.json'):
-                    base_name = os.path.basename(filename).lower()
-                    
-                    # Map files cleanly to target domain types
-                    if "user" in base_name:
-                        node_type = "User"
-                    elif "computer" in base_name:
-                        node_type = "Computer"
-                    elif "group" in base_name:
-                        node_type = "Group"
-                    elif "gpo" in base_name:
-                        node_type = "GPO"
-                    elif "ou" in base_name:
-                        node_type = "OU"
-                    elif "domain" in base_name:
-                        node_type = "Domain"
-                    elif "container" in base_name:
-                        node_type = "Container"
-                    else:
-                        continue
+        self._ensure_indexes()
 
-                    with z.open(filename) as f:
-                        data = json.load(f)
-                        items = data.get('data', [])
+        # Prioritize loading domains, containers, groups, computers, users in logical order
+        type_priority = {
+            "domain": 1,
+            "ou": 2,
+            "container": 3,
+            "gpo": 4,
+            "group": 5,
+            "computer": 6,
+            "user": 7,
+        }
+
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            json_files = [f for f in z.namelist() if f.endswith('.json') and not f.startswith("__MACOSX")]
+
+            def file_sort_key(fn):
+                base = os.path.basename(fn).lower()
+                for key, prio in type_priority.items():
+                    if key in base:
+                        return prio
+                return 99
+
+            json_files.sort(key=file_sort_key)
+
+            for filename in json_files:
+                base_name = os.path.basename(filename).lower()
+                
+                # Map files cleanly to target domain types
+                if "user" in base_name:
+                    node_type = "User"
+                elif "computer" in base_name:
+                    node_type = "Computer"
+                elif "group" in base_name:
+                    node_type = "Group"
+                elif "gpo" in base_name:
+                    node_type = "GPO"
+                elif "ou" in base_name:
+                    node_type = "OU"
+                elif "domain" in base_name:
+                    node_type = "Domain"
+                elif "container" in base_name:
+                    node_type = "Container"
+                else:
+                    continue
+
+                with z.open(filename) as f:
+                    data = json.load(f)
+                    items = data.get('data', []) if isinstance(data, dict) else []
+                    
+                    if not items:
+                        continue
                         
-                        if not items:
-                            continue
-                            
-                        self._process_items(node_type, items, pid)
+                    self._process_items(node_type, items, pid)
 
         if zip_path == "dev/20260613062313_ILFREIGHT.zip":
             self._inject_demo_scenario(pid)
@@ -59,11 +105,11 @@ class SharpHoundIngestor:
     def _process_items(self, node_type, items, project_id):
         nodes = []
         edges = []
+        batch_chunk_size = 5000
 
         for item in items:
             obj_id = item.get('ObjectIdentifier')
             props = item.get('Properties', {})
-            # Keep naming casing standard to match your pathfinder expectations
             name = props.get('name') or item.get('Name') or 'UNKNOWN'
             
             if not obj_id:
@@ -86,14 +132,16 @@ class SharpHoundIngestor:
 
         # --- OPTIMIZED BATCH WRITE ---
         
-        # 1. Merge uniquely on objectid + project_id to keep project graphs isolated
+        # 1. Merge uniquely on objectid + project_id using composite index
         if nodes:
             query_nodes = f"""
             UNWIND $batch AS data
             MERGE (n:Base {{objectid: data.id, project_id: $pid}})
             SET n.name = data.name, n.project_id = $pid, n:`{node_type}`
             """
-            self.db.run_query(query_nodes, {"batch": nodes, "pid": project_id})
+            for i in range(0, len(nodes), batch_chunk_size):
+                chunk = nodes[i:i + batch_chunk_size]
+                self.db.run_query(query_nodes, {"batch": chunk, "pid": project_id})
 
         # 2. Dynamic relationship creation with project_id tagging
         if edges:
@@ -101,7 +149,7 @@ class SharpHoundIngestor:
             for e in edges:
                 rel_groups.setdefault(e['rel'], []).append(e)
             
-            for rel_type, batch in rel_groups.items():
+            for rel_type, edge_list in rel_groups.items():
                 clean_rel = "".join(c for c in rel_type if c.isalnum())
                 if not clean_rel: 
                     continue
@@ -110,10 +158,11 @@ class SharpHoundIngestor:
                 UNWIND $batch AS data
                 MERGE (source:Base {{objectid: data.source, project_id: $pid}})
                 MERGE (target:Base {{objectid: data.target, project_id: $pid}})
-                MERGE (source)-[r:{clean_rel}]->(target)
-                SET r.project_id = $pid
+                MERGE (source)-[r:{clean_rel} {{project_id: $pid}}]->(target)
                 """
-                self.db.run_query(query_edges, {"batch": batch, "pid": project_id})
+                for i in range(0, len(edge_list), batch_chunk_size):
+                    chunk = edge_list[i:i + batch_chunk_size]
+                    self.db.run_query(query_edges, {"batch": chunk, "pid": project_id})
 
     def _inject_demo_scenario(self, project_id):
         """
