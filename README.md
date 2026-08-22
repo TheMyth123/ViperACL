@@ -90,7 +90,11 @@ ViperACL strictly models, validates, and remediates the **19 universal Active Di
 
 ### 1. Prerequisites
 - **Python**: Python 3.10 or higher
-- **Docker**: Docker & Docker Compose (used for the local Neo4j database container)
+- **Docker**: Docker daemon (used for the local Neo4j database container)
+  > **Note for Kali / Debian users**: Docker is not installed by default in standard Kali Linux images. You can install it via:
+  > ```bash
+  > sudo apt update && sudo apt install -y docker.io docker-compose-v2
+  > ```
 
 ### 2. Setup Environment
 ```bash
@@ -112,7 +116,12 @@ pip install -r requirements.txt
 ## 💻 Usage
 
 ### Start the ViperACL Web Application
-Launch the complete platform with a single command:
+1. **Ensure the Docker service is running**:
+```bash
+sudo systemctl start docker
+```
+
+2. **Launch ViperACL**:
 ```bash
 source venv/bin/activate
 python3 viperacl.py --port 8000
