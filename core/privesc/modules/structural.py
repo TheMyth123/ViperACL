@@ -11,6 +11,13 @@ class StructuralModule:
     def __init__(self, engine):
         self.engine = engine
         self.actions = PrivescActions(engine)
+        self.project_id = getattr(engine, "project_id", None) or getattr(self.actions, "project_id", None)
+
+    @property
+    def current_project_id(self):
+        if self.project_id:
+            return self.project_id
+        return getattr(self.actions, "current_project_id", None)
 
     # WriteDacl / WriteOwner / Owns are structural privilege abuse.
     def execute(self, rel, context) -> bool:
@@ -43,6 +50,7 @@ class StructuralModule:
             "PRIVESC",
             "privesc.group_addmember.grant.preflight",
             f"Preflight for AddMember on {display_target} as {display_user}",
+            project_id=self.current_project_id,
             source="web.app",
             details={
                 "target_dn": target_dn,
@@ -64,6 +72,7 @@ class StructuralModule:
                 "PRIVESC",
                 "privesc.group_addmember.owner.started",
                 takeover_message,
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"target_dn": target_dn, "member": display_user, "action": "WriteOwner", "current_sid": current_sid, "owner_sid": owner_sid},
             )
@@ -74,6 +83,7 @@ class StructuralModule:
                     "PRIVESC",
                     "privesc.group_addmember.owner.failed",
                     failure_message,
+                    project_id=self.current_project_id,
                     source="web.app",
                     details={
                         "target_dn": target_dn,
@@ -88,6 +98,7 @@ class StructuralModule:
                 "PRIVESC",
                 "privesc.group_addmember.owner.success",
                 f"Ownership of {display_target} transferred to {display_user}.",
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"target_dn": target_dn, "member": display_user, "action": "WriteOwner"},
             )
@@ -98,6 +109,7 @@ class StructuralModule:
                 "PRIVESC",
                 "privesc.group_addmember.grant.started",
                 grant_started,
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"target_dn": target_dn, "member": display_user, "action": "AddMember"},
             )
@@ -109,6 +121,7 @@ class StructuralModule:
                     "PRIVESC",
                     "privesc.group_addmember.grant.failed",
                     failure_message,
+                    project_id=self.current_project_id,
                     source="web.app",
                     details={
                         "target_dn": target_dn,
@@ -124,6 +137,7 @@ class StructuralModule:
                 "PRIVESC",
                 "privesc.group_addmember.grant.success",
                 f"Granted AddMember on {display_target} for {display_user}.",
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"target_dn": target_dn, "member": display_user, "action": "AddMember"},
             )
@@ -135,6 +149,7 @@ class StructuralModule:
                     "PRIVESC",
                     "privesc.group_addmember.grant.failed",
                     failure_message,
+                    project_id=self.current_project_id,
                     source="web.app",
                     details={"target_dn": target_dn, "member": display_user, "action": "AddMember", "diagnostic": "Context switch failed after AddMember grant."},
                 )
@@ -147,6 +162,7 @@ class StructuralModule:
                     "PRIVESC",
                     "privesc.group_addmember.grant.failed",
                     failure_message,
+                    project_id=self.current_project_id,
                     source="web.app",
                     details={"target_dn": target_dn, "member": display_user, "action": "AddMember", "diagnostic": "LDAP rebind failed after AddMember grant."},
                 )
@@ -158,6 +174,7 @@ class StructuralModule:
                 "PRIVESC",
                 "privesc.add_group_member.started",
                 add_started,
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"target_dn": target_dn, "member": display_user, "action": "AddMember"},
             )
@@ -170,6 +187,7 @@ class StructuralModule:
                     "PRIVESC",
                     "privesc.add_group_member.failed",
                     failure_message,
+                    project_id=self.current_project_id,
                     source="web.app",
                     details={
                         "target_dn": target_dn,
@@ -189,6 +207,7 @@ class StructuralModule:
                 "PRIVESC",
                 "privesc.add_group_member.success",
                 success_message,
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"target_dn": target_dn, "member": display_user, "action": "AddMember"},
             )
@@ -196,6 +215,7 @@ class StructuralModule:
                 "PRIVESC",
                 "privesc.context.switched",
                 context_message,
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"target_dn": target_dn, "member": display_user, "action": "ContextSwitch"},
             )

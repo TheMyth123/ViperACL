@@ -2709,6 +2709,7 @@
     let p3VisNodes = null;
     let p3VisEdges = null;
     let p3IsHierarchical = true;
+    let p3RenderedPathKey = null;
     let p3Tasks = [];
     let p3SimInterval = null;
     let p3CurrentStep = 0;
@@ -2938,11 +2939,17 @@
       }
     }
 
-    function renderPrivescGraph(path) {
+    function renderPrivescGraph(path, force = false) {
       const container = document.getElementById("p3-network-canvas");
       const inspector = document.getElementById("p3-inspector-drawer");
-      if (!container || !path || !path.steps) return;
+      if (!container || !path || !path.steps || path.steps.length === 0) return;
       if (inspector) inspector.classList.add("hidden");
+
+      const pathKey = JSON.stringify(path.steps.map(s => `${s.source?.name || s.source?.distinguishedname}->${s.relationship}->${s.target?.name || s.target?.distinguishedname}`));
+      if (!force && p3Network && p3RenderedPathKey === pathKey) {
+        return;
+      }
+      p3RenderedPathKey = pathKey;
 
       const steps = path.steps || [];
       const nodes = [];
@@ -3064,6 +3071,10 @@
             springLength: 180,
             springConstant: 0.08,
             damping: 0.5
+          },
+          stabilization: {
+            iterations: 150,
+            updateInterval: 25
           }
         },
         interaction: {
@@ -3114,11 +3125,6 @@
 
       const nodeCountEl = document.getElementById("p3-graph-node-count");
       if (nodeCountEl) nodeCountEl.textContent = `${nodes.length} Nodes · ${edges.length} Hops`;
-
-      const phase3Panel = document.getElementById("tab-phase-3");
-      if (phase3Panel && !phase3Panel.classList.contains("hidden") && typeof updatePhase3View === "function") {
-        updatePhase3View();
-      }
     }
 
     function showP3NodeInspector(data) {
@@ -3208,7 +3214,10 @@
         const resp = await fetch("/api/privesc/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: path })
+          body: JSON.stringify({
+            path: path,
+            project_id: wsContext.projectId || wsContext.activeProjectId || ""
+          })
         });
 
         if (resp.ok) {
@@ -3303,7 +3312,10 @@
       logP3Event("Initiating attack run against selected chain...", "warning");
       logP3Event(`Pinging DC(${dcIp}) before execution begins...`, "warning");
 
-      const payload = { path };
+      const payload = {
+        path,
+        project_id: wsContext.projectId || wsContext.activeProjectId || ""
+      };
       try {
         const resp = await fetch('/api/privesc/execute', {
           method: 'POST',
@@ -3515,6 +3527,7 @@
       const btnLayout = document.getElementById("btn-p3-graph-layout");
 
       window.resetPhase3State = function() {
+        p3RenderedPathKey = null;
         p3SuccessRecords = [];
         const vaultBody = document.getElementById("p3-vault-table-body");
         if (vaultBody) vaultBody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-on-surface-variant/40 italic">No completed privilege escalation credentials stored yet.</td></tr>`;
@@ -3560,12 +3573,7 @@
 
       if (tabBtn3) {
         tabBtn3.addEventListener("click", () => {
-          setTimeout(() => {
-            updatePhase3View();
-            if (p3Network) {
-              p3Network.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
-            }
-          }, 150);
+          updatePhase3View();
         });
       }
 
@@ -3648,7 +3656,7 @@
         btnLayout.addEventListener("click", () => {
           p3IsHierarchical = !p3IsHierarchical;
           const path = getP3CurrentPath();
-          if (path) renderPrivescGraph(path);
+          if (path) renderPrivescGraph(path, true);
         });
       }
 
@@ -4275,6 +4283,7 @@
             body: JSON.stringify({
               targets: selectedTargets,
               all_edges: p4CurrentEdges,
+              project_id: wsContext.projectId || wsContext.activeProjectId || "",
               path_summary: {
                 source: wsContext.selectedSource || "",
                 target: wsContext.selectedTarget || "",

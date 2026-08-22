@@ -265,19 +265,31 @@ def build_strict_action_plan(path, db=None):
 
 
 class StrictPrivescExecutor:
-    def __init__(self, conn, domain, dc_ip, context, default_reset_password="Secur3P@ssw0rd!"):
+    def __init__(self, conn, domain, dc_ip, context, default_reset_password="Secur3P@ssw0rd!", project_id=None):
         self.conn = conn
         self.domain = domain
         self.dc_ip = dc_ip
         self.context = context
-        self.project_id = getattr(context, "project_id", None)
-        self.actions = PrivescActions(SimpleNamespace(conn=conn, domain=domain, dc_ip=dc_ip))
+        self.project_id = project_id or getattr(context, "project_id", None)
+        if not self.project_id:
+            try:
+                from core.projects import ProjectManager
+                self.project_id = ProjectManager().get_active_project_id()
+            except Exception:
+                self.project_id = None
+        self.actions = PrivescActions(SimpleNamespace(conn=conn, domain=domain, dc_ip=dc_ip, project_id=self.project_id))
         self._last_plan = []
         self.default_reset_password = default_reset_password or "Secur3P@ssw0rd!"
 
     def _audit_event(self, event_type, level, message, target, **details):
         payload = {"target": target, **details}
         project_id = getattr(self.context, "project_id", None) or self.project_id
+        if not project_id:
+            try:
+                from core.projects import ProjectManager
+                project_id = ProjectManager().get_active_project_id()
+            except Exception:
+                project_id = None
         getattr(logger, level.lower(), logger.info)(
             "PRIVESC",
             event_type,

@@ -108,12 +108,23 @@ class PrivescActions:
         self.conn = engine.conn
         self.domain = engine.domain
         self.dc_ip = engine.dc_ip
+        self.project_id = getattr(engine, "project_id", None)
         self.last_grant_status = None
         self.last_grant_diagnostic = None
         self.last_grant_result = None
         self.last_owner_status = None
         self.last_owner_diagnostic = None
         self.last_owner_result = None
+
+    @property
+    def current_project_id(self):
+        if self.project_id:
+            return self.project_id
+        try:
+            from core.projects import ProjectManager
+            return ProjectManager().get_active_project_id()
+        except Exception:
+            return None
 
     def _identity_variants(self, identity):
         """Return common AD identity aliases for the same principal."""
@@ -601,6 +612,7 @@ class PrivescActions:
             "PRIVESC",
             "privesc.force_change_password.started",
             f"Attempting ForceChangePassword against {target_label}",
+            project_id=self.current_project_id,
             source="web.app",
             details={"target_dn": target_dn, "password_length": len(str(new_password or ""))},
         )
@@ -612,6 +624,7 @@ class PrivescActions:
                     "PRIVESC",
                     "privesc.force_change_password.success",
                     f"ForceChangePassword succeeded for {target_label}",
+                    project_id=self.current_project_id,
                     source="web.app",
                     details={"target_dn": target_dn, "password_length": len(str(new_password or ""))},
                 )
@@ -621,6 +634,7 @@ class PrivescActions:
                     "PRIVESC",
                     "privesc.force_change_password.failed",
                     f"ForceChangePassword returned a falsey result for {target_label}",
+                    project_id=self.current_project_id,
                     source="web.app",
                     details={"target_dn": target_dn, "ldap_result": getattr(self.conn, 'result', {})},
                 )
@@ -635,6 +649,7 @@ class PrivescActions:
                 "PRIVESC",
                 "privesc.force_change_password.exception",
                 f"ForceChangePassword failed for {target_label}: {exc}",
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"target_dn": target_dn, "error": str(exc)},
             )
@@ -698,6 +713,7 @@ class PrivescActions:
                     "PRIVESC",
                     "privesc.add_group_member.failed",
                     diagnostic_text,
+                    project_id=self.current_project_id,
                     source="web.app",
                     details={
                         "target_dn": group_dn,
@@ -727,6 +743,7 @@ class PrivescActions:
                 "PRIVESC",
                 "privesc.add_group_member.exception",
                 f"Exception while adding member {display_user} to {group_dn}: {e}",
+                project_id=self.current_project_id,
                 source="web.app",
                 details={
                     "target_dn": group_dn,
@@ -756,6 +773,7 @@ class PrivescActions:
             "PRIVESC",
             "privesc.dcsync.started",
             f"Starting DCSync as {actor or 'unknown'} against {self.domain}",
+            project_id=self.current_project_id,
             source="web.app",
             details={"actor": actor, "domain": self.domain, "dc_ip": self.dc_ip, "target": target},
         )
@@ -978,6 +996,7 @@ class PrivescActions:
                 "PRIVESC",
                 "privesc.dcsync.success",
                 f"DCSync succeeded for {actor or 'unknown'}",
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"actor": actor, "domain": self.domain, "dc_ip": self.dc_ip, "target": target, "proof_value": administrator_hash, "samr_domain": selected_samr_domain},
             )
@@ -989,6 +1008,7 @@ class PrivescActions:
                 "PRIVESC",
                 "privesc.dcsync.exception",
                 f"DCSync failed at stage {stage} for {actor or 'unknown'}: {e}",
+                project_id=self.current_project_id,
                 source="web.app",
                 details={"actor": actor, "domain": self.domain, "dc_ip": self.dc_ip, "target": target, "stage": stage, "error": str(e), "samr_domain": selected_samr_domain},
             )

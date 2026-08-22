@@ -118,6 +118,7 @@ class PathfindRequest(BaseModel):
 
 class PrivescPlanRequest(BaseModel):
     path: Any
+    project_id: str | None = None
 
 
 class RemediationRequest(BaseModel):

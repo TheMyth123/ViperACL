@@ -135,9 +135,12 @@ def search_nodes(q: str, req: Request):
         
         return {"status": "ok", "results": names}
     except Exception as exc:
+        project_mgr = ProjectManager()
+        active_id = project_mgr.get_active_project_id()
         logger.error(
             "PATHFINDER", "nodes.search.error",
             f"Error searching nodes for {q}: {exc}",
+            project_id=active_id,
             source="web.app"
         )
         return {"status": "error", "results": []}

@@ -269,10 +269,14 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
     if path:
         path = path_to_sequence(path)
 
+    project_mgr = ProjectManager()
+    active_id = request.project_id or project_mgr.get_active_project_id()
+
     if not path:
         logger.warning(
             "PRIVESC", "privesc.plan.no_path",
             "Privesc plan requested without a path selection",
+            project_id=active_id,
             source="web.app",
         )
         raise HTTPException(status_code=400, detail="A path selection is required before building a privesc plan.")
@@ -280,11 +284,11 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
     logger.info(
         "PRIVESC", "privesc.plan.started",
         "Building privilege escalation plan from selected attack path",
+        project_id=active_id,
         source="web.app",
+        details={"path_steps": len(path.get("steps", [])) if isinstance(path, dict) else len(path or [])},
     )
 
-    project_mgr = ProjectManager()
-    active_id = project_mgr.get_active_project_id()
     project_info = project_mgr.get_project(active_id) if active_id else {}
     target_domain = (project_info.get("domain") or settings.neo4j_database or "DOMAIN.LOCAL") if project_info else settings.neo4j_database
     dc_ip = (project_info.get("dc_ip") or "127.0.0.1") if project_info else "127.0.0.1"
@@ -299,6 +303,7 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
         logger.error(
             "PRIVESC", "privesc.plan.failed",
             f"Privesc plan generation failed: {exc}",
+            project_id=active_id,
             source="web.app",
             details={"error": str(exc)},
         )
@@ -319,6 +324,7 @@ def privesc_plan(request: PrivescPlanRequest, req: Request):
     logger.info(
         "PRIVESC", "privesc.plan.completed",
         f"Privesc plan built — {len(tasks)} escalation task(s) identified",
+        project_id=active_id,
         source="web.app",
         details={"total_steps": len(tasks)},
     )
@@ -340,11 +346,12 @@ def privesc_execute(request: PrivescPlanRequest, req: Request):
     if path:
         path = path_to_sequence(path)
 
+    project_mgr = ProjectManager()
+    active_id = request.project_id or project_mgr.get_active_project_id()
+
     if not path:
         raise HTTPException(status_code=400, detail="A path selection is required to execute an attack.")
 
-    project_mgr = ProjectManager()
-    active_id = project_mgr.get_active_project_id()
     project_info = project_mgr.get_project(active_id) if active_id else {}
 
     target_domain = (project_info.get("domain") or req.app.state.settings.neo4j_database or "DOMAIN.LOCAL") if project_info else req.app.state.settings.neo4j_database
