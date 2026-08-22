@@ -88,58 +88,47 @@ ViperACL strictly models, validates, and remediates the **19 universal Active Di
 
 ## 🛠️ Installation & Setup
 
-### Prerequisites
-- **Docker**: Docker Engine & Docker Compose
-  > **Note for Kali / Debian users**: If Docker is not installed on your system, you can install it via:
+### 1. Prerequisites
+- **Python**: Python 3.10 or higher
+- **Docker**: Docker & Docker Compose (used for the background Neo4j database container)
+  > **Note for Kali / Debian users**: If Docker is not installed on your system, install it via:
   > ```bash
   > sudo apt update
   > sudo apt install -y docker.io && sudo apt install -y docker-compose
   > sudo systemctl start docker
   > ```
 
+### 2. Setup Environment
+```bash
+# Clone the repository
+git clone https://github.com/TheMyth123/ViperACL.git
+cd ViperACL
+
+# Create and activate Python virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
 ---
 
 ## 💻 Usage
 
-### Option 1: Docker Compose (Recommended)
-Start the complete ViperACL platform (Web Application + Neo4j Database) with a single command:
-
+### Start the ViperACL Web Application
+1. **Ensure the Docker service is running** (for Neo4j):
 ```bash
-# 1. Clone repository
-git clone https://github.com/TheMyth123/ViperACL.git
-cd ViperACL
-
-# 2. Launch platform in background
-sudo docker compose up -d
-```
-*(Note: If using standalone Docker Compose, you can run `sudo docker-compose up -d`)*
-
-Open your browser and navigate to: **`http://127.0.0.1:8000`**
-
-*To stop the platform:*
-```bash
-sudo docker compose down
-```
-
----
-
-### Option 2: Local Python Environment
-If you prefer running the application directly on your host machine:
-
-```bash
-# 1. Setup virtual environment & dependencies
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# 2. Ensure Docker service is running
 sudo systemctl start docker
+```
 
-# 3. Launch ViperACL
+2. **Launch ViperACL**:
+```bash
+source venv/bin/activate
 python3 viperacl.py --port 8000
 ```
-> **Note**: On startup, `viperacl.py` automatically initializes workspace storage and connects to or bootstraps the local Neo4j container in the background.
+> **Note**: On startup, `viperacl.py` automatically initializes workspace storage, verifies database connectivity, and bootstraps the local Neo4j Docker container in the background.
 
 Open your browser and navigate to: **`http://127.0.0.1:8000`**
 
