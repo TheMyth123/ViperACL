@@ -1,5 +1,6 @@
 import argparse
 import subprocess
+import shutil
 import socket
 import sys
 import time
@@ -62,70 +63,89 @@ def start_local_neo4j():
     """Ensures the local Neo4j container is running across Docker Compose V2, V1, and direct Docker environments."""
     print("[*] Ensuring local Neo4j container is running...")
 
+    has_docker = shutil.which("docker") is not None
+    has_docker_compose = shutil.which("docker-compose") is not None
+
     # Method 1: Docker Compose V2 CLI Plugin ('docker compose')
-    res_v2 = subprocess.run(["docker", "compose", "version"], capture_output=True, text=True)
-    if res_v2.returncode == 0:
-        up_res = subprocess.run(
-            ["docker", "compose", "up", "-d", "neo4j"],
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True,
-        )
-        if up_res.returncode == 0:
-            return
+    if has_docker:
+        try:
+            res_v2 = subprocess.run(["docker", "compose", "version"], capture_output=True, text=True)
+            if res_v2.returncode == 0:
+                up_res = subprocess.run(
+                    ["docker", "compose", "up", "-d", "neo4j"],
+                    cwd=str(PROJECT_ROOT),
+                    capture_output=True,
+                    text=True,
+                )
+                if up_res.returncode == 0:
+                    return
+        except Exception:
+            pass
 
     # Method 2: Standalone Docker Compose ('docker-compose')
-    res_v1 = subprocess.run(["docker-compose", "version"], capture_output=True, text=True)
-    if res_v1.returncode == 0 and "Docker Compose" in (res_v1.stdout + res_v1.stderr):
-        up_res = subprocess.run(
-            ["docker-compose", "up", "-d", "neo4j"],
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True,
-        )
-        if up_res.returncode == 0:
-            return
+    if has_docker_compose:
+        try:
+            res_v1 = subprocess.run(["docker-compose", "version"], capture_output=True, text=True)
+            if res_v1.returncode == 0 and "Docker Compose" in (res_v1.stdout + res_v1.stderr):
+                up_res = subprocess.run(
+                    ["docker-compose", "up", "-d", "neo4j"],
+                    cwd=str(PROJECT_ROOT),
+                    capture_output=True,
+                    text=True,
+                )
+                if up_res.returncode == 0:
+                    return
+        except Exception:
+            pass
 
     # Method 3: Direct Docker Engine fallback ('docker start' / 'docker run')
     # Guarantees startup even on minimal setups without docker-compose or docker-compose-v2
-    inspect_res = subprocess.run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", "viperacl-neo4j"],
-        capture_output=True,
-        text=True,
-    )
-    if inspect_res.returncode == 0:
-        if inspect_res.stdout.strip().lower() == "true":
-            return
-        start_res = subprocess.run(["docker", "start", "viperacl-neo4j"], capture_output=True, text=True)
-        if start_res.returncode == 0:
-            return
+    if has_docker:
+        try:
+            inspect_res = subprocess.run(
+                ["docker", "inspect", "-f", "{{.State.Running}}", "viperacl-neo4j"],
+                capture_output=True,
+                text=True,
+            )
+            if inspect_res.returncode == 0:
+                if inspect_res.stdout.strip().lower() == "true":
+                    return
+                start_res = subprocess.run(["docker", "start", "viperacl-neo4j"], capture_output=True, text=True)
+                if start_res.returncode == 0:
+                    return
 
-    run_cmd = [
-        "docker", "run", "-d",
-        "--name", "viperacl-neo4j",
-        "--restart", "unless-stopped",
-        "-p", "7474:7474",
-        "-p", "7687:7687",
-        "-e", "NEO4J_AUTH=neo4j/viperacl",
-        "-e", "NEO4J_server_memory_heap_initial__size=512m",
-        "-e", "NEO4J_server_memory_heap_max__size=1G",
-        "-e", "NEO4J_server_memory_pagecache_size=512m",
-        "-v", "neo4j_data:/data",
-        "-v", "neo4j_logs:/logs",
-        "-v", "neo4j_import:/import",
-        "-v", "neo4j_plugins:/plugins",
-        "neo4j:5.26-community",
-    ]
-    run_res = subprocess.run(run_cmd, capture_output=True, text=True)
-    if run_res.returncode == 0:
-        return
+            run_cmd = [
+                "docker", "run", "-d",
+                "--name", "viperacl-neo4j",
+                "--restart", "unless-stopped",
+                "-p", "7474:7474",
+                "-p", "7687:7687",
+                "-e", "NEO4J_AUTH=neo4j/viperacl",
+                "-e", "NEO4J_server_memory_heap_initial__size=512m",
+                "-e", "NEO4J_server_memory_heap_max__size=1G",
+                "-e", "NEO4J_server_memory_pagecache_size=512m",
+                "-v", "neo4j_data:/data",
+                "-v", "neo4j_logs:/logs",
+                "-v", "neo4j_import:/import",
+                "-v", "neo4j_plugins:/plugins",
+                "neo4j:5.26-community",
+            ]
+            run_res = subprocess.run(run_cmd, capture_output=True, text=True)
+            if run_res.returncode == 0:
+                return
 
-    err_msg = (run_res.stderr or run_res.stdout or "").strip() or "Docker daemon is not responding."
+            err_msg = (run_res.stderr or run_res.stdout or "").strip()
+            if err_msg:
+                raise RuntimeError(err_msg)
+        except Exception as e:
+            if isinstance(e, RuntimeError):
+                raise
+            pass
+
     raise RuntimeError(
-        f"Failed to start local Neo4j container.\n"
-        f"Error details: {err_msg}\n"
-        f"Ensure Docker is running (`sudo systemctl start docker` / `sudo apt install docker-compose-v2`), "
-        f"or pass --no-bootstrap-db to use an external Neo4j instance."
+        "Failed to start local Neo4j container.\n"
+        "Please ensure Docker is running (`sudo systemctl start docker`),\n"
+        "or pass --no-bootstrap-db to connect to an external Neo4j instance."
     )
 
 
