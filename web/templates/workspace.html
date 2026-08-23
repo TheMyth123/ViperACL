@@ -601,7 +601,9 @@
                   <select id="pf-engine" class="w-full bg-surface-container border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none">
                     <option value="tactical" {{ 'selected' if settings and settings.pathfinder_default_mode == 'tactical' else '' }}>Tactical (Lowest Cost)</option>
                     <option value="fasttrack" {{ 'selected' if settings and settings.pathfinder_default_mode == 'fasttrack' else '' }}>FastTrack (Fewest Hops)</option>
-                    <option value="predictive" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive' else '' }}>Predictive (ML Random Forest)</option>
+                    <option value="predictive_rf" {{ 'selected' if settings and (settings.pathfinder_default_mode == 'predictive_rf' or settings.pathfinder_default_mode == 'predictive') else '' }}>Predictive (Random Forest)</option>
+                    <option value="predictive_lgbm" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive_lgbm' else '' }}>Predictive (LightGBM)</option>
+                    <option value="predictive_transformer" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive_transformer' else '' }}>Predictive (Path-Transformer)</option>
                   </select>
                 </div>
                 <button type="button" id="btn-run-pathfinder" class="px-4 py-1.5 bg-tertiary text-on-tertiary hover:bg-tertiary/90 font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1 shadow cursor-pointer self-end h-[34px] flex-shrink-0">
@@ -2936,12 +2938,39 @@
       const btnProceed = document.getElementById("btn-proceed-privesc");
       if (inspector) inspector.classList.add("hidden");
 
-      let extraMetrics = "";
-      if (mode === "tactical") extraMetrics = ` · Total Weight: ${path.metrics?.pathWeight || 0}`;
-      if (mode === "fasttrack") extraMetrics = ` · Total Hops: ${path.metrics?.hops || 0}`;
-      if (mode === "predictive") extraMetrics = ` · Confidence: ${path.success_probability || 0}%`;
+      let extraMetricsHtml = "";
+      const isPredictive = mode.startsWith("predictive") || mode === "rf" || mode === "lgbm" || mode === "transformer";
       
-      if (metrics) metrics.textContent = `${path.step_count} Hops Calculated${extraMetrics}`;
+      if (mode === "tactical") {
+        extraMetricsHtml = ` · Total Weight: ${path.metrics?.pathWeight || 0}`;
+      } else if (mode === "fasttrack") {
+        extraMetricsHtml = ` · Total Hops: ${path.metrics?.hops || 0}`;
+      } else if (isPredictive) {
+        const conf = path.success_probability || 0;
+        const modelLabel = path.model_label || (mode.includes("lgbm") ? "LightGBM" : mode.includes("transformer") ? "Path-Transformer" : "Random Forest");
+        
+        let tooltipText = "";
+        if (mode.includes("lgbm") || path.model_type === "lgbm") {
+          const breakdown = path.shap_breakdown || [];
+          if (breakdown.length > 0) {
+            const factors = breakdown.map(f => `• ${f.impact} ${f.factor}`).join("\n");
+            tooltipText = `LightGBM TreeSHAP Factor Attribution:\n${factors}`;
+          } else {
+            tooltipText = `LightGBM Gradient Boosted Trees · Calibrated Probability: ${conf}%`;
+          }
+        } else if (mode.includes("transformer") || path.model_type === "transformer") {
+          const attn = path.attention_focus || {};
+          tooltipText = `Path-Transformer Multi-Head Attention:\n${attn.summary || 'Critical Bottleneck Attention'}`;
+        } else {
+          tooltipText = `Random Forest Bagging Ensemble (150 Trees) · Calibrated Probability: ${conf}%`;
+        }
+
+        extraMetricsHtml = ` · <span class="inline-flex items-center gap-1 cursor-help px-1.5 py-0.5 rounded bg-tertiary/15 text-tertiary border border-tertiary/30 font-bold" title="${tooltipText}"><span>${modelLabel}: ${conf}% Confidence</span><span class="material-symbols-outlined text-[11px]">info</span></span>`;
+      }
+      
+      if (metrics) {
+        metrics.innerHTML = `<span>${path.step_count} Hops Calculated</span>${extraMetricsHtml}`;
+      }
 
       const steps = path.steps || [];
       if (steps.length === 0 || !container) return;
@@ -3383,7 +3412,8 @@
           dataState.classList.remove("hidden");
           dataState.classList.add("flex");
         }
-        if (badge) badge.textContent = currentMode;
+        const modeLabel = currentMode === "predictive_rf" ? "Random Forest" : currentMode === "predictive_lgbm" ? "LightGBM" : currentMode === "predictive_transformer" ? "Path-Transformer" : currentMode.toUpperCase();
+        if (badge) badge.textContent = modeLabel;
 
         renderBloodhoundGraph(activePath, currentMode);
       } else if (savedPath && savedPath.steps && savedPath.steps.length > 0) {
@@ -3396,7 +3426,8 @@
           dataState.classList.remove("hidden");
           dataState.classList.add("flex");
         }
-        if (badge) badge.textContent = savedEngine || "tactical";
+        const modeLabel = currentMode === "predictive_rf" ? "Random Forest" : currentMode === "predictive_lgbm" ? "LightGBM" : currentMode === "predictive_transformer" ? "Path-Transformer" : currentMode.toUpperCase();
+        if (badge) badge.textContent = modeLabel;
 
         currentResults = [savedPath];
         currentMode = savedEngine || "tactical";
@@ -3489,11 +3520,13 @@
             dataState.classList.add("flex");
           }
 
+          const isPredictive = mode.startsWith("predictive") || mode === "rf" || mode === "lgbm" || mode === "transformer";
           const badge = document.getElementById("pf-res-mode-badge");
-          if (badge) badge.textContent = mode;
+          const modeLabel = mode === "predictive_rf" ? "Random Forest" : mode === "predictive_lgbm" ? "LightGBM" : mode === "predictive_transformer" ? "Path-Transformer" : mode.toUpperCase();
+          if (badge) badge.textContent = modeLabel;
           
-          // Slice top 10 for predictive, otherwise just top 1
-          currentResults = mode === "predictive" ? data.results.slice(0, 10) : [data.results[0]];
+          // Slice top 10 for predictive ML engines, otherwise top 1
+          currentResults = isPredictive ? data.results.slice(0, 10) : [data.results[0]];
           
           if (currentResults.length > 1 && pathSelector && selectorContainer) {
             pathSelector.innerHTML = "";

@@ -112,7 +112,17 @@ class UpdateProjectTargetRequest(BaseModel):
 class PathfindRequest(BaseModel):
     source_name: str = Field(..., min_length=1)
     target_name: str = Field(..., min_length=1)
-    mode: Literal["tactical", "fasttrack", "predictive"] = "tactical"
+    mode: Literal[
+        "tactical",
+        "fasttrack",
+        "predictive",
+        "predictive_rf",
+        "predictive_lgbm",
+        "predictive_transformer",
+        "rf",
+        "lgbm",
+        "transformer",
+    ] = "tactical"
     project_id: str | None = None
 
 

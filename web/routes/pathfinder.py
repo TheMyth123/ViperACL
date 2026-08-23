@@ -5,7 +5,14 @@ from fastapi import APIRouter, HTTPException, Request
 from core.logger import logger
 from core.pathfinder.pathfinder import PathfinderCoordinator
 from core.projects import ProjectManager
-from web.helpers import db_manager, load_predictive_model, summarize_path
+from web.helpers import (
+    db_manager,
+    load_lgbm_model,
+    load_predictive_model,
+    load_rf_model,
+    load_transformer_model,
+    summarize_path,
+)
 from web.models import PathfindRequest
 
 router = APIRouter(prefix="/api")
@@ -28,24 +35,41 @@ def pathfind(request: PathfindRequest, req: Request):
     manager = db_manager(settings)
     try:
         coordinator = PathfinderCoordinator(manager)
-        if request.mode == "predictive" and load_predictive_model() is None:
-            logger.error(
-                "PATHFINDER", "pathfinder.model_unavailable",
-                "Predictive model is not available for pathfinding",
-                project_id=project_id,
-                source="web.app",
-            )
-            raise HTTPException(status_code=503, detail="Predictive model is not available.")
+        mode_clean = request.mode.lower().strip()
+        ml_model = None
+        ml_explainer = None
 
-        results = coordinator.find_path(
-            request.source_name,
-            request.target_name,
-            mode=request.mode,
-            ml_model=load_predictive_model() if request.mode == "predictive" else None,
-            max_hops=settings.pathfinder_max_hops,
-            ml_threshold=settings.pathfinder_ml_threshold,
-            project_id=project_id,
-        )
+        if mode_clean in ("predictive_rf", "rf", "predictive"):
+            ml_model = load_rf_model()
+            if ml_model is None:
+                logger.error("PATHFINDER", "pathfinder.model_unavailable", "Random Forest model is not available", project_id=project_id, source="web.app")
+                raise HTTPException(status_code=503, detail="Random Forest model is not available.")
+
+        elif mode_clean in ("predictive_lgbm", "lgbm"):
+            ml_model, ml_explainer = load_lgbm_model()
+            if ml_model is None:
+                logger.error("PATHFINDER", "pathfinder.model_unavailable", "LightGBM model is not available", project_id=project_id, source="web.app")
+                raise HTTPException(status_code=503, detail="LightGBM model is not available.")
+
+        elif mode_clean in ("predictive_transformer", "transformer"):
+            ml_model = load_transformer_model()
+            if ml_model is None:
+                logger.error("PATHFINDER", "pathfinder.model_unavailable", "Path-Transformer model is not available", project_id=project_id, source="web.app")
+                raise HTTPException(status_code=503, detail="Path-Transformer model is not available.")
+
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            results = coordinator.find_path(
+                request.source_name,
+                request.target_name,
+                mode=request.mode,
+                ml_model=ml_model,
+                ml_explainer=ml_explainer,
+                max_hops=settings.pathfinder_max_hops,
+                ml_threshold=settings.pathfinder_ml_threshold,
+                project_id=project_id,
+            )
     except HTTPException:
         raise
     except Exception as exc:
@@ -75,6 +99,11 @@ def pathfind(request: PathfindRequest, req: Request):
             "success_probability": record.get("success_probability"),
             "pathWeight": record.get("pathWeight"),
             "hops": record.get("hops"),
+            "model_type": record.get("model_type"),
+            "model_label": record.get("model_label"),
+            "shap_breakdown": record.get("shap_breakdown"),
+            "attention_focus": record.get("attention_focus"),
+            "explanation": record.get("explanation"),
         })
 
     logger.info(
