@@ -212,4 +212,69 @@ class SetActivePhaseRequest(BaseModel):
     project_id: str | None = None
 
 
+class DiscoverDomainRequest(BaseModel):
+    dc_ip: str = Field(..., min_length=1, max_length=128, description="Target Domain Controller IP or hostname")
+
+    @field_validator("dc_ip")
+    @classmethod
+    def check_dc_ip(cls, v: str) -> str:
+        valid, result = validate_dc_ip(v)
+        if not valid or not result:
+            raise ValueError("Valid Domain Controller IP or hostname is required.")
+        return result
+
+
+class LiveCollectRequest(BaseModel):
+    project_id: str | None = None
+    dc_ip: str | None = Field(default=None, max_length=128, description="Target Domain Controller IP")
+    domain: str | None = Field(default=None, max_length=128, description="Target Active Directory domain")
+    username: str | None = Field(default=None, max_length=64, description="Foothold username without domain prefix")
+    password: str | None = Field(default=None, max_length=256, description="Foothold account password")
+    collection_method: Literal["DCOnly", "Default", "All", "Group", "LocalAdmin", "Session", "Trusts", "ACL", "ObjectProps", "Container"] = "DCOnly"
+    use_ldaps: bool = False
+    workers: int = Field(default=10, ge=1, le=20)
+    clear_database: bool = True
+
+    @field_validator("dc_ip")
+    @classmethod
+    def check_dc_ip(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        valid, result = validate_dc_ip(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+    @field_validator("domain")
+    @classmethod
+    def check_domain(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        valid, result = validate_domain(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+    @field_validator("username")
+    @classmethod
+    def check_username(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        valid, result = validate_foothold_username(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+    @field_validator("password")
+    @classmethod
+    def check_password(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        valid, result = validate_foothold_password(v)
+        if not valid:
+            raise ValueError(result)
+        return result
+
+
+
 
