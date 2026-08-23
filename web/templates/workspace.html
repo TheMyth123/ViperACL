@@ -294,24 +294,17 @@
         <!-- Panel 1: SharpHound Archive Upload & Live AD Ingestion -->
         <div class="phase-tab-panel flex-1 flex flex-col gap-3.5 min-h-0" id="tab-phase-1">
           
-          <!-- Ingestion Method Toggle Strip -->
-          <div class="bg-surface-container-low border border-outline-variant/60 rounded-xl p-1.5 flex items-center justify-between gap-2 text-xs font-jetbrains flex-shrink-0">
-            <div class="flex items-center gap-1.5 flex-1">
-              <button type="button" id="btn-ingest-mode-live" class="ingest-subtab-btn active px-3.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all bg-primary/20 text-primary border border-primary/40 cursor-pointer shadow-sm">
-                <span class="material-symbols-outlined text-sm">bolt</span>
-                <span>Direct Live AD Collection</span>
-                <span class="bg-primary/20 text-primary text-[9px] font-bold px-1.5 py-0.2 rounded border border-primary/30 uppercase">Agentless</span>
-              </button>
-              <button type="button" id="btn-ingest-mode-upload" class="ingest-subtab-btn px-3.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border border-transparent cursor-pointer">
-                <span class="material-symbols-outlined text-sm">folder_zip</span>
-                <span>Upload SharpHound ZIP</span>
-              </button>
-            </div>
-            
-            <a href="/sharphound" class="text-secondary hover:text-secondary/80 font-bold flex items-center gap-1 no-underline whitespace-nowrap text-[11px] px-2.5 py-1 bg-surface-container hover:bg-surface-container-high rounded border border-outline-variant/40">
-              <span class="material-symbols-outlined text-xs">help</span>
-              <span>SharpHound Guide</span>
-            </a>
+          <!-- Ingestion Method Browser-Style Tab Strip (50% / 50% split) -->
+          <div class="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-xl p-1 flex items-stretch gap-1 text-xs font-jetbrains flex-shrink-0">
+            <button type="button" id="btn-ingest-mode-live" class="ingest-subtab-btn active flex-1 py-2 px-4 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all bg-primary/20 text-primary border border-primary/40 cursor-pointer shadow-sm">
+              <span class="material-symbols-outlined text-sm">bolt</span>
+              <span>Direct Live AD Collection</span>
+              <span class="bg-primary/20 text-primary text-[9px] font-bold px-1.5 py-0.5 rounded border border-primary/30 uppercase">Agentless</span>
+            </button>
+            <button type="button" id="btn-ingest-mode-upload" class="ingest-subtab-btn flex-1 py-2 px-4 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border border-transparent cursor-pointer">
+              <span class="material-symbols-outlined text-sm">folder_zip</span>
+              <span>Upload SharpHound ZIP</span>
+            </button>
           </div>
 
           <!-- SUB-VIEW A: Direct Live Remote Active Directory Collection -->
@@ -449,18 +442,6 @@
           <!-- SUB-VIEW B: Upload SharpHound ZIP Archive -->
           <div class="hidden flex-1 flex-col gap-3 min-h-0" id="phase1-upload-zip-container">
             
-            <!-- Collector Guide Referral Banner -->
-            <div class="bg-surface-container-low border border-outline-variant/60 rounded-lg px-4 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs font-jetbrains flex-shrink-0">
-              <div class="flex items-center gap-2 text-on-surface-variant">
-                <span class="material-symbols-outlined text-secondary text-base">info</span>
-                <span>Need to collect Active Directory data first using SharpHound?</span>
-              </div>
-              <a href="/sharphound" class="text-secondary hover:text-secondary/80 font-bold flex items-center gap-1 no-underline whitespace-nowrap">
-                <span>SharpHound Collector &amp; Guide</span>
-                <span class="material-symbols-outlined text-xs">arrow_forward</span>
-              </a>
-            </div>
-
             <!-- Hidden Native File Input (Accepts .zip only) -->
             <input type="file" id="sharphound-file-input" accept=".zip,application/zip,application/x-zip-compressed" class="hidden" />
 
@@ -510,15 +491,11 @@
                   </div>
                 </div>
                 
-                <div class="flex items-center gap-3 pt-2">
+                <div class="flex items-center justify-center gap-3 pt-2">
                   <button type="button" id="btn-retry-upload" class="px-5 py-2.5 bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant text-on-surface font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow">
                     <span class="material-symbols-outlined text-sm">folder_open</span>
                     <span>Attach Different File</span>
                   </button>
-                  <a href="/sharphound" class="px-4 py-2.5 bg-secondary/15 hover:bg-secondary/25 text-secondary border border-secondary/30 font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1 no-underline">
-                    <span>SharpHound Guide</span>
-                    <span class="material-symbols-outlined text-xs">arrow_forward</span>
-                  </a>
                 </div>
               </div>
 
@@ -1955,12 +1932,22 @@
       }
       window.resetUploadSubtabFresh = resetUploadSubtabFresh;
 
+      function setSubtabActive(btn) {
+        if (!btn) return;
+        btn.classList.add("active", "bg-primary/20", "text-primary", "border-primary/40", "shadow-sm");
+        btn.classList.remove("text-on-surface-variant", "border-transparent", "hover:text-on-surface", "hover:bg-surface-container-high");
+      }
+
+      function setSubtabInactive(btn) {
+        if (!btn) return;
+        btn.classList.remove("active", "bg-primary/20", "text-primary", "border-primary/40", "shadow-sm");
+        btn.classList.add("text-on-surface-variant", "border-transparent", "hover:text-on-surface", "hover:bg-surface-container-high");
+      }
+
       function switchSubtab(mode, persist = true, resetTarget = false) {
         if (mode === "live") {
-          btnModeLive?.classList.add("active", "bg-primary/20", "text-primary", "border-primary/40", "shadow-sm");
-          btnModeLive?.classList.remove("text-on-surface-variant", "border-transparent");
-          btnModeUpload?.classList.remove("active", "bg-primary/20", "text-primary", "border-primary/40", "shadow-sm");
-          btnModeUpload?.classList.add("text-on-surface-variant", "border-transparent");
+          setSubtabActive(btnModeLive);
+          setSubtabInactive(btnModeUpload);
           liveContainer?.classList.remove("hidden");
           liveContainer?.classList.add("grid");
           uploadContainer?.classList.add("hidden");
@@ -1974,10 +1961,8 @@
             checkAndRestoreLiveState();
           }
         } else {
-          btnModeUpload?.classList.add("active", "bg-primary/20", "text-primary", "border-primary/40", "shadow-sm");
-          btnModeUpload?.classList.remove("text-on-surface-variant", "border-transparent");
-          btnModeLive?.classList.remove("active", "bg-primary/20", "text-primary", "border-primary/40", "shadow-sm");
-          btnModeLive?.classList.add("text-on-surface-variant", "border-transparent");
+          setSubtabActive(btnModeUpload);
+          setSubtabInactive(btnModeLive);
           uploadContainer?.classList.remove("hidden");
           uploadContainer?.classList.add("flex");
           liveContainer?.classList.add("hidden");
