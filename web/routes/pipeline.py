@@ -8,7 +8,13 @@ import socket
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
-from core.ingestor import SharpHoundIngestor, inspect_sharphound_zip
+from core.ingestor import (
+    LiveADCollector,
+    SharpHoundIngestor,
+    discover_domain_metadata,
+    inspect_sharphound_zip,
+    validate_live_credentials,
+)
 from core.logger import logger
 from core.pathfinder.rules import normalize_path_dcsync
 from core.privesc.path_utils import path_to_sequence
@@ -20,14 +26,19 @@ from web.helpers import (
     PROJECT_ROOT, db_manager, make_privesc_context, resolve_project_path, serialize_node,
 )
 from web.models import (
+    DiscoverDomainRequest,
     ExecuteIngestRequest,
     GenerateRemediationRequest,
     IngestRequest,
+    LiveCollectRequest,
     PrivescPlanRequest,
     RemediationRequest,
 )
 
 router = APIRouter(prefix="/api")
+
+# In-memory background task registry for live remote AD collection
+_LIVE_COLLECT_TASKS: dict[str, dict] = {}
 
 
 def ping_dc(dc_ip: str, port: int = 445, timeout: float = 3.0) -> bool:
@@ -260,6 +271,179 @@ def legacy_ingest(request: IngestRequest, req: Request):
         clear_database=request.clear_database,
     )
     return execute_ingest(exec_req, req)
+
+
+@router.post("/ingest/discover-domain")
+def discover_domain(request: DiscoverDomainRequest):
+    """Auto-discovers Active Directory domain name, forest, and DC FQDN via LDAP RootDSE."""
+    meta = discover_domain_metadata(request.dc_ip)
+    if not meta.get("success") and not meta.get("domain"):
+        logger.warning(
+            "INGEST", "ingest.discover_domain.failed",
+            f"LDAP RootDSE query failed for DC {request.dc_ip}: {meta.get('error')}",
+            source="web.app",
+        )
+        return {
+            "status": "warning",
+            "message": meta.get("error", "Unable to auto-discover domain name via LDAP RootDSE."),
+            "metadata": meta,
+        }
+    return {
+        "status": "ok",
+        "metadata": meta,
+    }
+
+
+@router.post("/ingest/live-collect")
+async def trigger_live_collection(request: LiveCollectRequest, req: Request):
+    """
+    Initiates remote agentless Active Directory collection against target DC
+    using BloodHound.py, generates a standardized dataset, and tags all nodes/edges with the unique project_id.
+    """
+    import threading
+
+    settings = req.app.state.settings
+    project_mgr = ProjectManager()
+    target_project_id = request.project_id or project_mgr.get_active_project_id()
+    if not target_project_id:
+        raise HTTPException(
+            status_code=400,
+            detail="No active project selected. Please select or create a project first.",
+        )
+
+    project = project_mgr.get_project(target_project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    # Resolve parameter values with fallbacks to project scope
+    dc_ip = (request.dc_ip or project.get("dc_ip") or "").strip()
+    if not dc_ip:
+        raise HTTPException(
+            status_code=400,
+            detail="Domain Controller IP or hostname is required for live collection.",
+        )
+
+    username = (request.username or project.get("foothold_username") or "").strip()
+    password = (request.password if request.password is not None else project.get("foothold_password")) or ""
+    domain = (request.domain or project.get("domain") or "").strip()
+
+    # Check if a task is already running for this project
+    existing_task = _LIVE_COLLECT_TASKS.get(target_project_id)
+    if existing_task and existing_task.get("status") == "running":
+        return {
+            "status": "ok",
+            "task_id": target_project_id,
+            "message": "Live collection is already in progress for this project.",
+            "task": existing_task,
+        }
+
+    project_name = project.get("name", target_project_id)
+
+    # Initialize task state
+    task_state = {
+        "project_id": target_project_id,
+        "status": "running",
+        "progress": 5,
+        "stage": "Initializing",
+        "logs": [f"[{datetime.now().strftime('%H:%M:%S')}] Initializing live collection for project '{project_name}' ({target_project_id})..."],
+        "error": None,
+        "result": None,
+        "started_at": datetime.now().isoformat(),
+        "finished_at": None,
+    }
+    _LIVE_COLLECT_TASKS[target_project_id] = task_state
+
+    manager = db_manager(settings)
+
+    def log_handler(level: str, msg: str):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        log_entry = f"[{timestamp}] [{level}] {msg}"
+        task_state["logs"].append(log_entry)
+
+        # Estimate dynamic progress based on log messages
+        msg_lower = msg.lower()
+        if "[1/4]" in msg or "reachability" in msg_lower or "connectivity" in msg_lower:
+            task_state["progress"] = 15
+            task_state["stage"] = "Checking DC Reachability"
+        elif "[2/4]" in msg or "rootdse" in msg_lower or "domain auto-discovered" in msg_lower:
+            task_state["progress"] = 30
+            task_state["stage"] = "Domain Discovery"
+        elif "[3/4]" in msg or "foothold" in msg_lower or "validating credentials" in msg_lower:
+            task_state["progress"] = 45
+            task_state["stage"] = "Validating Credentials"
+        elif "[4/4]" in msg or "executing active directory collection" in msg_lower or "querying" in msg_lower:
+            task_state["progress"] = 60
+            task_state["stage"] = "Querying LDAP Directory"
+        elif "enumerating" in msg_lower or "found" in msg_lower or "writing" in msg_lower:
+            task_state["progress"] = 75
+            task_state["stage"] = "Parsing Security Descriptors"
+        elif "archive generated" in msg_lower or "collection archive" in msg_lower or "compressing" in msg_lower:
+            task_state["progress"] = 85
+            task_state["stage"] = "Compressing Archive"
+        elif "ingesting active directory objects" in msg_lower:
+            task_state["progress"] = 92
+            task_state["stage"] = "Loading Neo4j Partition"
+        elif "ingestion complete" in msg_lower:
+            task_state["progress"] = 100
+            task_state["stage"] = "Completed"
+
+    def background_run():
+        try:
+            collector = LiveADCollector(project_id=target_project_id, db_manager=manager)
+            res = collector.collect(
+                dc_ip=dc_ip,
+                domain=domain,
+                username=username,
+                password=password,
+                collection_method=request.collection_method,
+                use_ldaps=request.use_ldaps,
+                workers=request.workers,
+                progress_callback=log_handler,
+            )
+            task_state["status"] = "completed"
+            task_state["progress"] = 100
+            task_state["stage"] = "Completed"
+            task_state["result"] = res
+            task_state["finished_at"] = datetime.now().isoformat()
+        except Exception as exc:
+            task_state["status"] = "failed"
+            task_state["stage"] = "Failed"
+            task_state["error"] = str(exc)
+            task_state["finished_at"] = datetime.now().isoformat()
+            log_handler("ERROR", f"Collection failed: {exc}")
+
+    thread = threading.Thread(target=background_run, daemon=True)
+    thread.start()
+
+    logger.info(
+        "INGEST", "ingest.live_collect.started",
+        f"Live remote collection started for project {target_project_id} (DC: {dc_ip}, method: {request.collection_method})",
+        project_id=target_project_id,
+        source="web.app",
+        details={"dc_ip": dc_ip, "method": request.collection_method},
+    )
+
+    return {
+        "status": "ok",
+        "task_id": target_project_id,
+        "message": "Live Active Directory collection started in background.",
+    }
+
+
+@router.get("/ingest/live-collect/status/{project_id}")
+def get_live_collection_status(project_id: str):
+    """Returns the live status, progress, and logs of an active or recent collection task."""
+    task = _LIVE_COLLECT_TASKS.get(project_id)
+    if not task:
+        return {
+            "status": "idle",
+            "project_id": project_id,
+            "progress": 0,
+            "stage": "Idle",
+            "logs": [],
+        }
+    return task
+
 
 
 @router.post("/privesc/plan")
