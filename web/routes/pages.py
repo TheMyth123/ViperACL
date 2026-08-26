@@ -1,7 +1,7 @@
 """HTML page routes."""
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 
 from core.logger import logger
 from core.projects import ProjectManager
@@ -12,6 +12,11 @@ from fastapi.templating import Jinja2Templates
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 router = APIRouter()
+
+
+@router.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(BASE_DIR / "static" / "favicon.svg", media_type="image/svg+xml")
 
 
 @router.get("/", response_class=HTMLResponse)

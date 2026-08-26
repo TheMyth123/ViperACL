@@ -101,24 +101,38 @@ function updateStatusBadge(health) {
   if (elements.nodeCount) elements.nodeCount.textContent = snapshot.nodes ?? "0";
   if (elements.relationshipCount) elements.relationshipCount.textContent = snapshot.relationships ?? "0";
 
-  // ML Core Engine
-  if (elements.mlModelType) {
-    elements.mlModelType.textContent = health.model_type || "Random Forest";
+  // ML Predictive Suite (3 Models)
+  const summaryTextEl = document.getElementById("ml-status-summary-text");
+  if (summaryTextEl) {
+    summaryTextEl.textContent = health.model_status_text || (health.model_available ? "Ready" : "Unavailable");
   }
-  if (elements.mlModelFile) {
-    elements.mlModelFile.textContent = health.model_name || "viper_rf_model.pkl";
-    elements.mlModelFile.className = `text-[11px] font-mono px-2 py-0.5 rounded border whitespace-nowrap ${
-      health.model_available ? "text-on-surface-variant bg-surface-container-high border-outline-variant" : "text-[#ff7f7f] bg-red-950/40 border-red-500/30"
-    }`;
-  }
+
   if (elements.mlEngineStatus) {
     if (health.model_available) {
-      elements.mlEngineStatus.textContent = "Optimized & Ready";
-      elements.mlEngineStatus.className = "flex items-center gap-2 text-[#4cd7f6] bg-[#4cd7f6]/10 px-3 py-1 rounded border border-[#4cd7f6]/30 font-bold transition-all";
+      elements.mlEngineStatus.className = "flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono font-bold border text-[#4cd7f6] bg-[#4cd7f6]/10 border-[#4cd7f6]/30 transition-all";
     } else {
-      elements.mlEngineStatus.textContent = "Model Unavailable";
-      elements.mlEngineStatus.className = "flex items-center gap-2 text-[#ff7f7f] bg-red-950/70 px-3 py-1 rounded border border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.3)] font-extrabold transition-all";
+      elements.mlEngineStatus.className = "flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono font-bold border text-[#ff7f7f] bg-red-950/70 border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all";
     }
+  }
+
+  if (health.ml_models && Array.isArray(health.ml_models)) {
+    health.ml_models.forEach((m) => {
+      const statusEl = document.getElementById(`ml-status-${m.id}`);
+      const fileEl = document.getElementById(`ml-file-${m.id}`);
+      if (statusEl) {
+        if (m.available) {
+          statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-[#4cd7f6] shadow-[0_0_4px_#4cd7f6]"></span><span>Ready</span>`;
+          statusEl.className = "text-[9.5px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 flex-shrink-0 border text-[#4cd7f6] bg-[#4cd7f6]/10 border-[#4cd7f6]/30";
+        } else {
+          statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-[#ff7f7f]"></span><span>Missing</span>`;
+          statusEl.className = "text-[9.5px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 flex-shrink-0 border text-[#ff7f7f] bg-red-950/60 border-red-500/50";
+        }
+      }
+      if (fileEl && m.file) {
+        fileEl.textContent = m.file;
+        fileEl.title = m.file;
+      }
+    });
   }
 
   // Sidebar Status

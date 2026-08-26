@@ -218,16 +218,49 @@ def build_runtime_state(settings) -> dict:
     projects = project_mgr.list_projects()
     active_project = project_mgr.get_project(active_id) if active_id else None
 
-    model_exists = MODEL_PATH.exists()
+    rf_exists = RF_MODEL_PATH.exists() or LEGACY_RF_MODEL_PATH.exists()
+    lgbm_exists = LGBM_MODEL_PATH.exists()
+    transformer_exists = TRANSFORMER_MODEL_PATH.exists()
+    ready_count = sum([rf_exists, lgbm_exists, transformer_exists])
+    any_model_available = rf_exists or lgbm_exists or transformer_exists
+
+    ml_models = [
+        {
+            "id": "rf",
+            "name": "Random Forest",
+            "badge": "Scikit-Learn",
+            "file": RF_MODEL_PATH.name if RF_MODEL_PATH.exists() else LEGACY_RF_MODEL_PATH.name,
+            "available": rf_exists,
+            "status": "Ready" if rf_exists else "Unavailable",
+        },
+        {
+            "id": "lgbm",
+            "name": "LightGBM",
+            "badge": "TreeSHAP",
+            "file": LGBM_MODEL_PATH.name,
+            "available": lgbm_exists,
+            "status": "Ready" if lgbm_exists else "Unavailable",
+        },
+        {
+            "id": "transformer",
+            "name": "Path-Transformer",
+            "badge": "PyTorch",
+            "file": TRANSFORMER_MODEL_PATH.name,
+            "available": transformer_exists,
+            "status": "Ready" if transformer_exists else "Unavailable",
+        },
+    ]
+
     return {
         "snapshot": snapshot,
         "active_project_id": active_id,
         "active_project": active_project,
         "projects": projects,
-        "model_available": model_exists,
+        "model_available": any_model_available,
         "model_name": MODEL_PATH.name,
-        "model_type": "Random Forest",
-        "model_status_text": "Optimized & Ready" if model_exists else "Model Unavailable",
-        "path_modes": ["tactical", "fasttrack", "predictive"],
+        "model_type": "Tri-Model Predictive Suite",
+        "model_status_text": f"{ready_count}/3 Ready" if ready_count < 3 else "3/3 Ready",
+        "ml_models": ml_models,
+        "path_modes": ["tactical", "fasttrack", "predictive_rf", "predictive_lgbm", "predictive_transformer"],
         "functions": ["ingest", "pathfind", "privesc", "remediation"],
     }

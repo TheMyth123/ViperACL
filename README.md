@@ -13,34 +13,34 @@
 
 **ViperACL** is an enterprise-grade Active Directory security framework designed to bridge the gap between static graph theory (e.g., BloodHound Dijkstra shortest paths) and live offensive/defensive operations.
 
-Traditional pathfinding tools evaluate attack paths using static hop counts or fixed cost tables, making them blind to sequential exploit dependencies and operational friction in live Active Directory environments. ViperACL introduces an end-to-end **4-Phase Autonomous Pipeline** powered by a **Machine Learning Predictive Engine** that evaluates real-world execution feasibility, executes surgical privilege escalation steps, and automatically generates production-ready PowerShell remediation scripts.
+Traditional pathfinding tools evaluate attack paths using static hop counts or fixed cost tables, making them blind to sequential exploit dependencies and operational friction in live Active Directory environments. ViperACL introduces an end-to-end **Modular Autonomous Pipeline** powered by a **Machine Learning Predictive Engine** that evaluates real-world execution feasibility, executes surgical privilege escalation steps, and automatically generates production-ready PowerShell remediation scripts.
 
-| Phase | Core Objective | Key Capabilities |
+| Module | Core Objective | Key Capabilities |
 | :--- | :--- | :--- |
-| **Phase 1: Ingest & Scope** | Ingestion & Environment Setup | SharpHound ZIP Ingestion, Multi-Project Graph Isolation, DC Reachability & Preflight Checks |
-| **Phase 2: Pathfinder** | Multi-Engine Attack Routing | FastTrack (Shortest Hop), Tactical Cost Map, Predictive ML (Combinatorial Blindspot Resolution) |
-| **Phase 3: Privesc Execution** | Automated Path Execution | Modular Active Directory Exploits (LDAP / Impacket), Credential Dumps, Real-Time Live Feed |
-| **Phase 4: Surgical Remediation** | Hardening & Severance | Idempotent PowerShell Script Builder, 19 AD Edge Mitigations, SACL Owner Restoration |
+| **Ingest & Scope** | Ingestion & Environment Setup | SharpHound ZIP Ingestion, Multi-Project Graph Isolation, DC Reachability & Preflight Checks |
+| **Pathfinder** | Multi-Engine Attack Routing | FastTrack (Shortest Hop), Tactical Cost Map, Predictive ML (Combinatorial Blindspot Resolution) |
+| **Privilege Escalation** | Automated Path Execution | Modular Active Directory Exploits (LDAP / Impacket), Credential Dumps, Real-Time Live Feed |
+| **Surgical Remediation** | Hardening & Rollback | Idempotent PowerShell Script Builder, 19 AD Edge Mitigations, SACL Owner Restoration |
 
 ---
 
-## 🚀 The 4 Operational Phases
+## 🚀 Operational Modules
 
-### Phase 1: Ingest & Project Isolation
+### Ingest & Project Isolation
 * **High-Speed ZIP Ingestion**: Parses SharpHound JSON output archives (`users.json`, `groups.json`, `computers.json`, `domains.json`, `acls.json`) into Neo4j in seconds using batch-optimized transactions and compound indexes.
 * **Project Graph Partitioning**: Strictly isolates target Active Directory environments using dedicated project scopes and separate database workspaces.
 * **Pre-flight Connectivity Verification**: Built-in ICMP ping and LDAP bind testing to validate Domain Controller reachability and foothold credentials prior to engagement.
 
-### Phase 2: Intelligent Multi-Engine Attack Pathfinder
+### Intelligent Multi-Engine Attack Pathfinder
 ViperACL provides three distinct pathfinding engines tailored for different operational objectives:
 1. **Viper FastTrack (Shortest Path)**: Uses Dijkstra's algorithm to compute the absolute lowest hop count to Domain Admin / Domain Root.
 2. **Viper Tactical (Operational Cost Map)**: Evaluates edge costs to minimize noisy operations (e.g. avoiding password resets when group takeovers exist).
 3. **Viper Predictive (Machine Learning Engine)**:
-   - Uses a **Random Forest Classifier** trained on enterprise Active Directory telemetry.
+   - Uses **Machine Learning Models** (Random Forest, LightGBM with TreeSHAP, and Path-Transformer) trained on enterprise Active Directory telemetry.
    - Solves the **Combinatorial Blindspot** of static graph algorithms where combinations of individually viable steps cause execution failures in live Active Directory environments.
    - Generates calibrated **Confidence Scores ($60\% - 95\%$)** across paths to recommend the highest-reliability vector.
 
-### Phase 3: Automated Privilege Escalation Engine
+### Automated Privilege Escalation Engine
 * **Modular Step-by-Step Execution**: Executes attack path actions via direct LDAP3 and Impacket RPC protocols.
 * **Supported Privilege Exploits**:
   - Group Membership Injections (`AddMember`)
@@ -50,7 +50,7 @@ ViperACL provides three distinct pathfinding engines tailored for different oper
   - Domain Credential Dumps (`DCSync` via DRSUAPI replication)
 * **Real-time Live Execution Feed**: Interactive terminal interface providing instant status logs, new credentials, and step verification.
 
-### Phase 4: Surgical Remediation Script Builder
+### Surgical Remediation Script Builder
 * **Zero-Downtime Defense**: Automatically compiles chosen attack path edges into an idempotent, standalone PowerShell script (`.ps1`).
 * **19 Supported Edge Conditions**: Tailored removal templates for all 19 recognized Active Directory relationship vectors.
 * **Safe SACL Restoration**: Automatically returns hijacked object ownership back to `Domain Admins` and strips unneeded ACEs without disrupting normal domain operations.

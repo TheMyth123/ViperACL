@@ -31,6 +31,7 @@ def health(request: Request):
         "model_name": runtime["model_name"],
         "model_type": runtime["model_type"],
         "model_status_text": runtime["model_status_text"],
+        "ml_models": runtime.get("ml_models", []),
         "path_modes": runtime["path_modes"],
         "functions": runtime["functions"],
         "snapshot": snapshot,

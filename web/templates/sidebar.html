@@ -21,7 +21,7 @@
       <span class="text-label-md font-label-md font-bold pointer-events-none">Launchpad</span>
     </a>
 
-    <!-- Tactical Workspace / 4 Phases link -->
+    <!-- Tactical Workspace link -->
     <a href="/workspace" class="w-full flex items-center gap-3 rounded-lg px-4 py-2.5 text-left no-underline cursor-pointer transition-all {{ 'btn-new-project' if active_page == 'workspace' else 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high' }}">
       <span class="material-symbols-outlined fill-icon pointer-events-none">account_tree</span>
       <span class="text-label-md font-label-md font-bold pointer-events-none">Workspace</span>
@@ -303,10 +303,12 @@
           <div class="space-y-3">
             <div>
               <label class="block text-[11px] font-bold text-on-surface-variant uppercase mb-1">Default Path Mode</label>
-              <select id="settings-default-mode" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none">
-                <option value="tactical" {{ 'selected' if settings and settings.pathfinder_default_mode == 'tactical' else '' }}>Tactical (Strict Choke Point Focus)</option>
-                <option value="fasttrack" {{ 'selected' if settings and settings.pathfinder_default_mode == 'fasttrack' else '' }}>FastTrack (Shortest Path Speed)</option>
-                <option value="predictive" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive' else '' }}>Predictive (Random Forest Probability)</option>
+              <select id="settings-default-mode" class="w-full bg-surface-container-low border border-outline-variant rounded px-3 py-2 text-xs text-on-surface font-jetbrains focus:border-primary focus:outline-none cursor-pointer">
+                <option value="tactical" {{ 'selected' if settings and settings.pathfinder_default_mode == 'tactical' else '' }}>Tactical (Lowest Cost)</option>
+                <option value="fasttrack" {{ 'selected' if settings and settings.pathfinder_default_mode == 'fasttrack' else '' }}>FastTrack (Fewest Hops)</option>
+                <option value="predictive_rf" {{ 'selected' if settings and (settings.pathfinder_default_mode == 'predictive_rf' or settings.pathfinder_default_mode == 'predictive') else '' }}>Predictive (Random Forest)</option>
+                <option value="predictive_lgbm" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive_lgbm' else '' }}>Predictive (LightGBM - TreeSHAP)</option>
+                <option value="predictive_transformer" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive_transformer' else '' }}>Predictive (Path-Transformer)</option>
               </select>
             </div>
             <div>

@@ -65,68 +65,135 @@
         </div>
       </div>
 
-      <!-- ML Core Engine -->
+      <!-- ML Predictive Suite (3 Models Horizontal Block Layout) -->
       <div class="bg-[#1E293B] border-t-2 border-secondary rounded-xl p-3.5 flex flex-col justify-between tactical-card border border-[#334155]">
-        <div class="flex items-center gap-2.5 mb-2">
-          <span class="material-symbols-outlined text-secondary text-2xl">memory</span>
-          <h3 class="text-headline-md font-headline-md text-on-surface text-lg font-bold">ML Core Engine</h3>
-        </div>
-        <div class="space-y-2 font-jetbrains flex-1 flex flex-col justify-center">
-          <div class="bg-surface-container-low p-2 px-3.5 rounded border border-outline-variant text-xs flex items-center justify-between gap-2">
-            <div>
-              <span class="block text-on-surface-variant mb-0.5 font-medium">Model Architecture</span>
-              <span class="text-on-surface font-bold text-sm" id="ml-model-type">{{ runtime.model_type if runtime.model_type else "Random Forest" }}</span>
-            </div>
-            <span class="text-[11px] font-mono text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded border border-outline-variant whitespace-nowrap" id="ml-model-file">{{ runtime.model_name if runtime.model_available else "viper_rf_model.pkl" }}</span>
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-secondary text-2xl">memory</span>
+            <h3 class="text-headline-md font-headline-md text-on-surface text-lg font-bold">Predictive ML Suite</h3>
           </div>
-          <div class="flex items-center justify-between bg-surface-container-low p-2 px-3.5 rounded border border-outline-variant text-xs">
-            <span class="text-on-surface-variant font-medium">Engine Status</span>
-            <div class="flex items-center gap-2 px-2.5 py-0.5 rounded border font-bold transition-all {{ 'text-[#4cd7f6] bg-[#4cd7f6]/10 border-[#4cd7f6]/30' if runtime.model_available else 'text-[#ff7f7f] bg-red-950/60 border-red-500/50 shadow-[0_0_12px_rgba(239,68,68,0.2)]' }}" id="ml-engine-status">
-              {{ "Optimized & Ready" if runtime.model_available else "Model Unavailable" }}
+          <div class="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono font-bold border {{ 'text-[#4cd7f6] bg-[#4cd7f6]/10 border-[#4cd7f6]/30' if runtime.model_available else 'text-[#ff7f7f] bg-red-950/60 border-red-500/50' }}" id="ml-engine-status">
+            <span class="w-1.5 h-1.5 rounded-full {{ 'bg-[#4cd7f6] shadow-[0_0_6px_#4cd7f6]' if runtime.model_available else 'bg-[#ff7f7f]' }}"></span>
+            <span id="ml-status-summary-text">{{ runtime.model_status_text if runtime.model_status_text else 'Ready' }}</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2.5 font-jetbrains flex-1">
+          <!-- Block 1: Random Forest -->
+          {% set rf_m = (runtime.ml_models | selectattr('id', 'equalto', 'rf') | first) if runtime.ml_models else none %}
+          {% set rf_avail = rf_m.available if rf_m else runtime.model_available %}
+          <div class="bg-surface-container-low p-2.5 rounded-lg border border-outline-variant/80 flex flex-col justify-between hover:border-secondary/50 transition-all">
+            <div>
+              <div class="flex items-center justify-between gap-1 mb-2">
+                <span class="text-xs font-bold text-on-surface flex items-center gap-1 whitespace-nowrap min-w-0">
+                  <span class="material-symbols-outlined text-sm text-secondary flex-shrink-0">forest</span>
+                  <span>Random Forest</span>
+                </span>
+                <span class="text-[9.5px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 flex-shrink-0 border {{ 'text-[#4cd7f6] bg-[#4cd7f6]/10 border-[#4cd7f6]/30' if rf_avail else 'text-[#ff7f7f] bg-red-950/60 border-red-500/50' }}" id="ml-status-rf">
+                  <span class="w-1.5 h-1.5 rounded-full {{ 'bg-[#4cd7f6] shadow-[0_0_4px_#4cd7f6]' if rf_avail else 'bg-[#ff7f7f]' }}"></span>
+                  <span>{{ 'Ready' if rf_avail else 'Missing' }}</span>
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 mb-2">
+                <span class="text-[10px] font-mono text-secondary bg-secondary/15 px-1.5 py-0.5 rounded font-semibold border border-secondary/20">Scikit-Learn</span>
+                <span class="text-[10px] font-mono text-on-surface-variant font-medium">Tabular Path</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 text-[10.5px] font-mono text-on-surface-variant bg-surface-container-high/90 px-2 py-0.5 rounded border border-outline-variant/60 overflow-hidden">
+              <span class="material-symbols-outlined text-[12px] text-on-surface-variant/70 flex-shrink-0">attach_file</span>
+              <span class="truncate" id="ml-file-rf" title="{{ rf_m.file if rf_m else 'rf_viper_model.pkl' }}">{{ rf_m.file if rf_m else 'rf_viper_model.pkl' }}</span>
+            </div>
+          </div>
+
+          <!-- Block 2: LightGBM & TreeSHAP -->
+          {% set lgbm_m = (runtime.ml_models | selectattr('id', 'equalto', 'lgbm') | first) if runtime.ml_models else none %}
+          {% set lgbm_avail = lgbm_m.available if lgbm_m else true %}
+          <div class="bg-surface-container-low p-2.5 rounded-lg border border-outline-variant/80 flex flex-col justify-between hover:border-tertiary/50 transition-all">
+            <div>
+              <div class="flex items-center justify-between gap-1 mb-2">
+                <span class="text-xs font-bold text-on-surface flex items-center gap-1 whitespace-nowrap min-w-0">
+                  <span class="material-symbols-outlined text-sm text-tertiary flex-shrink-0">bolt</span>
+                  <span>LightGBM</span>
+                </span>
+                <span class="text-[9.5px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 flex-shrink-0 border {{ 'text-[#4cd7f6] bg-[#4cd7f6]/10 border-[#4cd7f6]/30' if lgbm_avail else 'text-[#ff7f7f] bg-red-950/60 border-red-500/50' }}" id="ml-status-lgbm">
+                  <span class="w-1.5 h-1.5 rounded-full {{ 'bg-[#4cd7f6] shadow-[0_0_4px_#4cd7f6]' if lgbm_avail else 'bg-[#ff7f7f]' }}"></span>
+                  <span>{{ 'Ready' if lgbm_avail else 'Missing' }}</span>
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 mb-2">
+                <span class="text-[10px] font-mono text-tertiary bg-tertiary/15 px-1.5 py-0.5 rounded font-semibold border border-tertiary/20">TreeSHAP</span>
+                <span class="text-[10px] font-mono text-on-surface-variant font-medium">Explainability</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 text-[10.5px] font-mono text-on-surface-variant bg-surface-container-high/90 px-2 py-0.5 rounded border border-outline-variant/60 overflow-hidden">
+              <span class="material-symbols-outlined text-[12px] text-on-surface-variant/70 flex-shrink-0">attach_file</span>
+              <span class="truncate" id="ml-file-lgbm" title="lgbm_viper_model.pkl">lgbm_viper_model.pkl</span>
+            </div>
+          </div>
+
+          <!-- Block 3: Path-Transformer -->
+          {% set trans_m = (runtime.ml_models | selectattr('id', 'equalto', 'transformer') | first) if runtime.ml_models else none %}
+          {% set trans_avail = trans_m.available if trans_m else true %}
+          <div class="bg-surface-container-low p-2.5 rounded-lg border border-outline-variant/80 flex flex-col justify-between hover:border-primary/50 transition-all">
+            <div>
+              <div class="flex items-center justify-between gap-1 mb-2">
+                <span class="text-xs font-bold text-on-surface flex items-center gap-1 whitespace-nowrap min-w-0">
+                  <span class="material-symbols-outlined text-sm text-primary flex-shrink-0">neurology</span>
+                  <span>Transformer</span>
+                </span>
+                <span class="text-[9.5px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-1 flex-shrink-0 border {{ 'text-[#4cd7f6] bg-[#4cd7f6]/10 border-[#4cd7f6]/30' if trans_avail else 'text-[#ff7f7f] bg-red-950/60 border-red-500/50' }}" id="ml-status-transformer">
+                  <span class="w-1.5 h-1.5 rounded-full {{ 'bg-[#4cd7f6] shadow-[0_0_4px_#4cd7f6]' if trans_avail else 'bg-[#ff7f7f]' }}"></span>
+                  <span>{{ 'Ready' if trans_avail else 'Missing' }}</span>
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 mb-2">
+                <span class="text-[10px] font-mono text-primary bg-primary/15 px-1.5 py-0.5 rounded font-semibold border border-primary/20">PyTorch</span>
+                <span class="text-[10px] font-mono text-on-surface-variant font-medium">Self-Attention</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 text-[10.5px] font-mono text-on-surface-variant bg-surface-container-high/90 px-2 py-0.5 rounded border border-outline-variant/60 overflow-hidden">
+              <span class="material-symbols-outlined text-[12px] text-on-surface-variant/70 flex-shrink-0">attach_file</span>
+              <span class="truncate" id="ml-file-transformer" title="transformer_viper_model.pt">transformer_viper_model.pt</span>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 4 Phase Pipeline Preview -->
+    <!-- Operational Pipeline Preview -->
     <section class="w-full flex-shrink-0">
       <h3 class="text-sm font-bold text-on-surface mb-2 border-b border-outline-variant pb-1 uppercase tracking-wider">Operational Pipeline Preview</h3>
       <div class="grid grid-cols-4 gap-4">
-        <!-- Phase 1 -->
+        <!-- Ingest -->
         <div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-ingest">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-[11px] font-bold text-secondary tracking-widest uppercase bg-secondary/10 px-2 py-0.5 rounded">Phase 1</span>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-base font-bold text-on-surface">Ingest</h4>
             <span class="material-symbols-outlined text-secondary opacity-70 text-xl">upload_file</span>
           </div>
-          <h4 class="text-base font-bold text-on-surface mb-1">Ingest</h4>
           <p class="text-xs text-on-surface-variant leading-relaxed">Parse BloodHound/SharpHound JSON data to populate target domain graph.</p>
         </div>
-        <!-- Phase 2 -->
+        <!-- Pathfinder -->
         <div class="bg-surface-container border border-outline-variant border-t-2 border-t-tertiary rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-pathfinder">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-[11px] font-bold text-tertiary tracking-widest uppercase bg-tertiary/10 px-2 py-0.5 rounded">Phase 2</span>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-base font-bold text-on-surface">Pathfinder</h4>
             <span class="material-symbols-outlined text-tertiary opacity-70 text-xl">route</span>
           </div>
-          <h4 class="text-base font-bold text-on-surface mb-1">Pathfinder</h4>
-          <p class="text-xs text-on-surface-variant leading-relaxed">Leverage Random Forest predictive models to analyze attack paths.</p>
+          <p class="text-xs text-on-surface-variant leading-relaxed">Leverage Machine Learning predictive models to analyze attack paths.</p>
         </div>
-        <!-- Phase 3 -->
+        <!-- Privilege Escalation -->
         <div class="bg-surface-container border border-outline-variant border-t-2 border-t-error rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-privesc">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-[11px] font-bold text-error tracking-widest uppercase bg-error/10 px-2 py-0.5 rounded">Phase 3</span>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-base font-bold text-on-surface">Privilege Escalation</h4>
             <span class="material-symbols-outlined text-error opacity-70 text-xl">admin_panel_settings</span>
           </div>
-          <h4 class="text-base font-bold text-on-surface mb-1">Privilege Escalation</h4>
           <p class="text-xs text-on-surface-variant leading-relaxed">Execute automated ACL privilege escalation chains safely.</p>
         </div>
-        <!-- Phase 4 -->
+        <!-- Remediation -->
         <div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary-container rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-remediation">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-[11px] font-bold text-secondary-container tracking-widest uppercase bg-secondary-container/10 px-2 py-0.5 rounded">Phase 4</span>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-base font-bold text-on-surface whitespace-nowrap">Remediation</h4>
             <span class="material-symbols-outlined text-secondary-container opacity-70 text-xl">healing</span>
           </div>
-          <h4 class="text-base font-bold text-on-surface mb-1 whitespace-nowrap">Remediation</h4>
           <p class="text-xs text-on-surface-variant leading-relaxed">Generate surgical PowerShell scripts to neutralize choke points.</p>
         </div>
       </div>

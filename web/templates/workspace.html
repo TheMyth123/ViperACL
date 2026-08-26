@@ -255,29 +255,29 @@
           <!-- Tab 1: Ingest (Always Unlocked when active project present) -->
           <button type="button" class="phase-tab active cursor-pointer hover:bg-surface-container-high flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-bold text-on-surface bg-surface-container border-t border-l border-r border-outline-variant/60" data-tab="tab-phase-1" id="tab-btn-1">
             <span class="material-symbols-outlined text-sm tab-icon text-secondary">upload_file</span>
-            <span>Phase 1: Ingest</span>
+            <span>Ingest</span>
           </button>
 
-          <!-- Tab 2: Pathfinder & ML (Unlocked if Phase 1 has data or unlocked_phase in ['phase_2', 'all']) -->
+          <!-- Tab 2: Pathfinder & ML (Unlocked if Ingest has data or unlocked_phase in ['phase_2', 'all']) -->
           {% set phase2_unlocked = (active_project and (active_project.unlocked_phase in ['phase_2', 'all'] or active_project.nodes > 0)) %}
           <button type="button" class="phase-tab {{ 'cursor-pointer hover:bg-surface-container-high text-on-surface-variant' if phase2_unlocked else 'locked opacity-40 cursor-not-allowed text-on-surface-variant/40' }} flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium border-t border-l border-r border-transparent" data-tab="tab-phase-2" data-locked="{{ 'false' if phase2_unlocked else 'true' }}" id="tab-btn-2">
             <span class="material-symbols-outlined text-sm tab-icon text-tertiary">route</span>
-            <span>Phase 2: Pathfinder</span>
+            <span>Pathfinder</span>
             <span class="material-symbols-outlined text-xs text-on-surface-variant/50 ml-0.5 {{ 'hidden' if phase2_unlocked else '' }}" id="lock-icon-phase-2">lock</span>
           </button>
 
-          <!-- Tab 3: PrivEsc (Unlocked with Phase 4 after Path selection) -->
+          <!-- Tab 3: PrivEsc (Unlocked with Remediation after Path selection) -->
           {% set phase3_4_unlocked = (active_project and active_project.unlocked_phase == 'all') %}
           <button type="button" class="phase-tab {{ 'cursor-pointer hover:bg-surface-container-high text-on-surface-variant' if phase3_4_unlocked else 'locked opacity-40 cursor-not-allowed text-on-surface-variant/40' }} flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium border-t border-l border-r border-transparent" data-tab="tab-phase-3" data-locked="{{ 'false' if phase3_4_unlocked else 'true' }}" id="tab-btn-3">
             <span class="material-symbols-outlined text-sm tab-icon text-error">admin_panel_settings</span>
-            <span>Phase 3: PrivEsc</span>
+            <span>Privilege Escalation</span>
             <span class="material-symbols-outlined text-xs text-on-surface-variant/50 ml-0.5 {{ 'hidden' if phase3_4_unlocked else '' }}" id="lock-icon-phase-3">lock</span>
           </button>
 
-          <!-- Tab 4: Remediation (Unlocked with Phase 3 after Path selection) -->
+          <!-- Tab 4: Remediation (Unlocked with Privilege Escalation after Path selection) -->
           <button type="button" class="phase-tab {{ 'cursor-pointer hover:bg-surface-container-high text-on-surface-variant' if phase3_4_unlocked else 'locked opacity-40 cursor-not-allowed text-on-surface-variant/40' }} flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-xs font-jetbrains font-medium border-t border-l border-r border-transparent" data-tab="tab-phase-4" data-locked="{{ 'false' if phase3_4_unlocked else 'true' }}" id="tab-btn-4">
             <span class="material-symbols-outlined text-sm tab-icon text-secondary-container">healing</span>
-            <span>Phase 4: Remediation</span>
+            <span>Remediation</span>
             <span class="material-symbols-outlined text-xs text-on-surface-variant/50 ml-0.5 {{ 'hidden' if phase3_4_unlocked else '' }}" id="lock-icon-phase-4">lock</span>
           </button>
 
@@ -578,8 +578,8 @@
           
           <!-- Pathfinder Form Configuration (Compact Direct Bar) -->
           <div class="bg-surface-container-low border border-outline-variant rounded-xl p-2.5 shadow-sm flex-shrink-0">
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end">
-              <div class="md:col-span-4">
+            <div class="flex flex-col md:flex-row gap-2.5 items-end">
+              <div class="flex-[1.1] min-w-0 w-full">
                 <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Source Node (Initial Foothold)</label>
                 <div class="relative">
                   <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">person</span>
@@ -587,7 +587,7 @@
                 </div>
               </div>
               
-              <div class="md:col-span-4">
+              <div class="flex-[1.1] min-w-0 w-full">
                 <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Target Node (Domain Objective)</label>
                 <div class="relative">
                   <span class="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant/50 text-xs">target</span>
@@ -595,22 +595,34 @@
                 </div>
               </div>
 
-              <div class="md:col-span-4 flex gap-2">
-                <div class="flex-1">
-                  <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Engine Algorithm</label>
-                  <select id="pf-engine" class="w-full bg-surface-container border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none">
-                    <option value="tactical" {{ 'selected' if settings and settings.pathfinder_default_mode == 'tactical' else '' }}>Tactical (Lowest Cost)</option>
-                    <option value="fasttrack" {{ 'selected' if settings and settings.pathfinder_default_mode == 'fasttrack' else '' }}>FastTrack (Fewest Hops)</option>
-                    <option value="predictive_rf" {{ 'selected' if settings and (settings.pathfinder_default_mode == 'predictive_rf' or settings.pathfinder_default_mode == 'predictive') else '' }}>Predictive (Random Forest)</option>
-                    <option value="predictive_lgbm" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive_lgbm' else '' }}>Predictive (LightGBM)</option>
-                    <option value="predictive_transformer" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive_transformer' else '' }}>Predictive (Path-Transformer)</option>
-                  </select>
-                </div>
-                <button type="button" id="btn-run-pathfinder" class="px-4 py-1.5 bg-tertiary text-on-tertiary hover:bg-tertiary/90 font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1 shadow cursor-pointer self-end h-[34px] flex-shrink-0">
-                  <span class="material-symbols-outlined text-xs">search</span>
-                  <span>Find Path</span>
-                </button>
+              <!-- Metric Optimization Dropdown -->
+              <div class="flex-1 min-w-0 w-full">
+                <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Metric Optimization</label>
+                <select id="pf-engine-metric" class="w-full bg-surface-container border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface font-jetbrains focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none transition-all cursor-pointer">
+                  <option value="" disabled class="hidden">-- Select Metric --</option>
+                  <option value="tactical" {{ 'selected' if not settings or settings.pathfinder_default_mode == 'tactical' else '' }}>Tactical (Lowest Cost)</option>
+                  <option value="fasttrack" {{ 'selected' if settings and settings.pathfinder_default_mode == 'fasttrack' else '' }}>FastTrack (Fewest Hops)</option>
+                </select>
               </div>
+
+              <!-- Predictive Intelligence Dropdown -->
+              <div class="flex-1 min-w-0 w-full">
+                <label class="block text-[10px] font-bold text-on-surface-variant uppercase mb-0.5">Predictive Intelligence</label>
+                <select id="pf-engine-ml" class="w-full bg-surface-container border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface-variant/70 font-jetbrains focus:border-tertiary focus:ring-1 focus:ring-tertiary focus:outline-none transition-all cursor-pointer">
+                  <option value="" {{ 'selected' if not settings or settings.pathfinder_default_mode in ['tactical', 'fasttrack'] else '' }} disabled class="hidden">-- Select ML Model --</option>
+                  <option value="predictive_rf" {{ 'selected' if settings and settings.pathfinder_default_mode in ['predictive_rf', 'predictive'] else '' }}>Random Forest</option>
+                  <option value="predictive_lgbm" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive_lgbm' else '' }}>LightGBM (TreeSHAP)</option>
+                  <option value="predictive_transformer" {{ 'selected' if settings and settings.pathfinder_default_mode == 'predictive_transformer' else '' }}>Path-Transformer</option>
+                </select>
+              </div>
+
+              <!-- Hidden Master Engine Selector Input for backwards compatibility -->
+              <input type="hidden" id="pf-engine" value="{{ settings.pathfinder_default_mode if settings and settings.pathfinder_default_mode else 'tactical' }}" />
+
+              <button type="button" id="btn-run-pathfinder" class="px-4 py-1.5 bg-tertiary text-on-tertiary hover:bg-tertiary/90 font-jetbrains font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow cursor-pointer self-end h-[34px] flex-shrink-0">
+                <span class="material-symbols-outlined text-xs">search</span>
+                <span>Find Path</span>
+              </button>
             </div>
           </div>
 
@@ -665,7 +677,7 @@
                   </div>
 
                   <button type="button" id="btn-proceed-privesc" class="hidden px-3.5 py-1 bg-primary hover:bg-primary/90 text-on-primary font-jetbrains font-bold text-[10px] uppercase tracking-wider rounded transition-all items-center gap-1.5 shadow-lg shadow-primary/20 cursor-pointer">
-                    <span>Send Path &amp; Proceed to Phase 3</span>
+                    <span>Send Path &amp; Proceed to Privilege Escalation or Remediation</span>
                     <span class="material-symbols-outlined text-xs">arrow_forward</span>
                   </button>
                 </div>
@@ -730,7 +742,7 @@
         <!-- Panel 3: Privilege Escalation Execution & Visualization Orchestrator -->
         <div class="phase-tab-panel hidden flex-1 flex flex-col gap-3 min-h-0" id="tab-phase-3">
           
-          <!-- State A: No Path Committed from Phase 2 -->
+          <!-- State A: No Path Committed from Pathfinder -->
           <div id="p3-empty-state" class="hidden flex-1 bg-surface-container-low border border-outline-variant rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-4 min-h-[300px]">
             <div class="w-16 h-16 rounded-2xl bg-error/10 border border-error/30 text-error flex items-center justify-center shadow-lg">
               <span class="material-symbols-outlined text-3xl">lock_open</span>
@@ -738,12 +750,12 @@
             <div class="max-w-md space-y-1.5">
               <h3 class="text-base font-bold text-on-surface">No Attack Path Committed</h3>
               <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed">
-                Phase 3 requires an attack path selected and committed from Phase 2 (Pathfinder). Direct path selection is disabled here to enforce validated attack chains.
+                Privilege Escalation requires an attack path selected and committed from Pathfinder. Direct path selection is disabled here to enforce validated attack chains.
               </p>
             </div>
             <button type="button" id="p3-btn-goto-phase2" class="px-5 py-2.5 bg-tertiary hover:bg-tertiary/90 text-on-tertiary-container font-jetbrains font-bold text-xs rounded-lg transition-all shadow-lg flex items-center gap-2 cursor-pointer">
               <span class="material-symbols-outlined text-base">route</span>
-              <span>Go to Phase 2: Pathfinder</span>
+              <span>Go to Pathfinder</span>
             </button>
           </div>
 
@@ -788,7 +800,7 @@
                     <span class="material-symbols-outlined text-base">restart_alt</span>
                   </button>
 
-                  <button type="button" id="p3-btn-change-path" class="px-2.5 py-1.5 text-on-surface-variant hover:text-on-surface text-xs font-jetbrains flex items-center gap-1 cursor-pointer" title="Change path in Phase 2">
+                  <button type="button" id="p3-btn-change-path" class="px-2.5 py-1.5 text-on-surface-variant hover:text-on-surface text-xs font-jetbrains flex items-center gap-1 cursor-pointer" title="Change path in Pathfinder">
                     <span class="material-symbols-outlined text-sm">edit_note</span>
                     <span>Edit Path</span>
                   </button>
@@ -952,12 +964,12 @@
             <div class="max-w-md space-y-1.5">
               <h3 class="text-base font-bold text-on-surface">No Attack Path Selected</h3>
               <p class="text-xs text-on-surface-variant font-jetbrains leading-relaxed">
-                Remediation scripts require an attack path from Phase 2 (Pathfinder). Select and lock a path to generate surgical Active Directory mitigation scripts.
+                Remediation scripts require an attack path selected from Pathfinder. Select and lock a path to generate surgical Active Directory mitigation scripts.
               </p>
             </div>
             <button type="button" id="p4-btn-goto-pathfinder" class="px-4 py-2 bg-primary hover:bg-primary/90 text-on-primary font-jetbrains font-bold text-xs rounded-lg transition-all shadow flex items-center gap-1.5 cursor-pointer">
               <span class="material-symbols-outlined text-sm">explore</span>
-              <span>Go to Pathfinder (Phase 2)</span>
+              <span>Go to Pathfinder</span>
             </button>
           </div>
 
@@ -1252,7 +1264,7 @@
             </div>
           </div>
           <p class="text-[10px] text-on-surface-variant/70 mt-1 leading-snug">
-            Automatically extracted from SharpHound archive JSON data during Phase 1 ingestion.
+            Automatically extracted from SharpHound archive JSON data during ingestion.
           </p>
         </div>
 
@@ -1320,6 +1332,7 @@
     data-selected-source="{{ active_project.selected_source if (active_project and active_project.selected_source) else '' }}"
     data-selected-target="{{ active_project.selected_target if (active_project and active_project.selected_target) else '' }}"
     data-selected-path-index="{{ active_project.selected_path_index if active_project else 0 }}"
+    data-default-mode="{{ settings.pathfinder_default_mode if settings and settings.pathfinder_default_mode else 'tactical' }}"
     class="hidden"></div>
   {% if active_project and active_project.selected_path %}
   <script id="saved-path-json" type="application/json">
@@ -1584,6 +1597,22 @@
         if (!modal || !modalBox) return;
         if (errorBox) errorBox.classList.add("hidden");
         hideEditConnectionResult();
+
+        // Dynamically sync detected domain from workspace context
+        const currentDomain = (wsContext && wsContext.domain) ? wsContext.domain.toUpperCase() : "";
+        const editTargetDomainText = document.getElementById("edit-target-domain-text");
+        const editTargetDomainStatus = document.getElementById("edit-target-domain-status");
+        if (currentDomain && currentDomain !== "UNKNOWN.LOCAL") {
+          if (editTargetDomainText) {
+            editTargetDomainText.textContent = currentDomain;
+            editTargetDomainText.className = "text-secondary font-bold";
+          }
+          if (editTargetDomainStatus) {
+            editTargetDomainStatus.textContent = "Detected";
+            editTargetDomainStatus.className = "text-[9px] px-1.5 py-0.5 rounded font-mono uppercase bg-secondary/15 text-secondary border border-secondary/30";
+          }
+        }
+
         modal.classList.remove("hidden");
         requestAnimationFrame(() => {
           modal.classList.remove("opacity-0");
@@ -2226,6 +2255,18 @@
                 domainDisplay.title = detectedDomain.toUpperCase();
               }
 
+              // Update edit target modal display
+              const editTargetDomainText = document.getElementById("edit-target-domain-text");
+              const editTargetDomainStatus = document.getElementById("edit-target-domain-status");
+              if (editTargetDomainText) {
+                editTargetDomainText.textContent = detectedDomain.toUpperCase();
+                editTargetDomainText.className = "text-secondary font-bold";
+              }
+              if (editTargetDomainStatus) {
+                editTargetDomainStatus.textContent = "Detected";
+                editTargetDomainStatus.className = "text-[9px] px-1.5 py-0.5 rounded font-mono uppercase bg-secondary/15 text-secondary border border-secondary/30";
+              }
+
               // Update domain field if populated
               if (domainInput && !domainInput.value) {
                 domainInput.value = detectedDomain.toUpperCase();
@@ -2618,7 +2659,7 @@
           alertBanner.innerHTML = `
             <span class="material-symbols-outlined text-base flex-shrink-0 text-primary">check_circle</span>
             <div class="flex-1">
-              <strong>Ingestion Complete!</strong> Successfully loaded <strong>${data.snapshot.nodes}</strong> nodes and <strong>${data.snapshot.relationships}</strong> relationships. Phase 2 Pathfinder is unlocked!
+              <strong>Ingestion Complete!</strong> Successfully loaded <strong>${data.snapshot.nodes}</strong> nodes and <strong>${data.snapshot.relationships}</strong> relationships. Pathfinder is unlocked!
             </div>
           `;
           alertBanner.classList.remove("hidden");
@@ -3348,11 +3389,56 @@
           tgtInput.value = "";
           tgtInput.classList.remove("input-error-shake");
         }
-        const engineSelect = document.getElementById("pf-engine");
-        if (engineSelect) {
-          engineSelect.value = "tactical";
+        if (typeof syncEngineUI === "function") {
+          syncEngineUI(wsContext.defaultMode || "{{ settings.pathfinder_default_mode if settings and settings.pathfinder_default_mode else 'tactical' }}");
         }
       };
+
+      // Engine Selection Synchronization (Metric Optimization vs Predictive Intelligence)
+      const metricSelectEl = document.getElementById("pf-engine-metric");
+      const mlSelectEl = document.getElementById("pf-engine-ml");
+      const masterEngineEl = document.getElementById("pf-engine");
+
+      const syncEngineUI = (selectedMode) => {
+        if (!selectedMode) selectedMode = wsContext.defaultMode || "tactical";
+        if (selectedMode === "predictive") selectedMode = "predictive_rf";
+        if (masterEngineEl) masterEngineEl.value = selectedMode;
+
+        if (selectedMode === "tactical" || selectedMode === "fasttrack") {
+          if (metricSelectEl) {
+            metricSelectEl.value = selectedMode;
+            metricSelectEl.classList.remove("text-on-surface-variant/70", "border-outline-variant");
+            metricSelectEl.classList.add("text-on-surface", "border-secondary", "ring-1", "ring-secondary/30");
+          }
+          if (mlSelectEl) {
+            mlSelectEl.value = "";
+            mlSelectEl.classList.remove("text-on-surface", "border-tertiary", "ring-1", "ring-tertiary/30");
+            mlSelectEl.classList.add("text-on-surface-variant/70", "border-outline-variant");
+          }
+        } else {
+          if (mlSelectEl) {
+            mlSelectEl.value = selectedMode;
+            mlSelectEl.classList.remove("text-on-surface-variant/70", "border-outline-variant");
+            mlSelectEl.classList.add("text-on-surface", "border-tertiary", "ring-1", "ring-tertiary/30");
+          }
+          if (metricSelectEl) {
+            metricSelectEl.value = "";
+            metricSelectEl.classList.remove("text-on-surface", "border-secondary", "ring-1", "ring-secondary/30");
+            metricSelectEl.classList.add("text-on-surface-variant/70", "border-outline-variant");
+          }
+        }
+      };
+
+      if (metricSelectEl) {
+        metricSelectEl.addEventListener("change", (e) => {
+          if (e.target.value) syncEngineUI(e.target.value);
+        });
+      }
+      if (mlSelectEl) {
+        mlSelectEl.addEventListener("change", (e) => {
+          if (e.target.value) syncEngineUI(e.target.value);
+        });
+      }
 
       // Auto-restore saved project path and candidates on page load
       const savedPathScript = document.getElementById("saved-path-json");
@@ -3380,8 +3466,11 @@
         srcInput.value = domain ? `${username}@${domain}` : username;
       }
       if (savedTarget && tgtInput) tgtInput.value = savedTarget;
-      if (savedEngine && document.getElementById("pf-engine")) {
-        document.getElementById("pf-engine").value = savedEngine;
+
+      if (savedEngine) {
+        syncEngineUI(savedEngine);
+      } else {
+        syncEngineUI(wsContext.defaultMode || "{{ settings.pathfinder_default_mode if settings and settings.pathfinder_default_mode else 'tactical' }}");
       }
 
       if (savedCandidates && savedCandidates.length > 0) {

@@ -488,7 +488,7 @@ class LiveADCollector:
 
         emit_log(
             "SUCCESS",
-            f"Ingestion complete! Successfully loaded {node_count} nodes and {rel_count} relationships. Phase 2 Pathfinder unlocked.",
+            f"Ingestion complete! Successfully loaded {node_count} nodes and {rel_count} relationships. Pathfinder unlocked.",
         )
 
         logger.info(
