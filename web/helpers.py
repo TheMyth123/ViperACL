@@ -14,7 +14,12 @@ from core.projects import ProjectManager
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
-MODEL_PATH = PROJECT_ROOT / "models" / "viper_rf_model.pkl"
+RF_MODEL_PATH = PROJECT_ROOT / "models" / "rf_viper_model.pkl"
+LEGACY_RF_MODEL_PATH = PROJECT_ROOT / "models" / "viper_rf_model.pkl"
+LGBM_MODEL_PATH = PROJECT_ROOT / "models" / "lgbm_viper_model.pkl"
+LGBM_SHAP_PATH = PROJECT_ROOT / "models" / "lgbm_shap_explainer.pkl"
+TRANSFORMER_MODEL_PATH = PROJECT_ROOT / "models" / "transformer_viper_model.pt"
+MODEL_PATH = RF_MODEL_PATH if RF_MODEL_PATH.exists() else LEGACY_RF_MODEL_PATH
 
 
 def db_manager(settings, required=True):
@@ -45,14 +50,53 @@ def resolve_project_path(raw_path: str) -> Path:
 
 
 @lru_cache(maxsize=1)
-def load_predictive_model():
-    """Load the ML model from disk (cached) without unpickling version warnings."""
-    if not MODEL_PATH.exists():
+def load_rf_model():
+    """Load Random Forest ML model from disk (cached)."""
+    target_path = RF_MODEL_PATH if RF_MODEL_PATH.exists() else LEGACY_RF_MODEL_PATH
+    if not target_path.exists():
         return None
     import warnings
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
-        return joblib.load(MODEL_PATH)
+        return joblib.load(target_path)
+
+
+@lru_cache(maxsize=1)
+def load_lgbm_model():
+    """Load LightGBM ML model and TreeSHAP explainer from disk (cached)."""
+    if not LGBM_MODEL_PATH.exists():
+        return None, None
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        model = joblib.load(LGBM_MODEL_PATH)
+        explainer = joblib.load(LGBM_SHAP_PATH) if LGBM_SHAP_PATH.exists() else None
+        return model, explainer
+
+
+@lru_cache(maxsize=1)
+def load_transformer_model():
+    """Load Path-Transformer PyTorch model from disk (cached)."""
+    if not TRANSFORMER_MODEL_PATH.exists():
+        return None
+    import torch
+    from core.pathfinder.transformer_model import NODE_TYPE_VOCAB, REL_TYPE_VOCAB, PathTransformer
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = PathTransformer(
+        node_vocab_size=len(NODE_TYPE_VOCAB) + 5,
+        rel_vocab_size=len(REL_TYPE_VOCAB) + 5,
+        d_model=64,
+        n_heads=4,
+        num_layers=2,
+        max_hops=25,
+    ).to(device)
+    model.load_state_dict(torch.load(TRANSFORMER_MODEL_PATH, map_location=device))
+    model.eval()
+    return model
+
+
+# Legacy alias
+load_predictive_model = load_rf_model
 
 
 def serialize_node(node) -> dict:

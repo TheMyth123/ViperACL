@@ -27,11 +27,16 @@ data/*.kirbi
 data/*.zip
 /projects/
 
-# Preserve Essential Tools, Datasets & Models in data/
+# Preserve Essential Tools, Datasets & Models in data/ and models/
 !data/tools/
 !data/tools/**
 !data/synthetic_training.csv
 !data/synthetic_desc.csv
+!data/rf_*
+!data/lgbm_*
+!data/transformer_*
+!models/
+!models/**
 
 # Python Bytecode, Caching & Testing
 __pycache__/
@@ -45,14 +50,13 @@ build/
 dist/
 *.egg-info/
 
-# IDEs, Agents, Plans & Scratch Files
+# IDEs, Agents, & Scratch Files
 .vscode/
 .idea/
 .roo/
 .gemini/
 .agents/
 scratch/
-plans/
 AGENTS.md
 AGENTS.MD
 agents.md
