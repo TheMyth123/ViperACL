@@ -35,6 +35,7 @@ data/*.zip
 !data/rf_*
 !data/lgbm_*
 !data/transformer_*
+!data/master_*
 !models/
 !models/**
 

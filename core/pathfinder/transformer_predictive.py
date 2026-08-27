@@ -91,7 +91,7 @@ def encode_path_sequence(path: list, db=None, project_id: str | None = None) -> 
 
 def compute_transformer_confidence(model: PathTransformer, path: list, db=None, project_id: str | None = None) -> tuple[float, dict]:
     """
-    Runs forward inference through the Path-Transformer, calculates calibrated confidence %,
+    Runs forward inference through the Path-Transformer, calculates raw probability %,
     and extracts multi-head attention weights to identify the critical bottleneck hop.
     """
     model.eval()
@@ -101,9 +101,8 @@ def compute_transformer_confidence(model: PathTransformer, path: list, db=None, 
         logits, all_attentions = model(t_src, t_rel, t_tgt, t_feats)
         raw_prob = float(torch.sigmoid(logits).item())
 
-    # Calibrated probability percentage [55.0%, 96.0%]
-    confidence = 55.0 + (raw_prob * 41.0)
-    confidence_pct = round(max(55.0, min(96.0, confidence)), 1)
+    # Raw probability percentage [0.0%, 99.0%]
+    confidence_pct = round(min(99.0, raw_prob * 100.0), 1)
 
     # Extract Attention weights across sequence hops
     attention_focus = {

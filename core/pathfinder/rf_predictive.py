@@ -161,15 +161,13 @@ extract_features = extract_rf_features
 
 def compute_rf_confidence(model, features: list) -> float:
     """
-    Computes Random Forest calibrated operational confidence percentage.
-    Maps raw tree vote probability to realistic AD operational feasibility.
+    Computes Random Forest class probability percentage.
+    Outputs raw tree ensemble probability capped at 99.0% max.
     """
     df_features = pd.DataFrame([features], columns=RF_FEATURE_COLUMNS)
     raw_prob = float(model.predict_proba(df_features)[0][1])
 
-    # Affine calibration
-    confidence = 60.0 + (raw_prob * 35.0)
-    return round(max(55.0, min(96.0, confidence)), 1)
+    return round(min(99.0, raw_prob * 100.0), 1)
 
 
 # Backwards compatibility alias

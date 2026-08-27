@@ -149,18 +149,15 @@ def format_lgbm_factor_label(col_name: str, raw_val: float, is_positive: bool) -
 
 def compute_lgbm_confidence(model, explainer, features: list) -> tuple[float, list[dict]]:
     """
-    Computes LightGBM calibrated confidence percentage and extracts
+    Computes LightGBM raw class probability percentage and extracts
     top positive and negative TreeSHAP feature attribution factors
     filtered strictly to features that actually exist on the attack path.
     """
     df_features = pd.DataFrame([features], columns=LGBM_FEATURE_COLUMNS)
     
-    # 1. Raw calibrated probability from gradient boosted trees
+    # 1. Raw probability from gradient boosted trees [0.0%, 99.0%]
     raw_prob = float(model.predict_proba(df_features)[0][1])
-    
-    # Sigmoidal / linear scaling to [55.0%, 96.0%]
-    confidence = 55.0 + (raw_prob * 41.0)
-    confidence_pct = round(max(55.0, min(96.0, confidence)), 1)
+    confidence_pct = round(min(99.0, raw_prob * 100.0), 1)
 
     # 2. Extract TreeSHAP values for local explainability
     shap_breakdown = []

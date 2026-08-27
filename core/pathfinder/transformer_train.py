@@ -32,9 +32,10 @@ class ADSequenceDataset(Dataset):
         self.max_hops = max_hops
 
         if not jsonl_path.exists():
-            # If not yet generated, auto-generate synthetic sequence data
-            from dev.transformer_generate_dataset import generate_dataset_files
-            generate_dataset_files()
+            # If not yet generated, auto-generate synthetic sequence data from master generator
+            from dev.generate_master_dataset import export_datasets, generate_master_dataset
+            samples = generate_master_dataset()
+            export_datasets(samples)
 
         with open(jsonl_path, "r", encoding="utf-8") as f:
             for line in f:
