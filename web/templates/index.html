@@ -165,7 +165,7 @@
       <h3 class="text-sm font-bold text-on-surface mb-2 border-b border-outline-variant pb-1 uppercase tracking-wider">Operational Pipeline Preview</h3>
       <div class="grid grid-cols-4 gap-4">
         <!-- Ingest -->
-        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-ingest">
+        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary rounded-lg p-3.5 tactical-card hover:border-secondary/50 flex flex-col justify-between select-none">
           <div class="flex items-center justify-between mb-2">
             <h4 class="text-base font-bold text-on-surface">Ingest</h4>
             <span class="material-symbols-outlined text-secondary opacity-70 text-xl">upload_file</span>
@@ -173,7 +173,7 @@
           <p class="text-xs text-on-surface-variant leading-relaxed">Parse BloodHound/SharpHound JSON data to populate target domain graph.</p>
         </div>
         <!-- Pathfinder -->
-        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-tertiary rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-pathfinder">
+        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-tertiary rounded-lg p-3.5 tactical-card hover:border-tertiary/50 flex flex-col justify-between select-none">
           <div class="flex items-center justify-between mb-2">
             <h4 class="text-base font-bold text-on-surface">Pathfinder</h4>
             <span class="material-symbols-outlined text-tertiary opacity-70 text-xl">route</span>
@@ -181,7 +181,7 @@
           <p class="text-xs text-on-surface-variant leading-relaxed">Leverage Machine Learning predictive models to analyze attack paths.</p>
         </div>
         <!-- Privilege Escalation -->
-        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-error rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-privesc">
+        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-error rounded-lg p-3.5 tactical-card hover:border-error/50 flex flex-col justify-between select-none">
           <div class="flex items-center justify-between mb-2">
             <h4 class="text-base font-bold text-on-surface">Privilege Escalation</h4>
             <span class="material-symbols-outlined text-error opacity-70 text-xl">admin_panel_settings</span>
@@ -189,7 +189,7 @@
           <p class="text-xs text-on-surface-variant leading-relaxed">Execute automated ACL privilege escalation chains safely.</p>
         </div>
         <!-- Remediation -->
-        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary-container rounded-lg p-3.5 tactical-card flex flex-col justify-between pipeline-card cursor-pointer" data-action="phase-remediation">
+        <div class="bg-surface-container border border-outline-variant border-t-2 border-t-secondary-container rounded-lg p-3.5 tactical-card hover:border-secondary-container/50 flex flex-col justify-between select-none">
           <div class="flex items-center justify-between mb-2">
             <h4 class="text-base font-bold text-on-surface whitespace-nowrap">Remediation</h4>
             <span class="material-symbols-outlined text-secondary-container opacity-70 text-xl">healing</span>
@@ -221,7 +221,7 @@
       };
     </script>
     <script src="/static/sidebar.js?v=3"></script>
-    <script src="/static/app.js?v=10"></script>
+    <script src="/static/app.js?v=11"></script>
 </body>
 
 </html>

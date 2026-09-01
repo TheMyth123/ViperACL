@@ -38,7 +38,6 @@ const elements = {
   createProjectButton: document.getElementById("create-project-button"),
   runFullChain: document.getElementById("run-full-chain"),
   refreshStatus: document.getElementById("refresh-status"),
-  pipelineCards: Array.from(document.querySelectorAll(".pipeline-card")),
   navLinks: Array.from(document.querySelectorAll(".nav-link[data-action]")),
   quickActions: Array.from(document.querySelectorAll(".quick-action[data-mode]")),
 };
@@ -348,18 +347,6 @@ function wireEvents() {
       } catch (error) { setConsole(`Status refresh failed: ${error.message}`, "muted"); }
     });
   }
-
-  elements.pipelineCards.forEach((card) => {
-    card.addEventListener("click", async () => {
-      const action = card.dataset.action;
-      try {
-        if (action === "phase-ingest") await runIngest();
-        else if (action === "phase-pathfinder") await runPathfind();
-        else if (action === "phase-privesc") await runPrivescPlan();
-        else if (action === "phase-remediation") await runRemediation();
-      } catch (error) { setConsole(`${action} failed: ${error.message}`, "muted"); }
-    });
-  });
 
   elements.navLinks.forEach((link) => {
     link.addEventListener("click", async (event) => {
