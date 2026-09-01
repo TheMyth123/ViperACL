@@ -11,6 +11,8 @@ joblib==1.5.1
 lightgbm>=4.0.0
 shap>=0.45.0
 torch>=2.0.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
 
 # Web Framework & API Server
 fastapi>=0.115.0
