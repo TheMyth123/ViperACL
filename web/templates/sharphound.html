@@ -179,8 +179,29 @@
 
     copyBtn.addEventListener("click", async () => {
       const textToCopy = cmdDisplay.textContent;
+      let copied = false;
       try {
-        await navigator.clipboard.writeText(textToCopy);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(textToCopy);
+          copied = true;
+        }
+      } catch (_) {}
+
+      if (!copied) {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = textToCopy;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+          copied = true;
+        } catch (_) {}
+      }
+
+      if (copied) {
         copyIcon.textContent = "check";
         copyText.textContent = "Copied!";
         copyBtn.classList.add("bg-primary/20", "text-primary", "border-primary/40");
@@ -189,8 +210,6 @@
           copyText.textContent = "Copy Command";
           copyBtn.classList.remove("bg-primary/20", "text-primary", "border-primary/40");
         }, 2000);
-      } catch (err) {
-        prompt("Copy this command:", textToCopy);
       }
     });
   </script>
